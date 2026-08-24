@@ -1,0 +1,4 @@
+# Empreinte SHA-256 (16 hex) du hostname Postgres de la base PILOTE production.
+# Générer : npm run db:fingerprint -- "$(npx netlify env:get NETLIFY_DB_URL --context production)"
+# Ne pas commiter l’URL complète — seulement cette empreinte.
+16950163f70780b3

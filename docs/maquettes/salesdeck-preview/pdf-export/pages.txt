@@ -1,0 +1,11 @@
+docs/maquettes/salesdeck-preview/pdf-export/slide-01.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-02.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-03.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-04.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-05.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-06.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-07.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-08.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-09.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-10.png
+docs/maquettes/salesdeck-preview/pdf-export/slide-11.png

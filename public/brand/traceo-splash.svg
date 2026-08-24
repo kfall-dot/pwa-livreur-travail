@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1920" fill="none" font-family="'DM Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <rect width="1280" height="1920" fill="#0b4a2c"/>
+  <!-- Soft radial atmosphere -->
+  <circle cx="640" cy="720" r="520" fill="#0f5a36" opacity="0.45"/>
+  <circle cx="640" cy="720" r="280" fill="#127043" opacity="0.28"/>
+
+  <!-- Mark -->
+  <g transform="translate(528 520) scale(3.5)">
+    <circle cx="30" cy="34" r="13" fill="none" stroke="#ffffff" stroke-width="5"
+            stroke-linecap="round" stroke-dasharray="60 22" stroke-dashoffset="6"/>
+    <circle cx="40.8" cy="43.4" r="1.7" fill="#e85d04"/>
+    <circle cx="43.6" cy="38.4" r="1.7" fill="#e85d04"/>
+    <g transform="translate(40.5 25) scale(0.8)">
+      <path fill-rule="evenodd" fill="#e85d04"
+            d="M0 0 C -5.5 -8 -9 -11 -9 -15.5 A 9 9 0 1 1 9 -15.5 C 9 -11 5.5 -8 0 0 Z
+               M3.6 -15.5 A 3.6 3.6 0 1 0 -3.6 -15.5 A 3.6 3.6 0 1 0 3.6 -15.5 Z"/>
+    </g>
+  </g>
+
+  <text x="640" y="880" text-anchor="middle" font-size="92" font-weight="700"
+        letter-spacing="-1.5" fill="#ffffff">TraceO<tspan font-size="38" dy="-42" fill="#e85d04">&#174;</tspan></text>
+  <rect x="590" y="920" width="100" height="7" rx="3.5" fill="#e85d04"/>
+  <text x="640" y="990" text-anchor="middle" font-size="28" font-weight="500" fill="#c5dbcf">
+    La plateforme de tra&#231;abilit&#233; des op&#233;rations terrain
+  </text>
+
+  <text x="640" y="1780" text-anchor="middle" font-size="22" font-weight="600" fill="#8fb39a">
+    C&#244;te d&apos;Ivoire
+  </text>
+</svg>

@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TraceO® — Sales Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --green: #0b4a2c;
+      --green-ink: #062617;
+      --green-mist: #dceee4;
+      --orange: #e85d04;
+      --paper: #f6f5f2;
+      --white: #ffffff;
+      --ink: #111827;
+      --mute: #6b7280;
+      --hair: rgba(17, 24, 39, 0.08);
+      --sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      --display: "Fraunces", ui-serif, Georgia, serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--sans);
+      background: #0a0c0b;
+      color: var(--ink);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Stage 16:9 — Keynote / Stripe Sessions feel */
+    .viewport {
+      height: 100%;
+      width: 100%;
+      display: grid;
+      place-items: center;
+      padding: 2.5vh 2vw;
+    }
+    .stage {
+      position: relative;
+      width: min(96vw, calc(96vh * 16 / 9));
+      aspect-ratio: 16 / 9;
+      background: var(--paper);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.06),
+        0 40px 120px rgba(0,0,0,0.55);
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      opacity: 0;
+    }
+    .slide.on {
+      display: block;
+      animation: in 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: none; }
+    }
+    .rise { animation: rise 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+    .rise-2 { animation-delay: 90ms; }
+    .rise-3 { animation-delay: 160ms; }
+    .rise-4 { animation-delay: 230ms; }
+
+    .pad {
+      position: absolute;
+      inset: 0;
+      padding: 6.5% 6%;
+    }
+
+    .kicker {
+      font-size: clamp(10px, 1.05vw, 13px);
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--mute);
+    }
+    .kicker.hot { color: var(--orange); }
+
+    h1, h2 {
+      font-family: var(--display);
+      font-weight: 600;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      color: var(--green-ink);
+    }
+    h1 { font-size: clamp(2.4rem, 5.2vw, 4.4rem); max-width: 11ch; }
+    h2 { font-size: clamp(1.85rem, 3.5vw, 3rem); max-width: 16ch; }
+
+    .body {
+      margin-top: 1.1rem;
+      font-size: clamp(0.95rem, 1.25vw, 1.15rem);
+      line-height: 1.55;
+      color: var(--mute);
+      max-width: 38ch;
+      font-weight: 450;
+    }
+
+    .foot {
+      position: absolute;
+      left: 6%;
+      right: 6%;
+      bottom: 4.5%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: clamp(10px, 0.95vw, 12px);
+      color: rgba(17,24,39,0.35);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      z-index: 5;
+    }
+    .foot.light { color: rgba(255,255,255,0.35); }
+
+    /* ——— Cover ——— */
+    .s-cover {
+      background:
+        radial-gradient(ellipse 80% 60% at 70% 40%, rgba(232,93,4,0.18), transparent 55%),
+        radial-gradient(ellipse 70% 70% at 20% 80%, rgba(11,74,44,0.55), transparent 50%),
+        linear-gradient(145deg, #04150d 0%, #0b4a2c 52%, #083021 100%);
+    }
+    .s-cover .pad {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 3%;
+      align-items: center;
+    }
+    .s-cover h1 { color: #fff; max-width: 10ch; }
+    .s-cover .body { color: rgba(255,255,255,0.68); max-width: 32ch; }
+    .s-cover .kicker { color: rgba(255,180,130,0.9); }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      margin-bottom: 2.2rem;
+    }
+    .brand-row img { width: 36px; height: 36px; filter: brightness(0) invert(1); }
+    .brand-row span {
+      font-family: var(--display);
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+    .meta-line {
+      margin-top: 2.4rem;
+      display: flex;
+      gap: 1.75rem;
+      flex-wrap: wrap;
+      font-size: clamp(10px, 0.95vw, 12px);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+      font-weight: 600;
+    }
+
+    .hero-stack {
+      position: relative;
+      height: 100%;
+      min-height: 320px;
+    }
+    .hero-desk {
+      position: absolute;
+      right: 0;
+      top: 8%;
+      width: 92%;
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--paper);
+      border: 1px solid var(--hair);
+      box-shadow: none;
+      transform: perspective(1200px) rotateY(-8deg) rotateX(4deg);
+      transform-origin: right center;
+    }
+    .hero-desk .bar {
+      height: 28px;
+      background: #1c1c1e;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+    }
+    .hero-desk .bar i {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #3a3a3c; display: block;
+    }
+    .hero-desk img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      object-position: top;
+    }
+    .hero-phone {
+      position: absolute;
+      left: -2%;
+      bottom: 2%;
+      width: 38%;
+      background: transparent;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+      transform: rotate(-6deg);
+    }
+    .hero-phone img {
+      display: block;
+      width: 100%;
+      border-radius: 16px;
+      aspect-ratio: auto;
+      object-fit: contain;
+      object-position: top;
+      border: 0;
+      box-shadow: none;
+    }
+
+    /* ——— Split product ——— */
+    .s-split .pad {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 5%;
+      align-items: center;
+    }
+    .s-split.flip .pad { grid-template-columns: 1.08fr 0.92fr; }
+    .s-split.flip .copy { order: 2; }
+    .s-split.flip .visual { order: 1; }
+
+    .points {
+      margin-top: 1.75rem;
+      display: grid;
+      gap: 0.85rem;
+      max-width: 36ch;
+    }
+    .points li {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 0.7rem;
+      align-items: start;
+      font-size: clamp(0.88rem, 1.1vw, 1.02rem);
+      line-height: 1.4;
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .points li span {
+      display: block;
+      margin-top: 0.15rem;
+      font-weight: 400;
+      color: var(--mute);
+      font-size: 0.92em;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      margin-top: 0.45rem;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .browser {
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--paper);
+      box-shadow: none;
+      border: 1px solid var(--hair);
+    }
+    .browser .bar {
+      height: 34px;
+      background: #f0eeea;
+      border-bottom: 1px solid var(--hair);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 14px;
+    }
+    .browser .bar i {
+      width: 9px; height: 9px; border-radius: 50%; background: #d4d0c8;
+    }
+    .browser .url {
+      margin-left: 10px;
+      flex: 1;
+      height: 20px;
+      border-radius: 5px;
+      background: var(--white);
+      border: 1px solid var(--hair);
+      font-size: 10px;
+      color: var(--mute);
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      letter-spacing: 0.01em;
+    }
+    .browser img {
+      display: block;
+      width: 100%;
+      max-height: 58vh;
+      object-fit: cover;
+      object-position: top;
+    }
+
+    .phones {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 4%;
+      padding-right: 2%;
+    }
+    .phone {
+      width: min(42%, 220px);
+      background: transparent;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+    .phone:nth-child(2) { transform: translateY(-18px); }
+    .phone img {
+      display: block;
+      width: 100%;
+      border-radius: 0;
+      aspect-ratio: auto;
+      max-height: 62vh;
+      object-fit: contain;
+      object-position: top;
+      border: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+    .phone.shot-raw img {
+      border-radius: 0;
+    }
+
+    /* ——— Problem (editorial, not card spam) ——— */
+    .s-problem {
+      background: var(--white);
+    }
+    .s-problem .pad {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 4%;
+    }
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      border-top: 1px solid var(--hair);
+      border-left: 1px solid var(--hair);
+      align-self: stretch;
+    }
+    .problem-grid article {
+      padding: 1.4rem 1.35rem 1.5rem;
+      border-right: 1px solid var(--hair);
+      border-bottom: 1px solid var(--hair);
+      background: var(--white);
+    }
+    .problem-grid .n {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--orange);
+      margin-bottom: 0.7rem;
+    }
+    .problem-grid h3 {
+      font-size: clamp(0.95rem, 1.2vw, 1.1rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.3;
+      margin-bottom: 0.45rem;
+      color: var(--ink);
+    }
+    .problem-grid p {
+      font-size: clamp(0.8rem, 1vw, 0.92rem);
+      color: var(--mute);
+      line-height: 1.45;
+    }
+
+    /* ——— Flow (slide 05) — Stripe-style timeline + product ——— */
+    .s-flow {
+      background:
+        radial-gradient(ellipse 50% 80% at 100% 50%, rgba(11,74,44,0.06), transparent 55%),
+        var(--paper);
+    }
+    .s-flow .pad {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 5%;
+      align-items: center;
+    }
+    .s-flow .copy-head { margin-bottom: 1.35rem; }
+    .timeline {
+      display: grid;
+      gap: 0;
+      position: relative;
+      padding-left: 0.15rem;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 15px;
+      top: 10px;
+      bottom: 10px;
+      width: 1px;
+      background: linear-gradient(180deg, var(--green), var(--green-mist) 70%, transparent);
+    }
+    .timeline article {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 0.85rem;
+      padding: 0.55rem 0 0.55rem;
+      position: relative;
+    }
+    .timeline .n {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--white);
+      border: 1.5px solid var(--green);
+      color: var(--green);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      display: grid;
+      place-items: center;
+      z-index: 1;
+      box-shadow: 0 0 0 4px var(--paper);
+    }
+    .timeline article:last-child .n {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green);
+    }
+    .timeline h3 {
+      font-size: clamp(0.95rem, 1.2vw, 1.1rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      line-height: 1.25;
+    }
+    .timeline p {
+      margin-top: 0.2rem;
+      font-size: clamp(0.78rem, 0.98vw, 0.9rem);
+      color: var(--mute);
+      line-height: 1.4;
+      max-width: 36ch;
+    }
+    .flow-hero {
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+    .flow-phone {
+      width: min(62%, 280px);
+      background: transparent;
+      border-radius: 0;
+      padding: 0;
+      position: relative;
+      z-index: 1;
+      box-shadow: none;
+    }
+    .flow-phone img {
+      display: block;
+      width: 100%;
+      border-radius: 18px;
+      aspect-ratio: auto;
+      max-height: 68vh;
+      object-fit: contain;
+      object-position: top;
+      border: 0;
+      box-shadow: none;
+    }
+    .flow-chip {
+      position: absolute;
+      z-index: 2;
+      right: 2%;
+      bottom: 14%;
+      max-width: 15ch;
+      padding: 0.7rem 0.85rem;
+      background: var(--white);
+      border: 1px solid var(--hair);
+      border-radius: 12px;
+      box-shadow: none;
+      font-size: 0.72rem;
+      line-height: 1.35;
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .flow-chip strong {
+      display: block;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 0.25rem;
+      font-weight: 700;
+    }
+
+    /* ——— Measure ——— */
+    .s-measure .pad {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 6%;
+      align-items: center;
+    }
+    table.m {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: clamp(0.82rem, 1.05vw, 0.98rem);
+    }
+    table.m th {
+      text-align: left;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--mute);
+      font-weight: 600;
+      padding: 0 0 0.85rem;
+      border-bottom: 1px solid var(--hair);
+    }
+    table.m td {
+      padding: 0.95rem 0.5rem 0.95rem 0;
+      border-bottom: 1px solid var(--hair);
+      vertical-align: top;
+      line-height: 1.35;
+    }
+    table.m td:last-child {
+      color: var(--green);
+      font-weight: 600;
+      text-align: right;
+      white-space: nowrap;
+      padding-right: 0;
+    }
+    .pilot {
+      margin-top: 1.4rem;
+      font-size: 0.88rem;
+      color: var(--mute);
+      line-height: 1.5;
+      max-width: 36ch;
+    }
+    .pilot strong { color: var(--ink); font-weight: 600; }
+
+    /* ——— Compare ——— */
+    .s-compare .pad {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 5%;
+    }
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr 1fr;
+      gap: 1rem;
+      align-items: stretch;
+    }
+    .compare article {
+      padding: 1.6rem 1.4rem;
+      border-radius: 14px;
+      background: var(--white);
+      border: 1px solid var(--hair);
+    }
+    .compare article.hero {
+      background: var(--green);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: none;
+      transform: none;
+    }
+    .compare .lbl {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--mute);
+      margin-bottom: 1rem;
+    }
+    .compare article.hero .lbl { color: rgba(255,255,255,0.55); }
+    .compare h3 {
+      font-family: var(--display);
+      font-size: clamp(1.15rem, 1.6vw, 1.45rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.7rem;
+      color: var(--green-ink);
+    }
+    .compare article.hero h3 { color: #fff; }
+    .compare p {
+      font-size: clamp(0.85rem, 1.05vw, 0.98rem);
+      line-height: 1.5;
+      color: var(--mute);
+    }
+    .compare article.hero p { color: rgba(255,255,255,0.72); }
+
+    /* ——— CTA ——— */
+    .s-cta {
+      background:
+        radial-gradient(ellipse 60% 50% at 50% 100%, rgba(232,93,4,0.2), transparent 60%),
+        linear-gradient(160deg, #04150d, #0b4a2c 60%, #0a3a24);
+    }
+    .s-cta .pad {
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      text-align: center;
+    }
+    .s-cta h1 {
+      color: #fff;
+      max-width: 14ch;
+      text-align: center;
+    }
+    .s-cta .body {
+      color: rgba(255,255,255,0.68);
+      max-width: 42ch;
+      text-align: center;
+    }
+    .s-cta .kicker { color: rgba(255,180,130,0.9); }
+    .cta-url {
+      margin-top: 2.2rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: 0.02em;
+      padding: 0.85rem 1.4rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+
+    /* ——— Offer (slide 10) ——— */
+    .s-offer .pad {
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 5%;
+      align-items: start;
+    }
+    .s-offer-solo .pad {
+      grid-template-columns: 1fr 1fr;
+      gap: 6%;
+      align-items: center;
+    }
+    .offer-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.35rem;
+      font-size: clamp(0.88rem, 1.1vw, 1.02rem);
+    }
+    .offer-table th {
+      text-align: left;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--mute);
+      font-weight: 600;
+      padding: 0 0 0.65rem;
+      border-bottom: 1px solid var(--hair);
+      width: 34%;
+    }
+    .offer-table td {
+      padding: 0.8rem 0;
+      border-bottom: 1px solid var(--hair);
+      line-height: 1.4;
+      vertical-align: top;
+    }
+    .offer-table td:first-child {
+      font-weight: 600;
+      color: var(--ink);
+      padding-right: 1rem;
+    }
+    .offer-table td:last-child { color: var(--mute); }
+    .offer-note {
+      margin-top: 1rem;
+      font-size: 0.88rem;
+      color: var(--mute);
+      line-height: 1.45;
+      max-width: 40ch;
+    }
+    .contact-panel {
+      margin-top: 1.35rem;
+      background: var(--white);
+      border: 1px solid var(--hair);
+      border-radius: 14px;
+      padding: 1.35rem 1.4rem;
+    }
+    .contact-panel h3 {
+      font-family: var(--display);
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--green-ink);
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .contact-lines {
+      display: grid;
+      gap: 0.85rem;
+    }
+    .contact-lines a {
+      color: var(--green);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .contact-lines a:hover { text-decoration: underline; }
+    .contact-line {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.85rem;
+      align-items: center;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .contact-icon {
+      width: 2.35rem;
+      height: 2.35rem;
+      border-radius: 10px;
+      background: var(--green-mist);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .contact-icon svg {
+      width: 1.1rem;
+      height: 1.1rem;
+      stroke: var(--green);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .contact-line .lbl {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .cta-box {
+      margin-top: 1.15rem;
+      padding: 1rem 1.15rem;
+      border-radius: 12px;
+      background: var(--green);
+      color: #fff;
+    }
+    .cta-box strong {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 0.35rem;
+    }
+    .cta-box p {
+      font-size: 0.85rem;
+      line-height: 1.45;
+      color: rgba(255,255,255,0.78);
+      margin: 0;
+    }
+    .cta-blank {
+      display: inline-block;
+      min-width: 10ch;
+      border-bottom: 2px solid rgba(255,255,255,0.5);
+    }
+
+    /* ——— Contact + QR (slide 11) ——— */
+    .s-contact .pad {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1.1rem;
+    }
+    .s-contact .contact-top {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr 1fr;
+      gap: 1rem;
+      align-items: end;
+    }
+    .s-contact .contact-top .copy h2 {
+      margin-top: 0.55rem;
+      max-width: 14ch;
+    }
+    .s-contact .qr-scan-intro {
+      grid-column: 2 / 4;
+      margin: 0;
+      max-width: none;
+      width: max-content;
+      white-space: nowrap;
+      overflow: visible;
+      font-size: clamp(0.88rem, 1.25vw, 1rem);
+      line-height: 1.5;
+      color: var(--ink);
+      padding-bottom: 0.15rem;
+    }
+    .s-contact .contact-cards {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr 1fr;
+      gap: 1rem;
+      align-items: end;
+    }
+    .s-contact .contact-panel {
+      margin-top: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .qr-grid {
+      display: contents;
+    }
+    .qr-card {
+      background: var(--white);
+      border: 1px solid var(--hair);
+      border-radius: 14px;
+      padding: 1.15rem 1rem 1.25rem;
+      text-align: center;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 0.65rem;
+      justify-items: center;
+      align-content: end;
+      min-height: 100%;
+    }
+    .qr-card .role {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--green-ink);
+      letter-spacing: -0.02em;
+    }
+    .qr-card .hint {
+      font-size: 0.78rem;
+      color: var(--mute);
+      line-height: 1.35;
+      max-width: 18ch;
+    }
+    .qr-card img {
+      display: block;
+      width: min(100%, 148px);
+      height: auto;
+      border-radius: 8px;
+    }
+    .qr-card .url {
+      font-size: 0.68rem;
+      color: var(--mute);
+      word-break: break-all;
+      line-height: 1.35;
+    }
+
+    /* ——— Dual capture ——— */
+    .s-dual .pad {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 5%;
+      align-items: center;
+    }
+    .dual-visual {
+      display: grid;
+      grid-template-columns: 0.72fr 1fr;
+      gap: 4%;
+      align-items: end;
+    }
+    .dual-visual .phone { width: 100%; }
+    .dual-visual .browser { transform: translateY(-6px); }
+
+    /* Nav chrome */
+    .ui-nav {
+      position: fixed;
+      right: max(1.2rem, 2vw);
+      bottom: max(1.2rem, 2vh);
+      z-index: 40;
+      display: flex;
+      gap: 0.4rem;
+    }
+    .ui-nav button {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(20,24,22,0.85);
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+    }
+    .ui-nav button:disabled { opacity: 0.3; cursor: default; }
+    .ui-nav button.primary {
+      background: var(--green);
+      border-color: transparent;
+    }
+    .ui-count {
+      position: fixed;
+      left: max(1.2rem, 2vw);
+      bottom: max(1.4rem, 2.2vh);
+      z-index: 40;
+      color: rgba(255,255,255,0.4);
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.06em;
+    }
+    .ui-dots {
+      position: fixed;
+      left: 50%;
+      bottom: max(1.5rem, 2.4vh);
+      transform: translateX(-50%);
+      z-index: 40;
+      display: flex;
+      gap: 6px;
+    }
+    .ui-dots button {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      border: 0;
+      background: rgba(255,255,255,0.22);
+      cursor: pointer;
+      padding: 0;
+    }
+    .ui-dots button.on {
+      background: #fff;
+      width: 18px;
+      border-radius: 4px;
+    }
+
+    /* Usage : envoi autonome vs réunion live */
+    .mode-tag {
+      position: absolute;
+      top: 5%;
+      right: 6%;
+      z-index: 6;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid var(--hair);
+      background: rgba(255,255,255,0.92);
+      color: var(--mute);
+    }
+    .s-cover .mode-tag {
+      background: rgba(0,0,0,0.25);
+      border-color: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.55);
+    }
+    .mode-tag.post { color: var(--green); border-color: rgba(11,74,44,0.2); background: var(--green-mist); }
+    .mode-tag.skip { color: var(--orange); border-color: rgba(232,93,4,0.25); background: #fff4ec; }
+
+    .ui-live {
+      position: fixed;
+      top: max(1.2rem, 2vh);
+      right: max(1.2rem, 2vw);
+      z-index: 40;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.45rem 0.7rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(20,24,22,0.85);
+      color: rgba(255,255,255,0.55);
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+    }
+    .ui-live.on {
+      background: var(--green);
+      border-color: transparent;
+      color: #fff;
+    }
+
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .viewport { padding: 0; height: auto; min-height: 100%; }
+      .stage {
+        width: 100vw;
+        aspect-ratio: auto;
+        min-height: 100dvh;
+        border-radius: 0;
+      }
+      .s-cover .pad,
+      .s-split .pad,
+      .s-split.flip .pad,
+      .s-measure .pad,
+      .s-dual .pad {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+      }
+      .s-split.flip .copy { order: 1; }
+      .s-split.flip .visual { order: 2; }
+      .hero-desk { position: relative; transform: none; width: 100%; top: auto; }
+      .hero-phone { display: none; }
+      .hero-stack { min-height: 0; }
+      .problem-grid { grid-template-columns: 1fr 1fr; }
+      .s-flow .pad { grid-template-columns: 1fr; }
+      .s-offer .pad { grid-template-columns: 1fr; }
+      .s-offer-solo .pad { grid-template-columns: 1fr; }
+      .s-contact .contact-top { grid-template-columns: 1fr; }
+      .s-contact .qr-scan-intro { grid-column: auto; }
+      .s-contact .contact-cards { grid-template-columns: 1fr; }
+      .qr-grid { display: grid; grid-template-columns: 1fr; max-width: 220px; margin: 0 auto; }
+      .flow-phone { width: min(48%, 220px); }
+      .flow-chip { right: 8%; bottom: 8%; }
+      .compare { grid-template-columns: 1fr; }
+      .compare article.hero { transform: none; }
+      .phones { justify-content: flex-start; }
+      .flow-shot { max-width: 100%; }
+      h1 { max-width: none; }
+      h2 { max-width: none; }
+    }
+
+    @media print {
+      body { background: #fff; overflow: visible; }
+      .ui-nav, .ui-dots, .ui-count, .ui-live, .mode-tag { display: none !important; }
+      .viewport { display: block; padding: 0; }
+      .stage {
+        width: 100%;
+        aspect-ratio: 16/9;
+        box-shadow: none;
+        border-radius: 0;
+        page-break-after: always;
+        overflow: hidden;
+      }
+      .slide { position: relative; display: block !important; opacity: 1 !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="viewport">
+    <div class="stage" id="stage">
+
+      <!-- 01 Cover -->
+      <section class="slide s-cover on" data-i="0">
+        <span class="mode-tag">Les deux</span>
+        <div class="pad">
+          <div class="copy">
+            <div class="brand-row rise">
+              <img src="../public/brand/traceo-mark.svg" alt="" />
+              <span>TraceO®</span>
+            </div>
+            <p class="kicker rise rise-2">Sales deck · Août 2026</p>
+            <h1 class="rise rise-2" style="max-width: 13ch;">Quand le client dit<br>« je n’ai pas reçu »… qui a raison ?</h1>
+            <p class="body rise rise-3">
+              TraceO® — la preuve au point de livraison.
+              Planifié → livré → prouvé, sur un référentiel unique bureau / terrain.
+            </p>
+            <div class="meta-line rise rise-4">
+              <span>Côte d’Ivoire</span>
+              <span>B2B · Dernier km</span>
+              <span>Live en 1 jour</span>
+            </div>
+          </div>
+          <div class="hero-stack rise rise-3" aria-hidden="true">
+            <div class="hero-desk">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <img src="maquettes/salesdeck-shots/ui-manager-suivi-flat-crop.png" alt="" />
+            </div>
+            <div class="hero-phone">
+              <img src="maquettes/salesdeck-shots/ui-livreur-liste-clean.png" alt="" />
+            </div>
+          </div>
+        </div>
+        <div class="foot light"><span>TraceO®</span><span>01</span></div>
+      </section>
+
+      <!-- 02 Problem -->
+      <section class="slide s-problem" data-i="1">
+        <span class="mode-tag">Les deux</span>
+        <div class="pad">
+          <header>
+            <p class="kicker hot">Le problème</p>
+            <h2 style="max-width: 18ch; margin-top: 0.6rem;">La Traçabilité s’arrête au dernier kilomètre.</h2>
+            <p class="body" style="max-width: 48ch;">
+              Sans procédure au point de livraison, chaque écart devient une négociation.
+              L’information non consignée au transfert est perdue pour toujours.
+            </p>
+          </header>
+          <div class="problem-grid">
+            <article><div class="n">01</div><h3>Litiges sur les quantités</h3><p>Chaque écart devient une négociation sans fin.</p></article>
+            <article><div class="n">02</div><h3>Clients exigeants</h3><p>La parole du livreur ne suffit plus.</p></article>
+            <article><div class="n">03</div><h3>WhatsApp &amp; Excel</h3><p>Le responsable relance au lieu de piloter.</p></article>
+            <article><div class="n">04</div><h3>Flotte qui grossit</h3><p>De 2 à 10+ opérateurs : perte de contrôle.</p></article>
+            <article><div class="n">05</div><h3>ERP trop long</h3><p>Professionnaliser sans attendre 12 mois.</p></article>
+            <article><div class="n">06</div><h3>Réceptionniste variable</h3><p>Impossible de fonder la preuve sur une personne.</p></article>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>02</span></div>
+      </section>
+
+      <!-- 03 Solution -->
+      <section class="slide s-split" data-i="2" data-live-skip>
+        <span class="mode-tag skip">Envoi · sauter en live</span>
+        <div class="pad">
+          <div class="copy">
+            <p class="kicker hot">La solution</p>
+            <h2 style="margin-top: 0.55rem;">Un référentiel pour le bureau et le terrain.</h2>
+            <p class="body">
+              Photos, déclaration structurée et validation OTP à chaque arrêt.
+              Le gestionnaire pilote. Le livreur produit la preuve.
+            </p>
+            <ul class="points">
+              <li><i class="dot"></i><div>Preuve à chaque remise<span>Photos + déclaration + OTP</span></div></li>
+              <li><i class="dot"></i><div>Certificat horodaté<span>Incontestable, consultable immédiatement</span></div></li>
+              <li><i class="dot"></i><div>Replan en un geste<span>Reliquats sans ressaisie</span></div></li>
+              <li><i class="dot"></i><div>Time-to-value : 1 jour<span>Inscription → première tournée certifiée</span></div></li>
+            </ul>
+          </div>
+          <div class="visual">
+            <div class="browser">
+              <div class="bar"><i></i><i></i><i></i><div class="url">app.traceo · Suivi des tournées</div></div>
+              <img src="maquettes/salesdeck-shots/ui-manager-suivi-flat-crop.png" alt="Suivi manager TraceO" />
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>03</span></div>
+      </section>
+
+      <!-- 04 Driver -->
+      <section class="slide s-split flip" data-i="3" data-live-skip>
+        <span class="mode-tag skip">Envoi · → démo livreur</span>
+        <div class="pad">
+          <div class="visual">
+            <div class="phones">
+              <div class="phone shot-raw">
+                <img src="maquettes/salesdeck-shots/06-driver-login-clean.png" alt="Connexion livreur PIN" />
+              </div>
+              <div class="phone shot-raw">
+                <img src="maquettes/salesdeck-shots/ui-livreur-liste-clean.png" alt="Tournée du jour — liste des arrêts" />
+              </div>
+            </div>
+          </div>
+          <div class="copy">
+            <p class="kicker hot">Produit · Livreur</p>
+            <h2 style="margin-top: 0.55rem;">Le livreur devient opérateur de preuve.</h2>
+            <p class="body">
+              Parcours guidé, proximité contrôlée, photos géolocalisées,
+              déclaration produits et OTP — sans formation lourde.
+            </p>
+            <ul class="points">
+              <li><i class="dot"></i><div>Exécution contrôlée<span>Démarrage uniquement près du point</span></div></li>
+              <li><i class="dot"></i><div>Photos horodatées<span>Preuve visuelle de la marchandise</span></div></li>
+              <li><i class="dot"></i><div>Déclaration + OTP<span>Complet, partiel ou refusé — validé par SMS</span></div></li>
+            </ul>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>04</span></div>
+      </section>
+
+      <!-- 05 Flow -->
+      <section class="slide s-flow" data-i="4" data-live-skip>
+        <span class="mode-tag skip">Envoi · sauter en live</span>
+        <div class="pad">
+          <div class="copy">
+            <header class="copy-head">
+              <p class="kicker hot">Fonctionnement</p>
+              <h2 style="margin-top: 0.55rem; max-width: 14ch;">Cinq étapes. Une preuve.</h2>
+              <p class="body" style="max-width: 34ch;">
+                Le même fil, du premier kilomètre au certificat —
+                impossible de valider à distance.
+              </p>
+            </header>
+            <div class="timeline">
+              <article>
+                <div class="n">01</div>
+                <div>
+                  <h3>Démarrer</h3>
+                  <p>Contrôle de proximité du point. Aucune validation à distance.</p>
+                </div>
+              </article>
+              <article>
+                <div class="n">02</div>
+                <div>
+                  <h3>Photographier</h3>
+                  <p>Photos géolocalisées et horodatées de la marchandise.</p>
+                </div>
+              </article>
+              <article>
+                <div class="n">03</div>
+                <div>
+                  <h3>Déclarer</h3>
+                  <p>Produit &amp; quantité — complet, partiel ou refusé.</p>
+                </div>
+              </article>
+              <article>
+                <div class="n">04</div>
+                <div>
+                  <h3>Valider</h3>
+                  <p>OTP SMS au responsable du point de livraison.</p>
+                </div>
+              </article>
+              <article>
+                <div class="n">05</div>
+                <div>
+                  <h3>Certifier</h3>
+                  <p>Certificat généré instantanément — preuve consultable.</p>
+                </div>
+              </article>
+            </div>
+          </div>
+          <div class="flow-hero" aria-hidden="false">
+            <div class="flow-phone">
+              <img src="maquettes/salesdeck-shots/ui-livreur-detail-clean.png" alt="Parcours livraison TraceO — OTP et preuve" />
+            </div>
+            <div class="flow-chip">
+              <strong>Étape 04</strong>
+              OTP envoyé au responsable du point
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>05</span></div>
+      </section>
+
+      <!-- 06 Manager -->
+      <section class="slide s-split" data-i="5" data-live-skip>
+        <span class="mode-tag skip">Envoi · → démo manager</span>
+        <div class="pad">
+          <div class="copy">
+            <p class="kicker hot">Produit · Manager</p>
+            <h2 style="margin-top: 0.55rem;">Le gestionnaire pilote en temps réel.</h2>
+             
+            <ul class="points">
+              <li><i class="dot"></i><div>Planifier<span>Planification multi-arrêts, et assignation aux livreurs</span></div></li>
+              <li><i class="dot"></i><div>Replanifier<span> Suivi des statuts et replanification des reliquats: Partiel, refus ou manqué — sans ressaisie</span></div></li>
+              <li><i class="dot"></i><div>Assistance OTP<span>Trace visible quand le bureau aide le terrain</span></div></li>
+              <li><i class="dot"></i><div>Certificats<span>Accès immédiat aux certificats : Preuve consultable après chaque validation</span></div></li>
+            </ul>
+          </div>
+          <div class="visual">
+            <div class="browser">
+              <div class="bar"><i></i><i></i><i></i><div class="url">app.traceo · Planifier une tournée</div></div>
+              <img src="maquettes/salesdeck-shots/ui-manager-planifier-flat-crop.png" alt="Planification manager" />
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>06</span></div>
+      </section>
+
+      <!-- 07 Dual product reality -->
+      <section class="slide s-dual" data-i="6" data-live-skip>
+        <span class="mode-tag skip">Envoi · sauter en live</span>
+        <div class="pad">
+          <div class="copy">
+            <p class="kicker hot">Produit réel</p>
+            <h2 style="margin-top: 0.55rem;">L’interface que vos équipes ouvriront demain.</h2>
+            <p class="body">
+              Même identité que l’app en production — login PIN livreur,
+              cockpit gestionnaire, parcours terrain.
+            </p>
+            <ul class="points">
+              <li><i class="dot"></i><div>PWA installable sur téléphone</div></li>
+              <li><i class="dot"></i><div>Bureau et terrain synchronisés</div></li>
+              <li><i class="dot"></i><div>Pas d’ERP à déployer pour démarrer</div></li>
+            </ul>
+          </div>
+          <div class="dual-visual">
+            <div class="browser" style="grid-column: 1 / -1;">
+              <div class="bar"><i></i><i></i><i></i><div class="url">app.traceo · Gestionnaire</div></div>
+              <img src="maquettes/salesdeck-shots/live-manager-login.png" alt="Espace gestionnaire TraceO" />
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>07</span></div>
+      </section>
+
+      <!-- 08 Measure -->
+      <section class="slide s-measure" data-i="7">
+        <span class="mode-tag post">Post-démo</span>
+        <div class="pad">
+          <div class="copy">
+            <p class="kicker hot">Mesure</p>
+            <h2 style="margin-top: 0.55rem;">Ce que nous mesurons avec vous.</h2>
+            <p class="body">
+              Critères objectifs dès la première semaine du pilote —
+              pas de KPI décoratifs.
+            </p>
+            <p class="pilot">
+              <strong>Pilote 2 semaines.</strong>
+              Paramétrage → livraisons réelles → mesure → bilan &amp; décision.
+            </p>
+          </div>
+          <div>
+            <table class="m">
+              <thead>
+                <tr><th>Indicateur</th><th>Objectif</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>% d’arrêts avec preuve complète</td><td>↑ fort</td></tr>
+                <tr><td>Temps pour replanifier un reliquat</td><td>Minutes</td></tr>
+                <tr><td>Litiges « sans trace »</td><td>↓ drastique</td></tr>
+                <tr><td>Adoption opérateur quotidienne</td><td>Stable S2</td></tr>
+                <tr><td>Charge WhatsApp / dispatch</td><td>↓ nette</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>08</span></div>
+      </section>
+
+      <!-- 09 Position -->
+      <section class="slide s-compare" data-i="8">
+        <span class="mode-tag post">Post-démo</span>
+        <div class="pad">
+          <header>
+            <p class="kicker hot">Positionnement</p>
+            <h2 style="margin-top: 0.55rem; max-width: 18ch;">Ni tableur. Ni ERP monolithique.</h2>
+          </header>
+          <div class="compare">
+            <article>
+              <div class="lbl">Statu quo</div>
+              <h3>WhatsApp + Excel</h3>
+              <p>Rapide à démarrer, impossible à auditer. Versions multiples, preuves perdues, zéro replan fiable.</p>
+            </article>
+            <article class="hero">
+              <div class="lbl">TraceO®</div>
+              <h3>Preuve opérationnelle</h3>
+              <p>Live en un jour. Preuve à l’arrêt. Replan. Certificats. Adoption livreur sans formation lourde.</p>
+            </article>
+            <article>
+              <div class="lbl">Horizon long</div>
+              <h3>ERP / WMS</h3>
+              <p>Puissant, mais 6–12 mois avant le premier bénéfice terrain. Trop lourd pour professionnaliser maintenant.</p>
+            </article>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>09</span></div>
+      </section>
+
+      <!-- 10 Offre pilote -->
+      <section class="slide s-offer s-offer-solo" data-i="9">
+        <span class="mode-tag post">Post-démo</span>
+        <div class="pad">
+          <div class="copy">
+            <p class="kicker hot">Offre pilote</p>
+            <h2 style="margin-top: 0.55rem; max-width: 16ch;">On démarre quand ?</h2>
+            <p class="body" style="max-width: 38ch;">
+              Pilote sur <strong>vos</strong> tournées, <strong>vos</strong> points, <strong>vos</strong> produits —
+              jugé sur des livraisons réelles, pas sur une démo.
+            </p>
+            <div class="cta-box" style="margin-top: 1.5rem;">
+              <strong>Une seule décision à prendre</strong>
+              <p>
+                Semaine du <span class="cta-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                — 1 livreur · 3 points · kick-off pilote.
+              </p>
+            </div>
+            <p class="offer-note" style="margin-top: 1rem;">
+              Fiche détaillée : document client à distribuer en fin de réunion.
+            </p>
+          </div>
+          <div>
+            <table class="offer-table" style="margin-top: 0;">
+              <tbody>
+                <tr><td>Durée</td><td>2 semaines d’exploitation (+ bilan)</td></tr>
+                <tr><td>Périmètre</td><td>1–2 livreurs · 3 à 8 points réels (ex. Abidjan)</td></tr>
+                <tr><td>Setup</td><td>~1 h accompagnement — catalogue, points, première tournée test</td></tr>
+                <tr><td>Succès</td><td>% preuves complètes · temps replan · litiges « sans trace »</td></tr>
+                <tr><td>Time-to-value</td><td>Première tournée certifiée le jour du paramétrage</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>10</span></div>
+      </section>
+
+      <!-- 11 Contact & QR -->
+      <section class="slide s-contact" data-i="10">
+        <span class="mode-tag post">Post-démo</span>
+        <div class="pad">
+          <div class="contact-top">
+            <div class="copy">
+              <p class="kicker hot">Contact</p>
+              <h2>Accédez à TraceO®</h2>
+            </div>
+            <p class="qr-scan-intro">
+              Scannez pour ouvrir une <strong>démo visuelle</strong> — diaporama de captures d’écran, sans connexion au système réel.
+            </p>
+          </div>
+          <div class="contact-cards">
+            <div class="contact-panel">
+              <h3>TraceO® — Côte d’Ivoire</h3>
+              <div class="contact-lines">
+                <div class="contact-line">
+                  <span class="contact-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  </span>
+                  <span class="lbl">E-mail</span>
+                  <span><a href="mailto:kfallet@gmail.com">kfallet@gmail.com</a></span>
+                </div>
+                <div class="contact-line">
+                  <span class="contact-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  </span>
+                  <span class="lbl">Site</span>
+                  <span><a href="https://pwa-livreur.netlify.app">pwa-livreur.netlify.app</a></span>
+                </div>
+                <div class="contact-line">
+                  <span class="contact-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  </span>
+                  <span class="lbl">Téléphone</span>
+                  <span><a href="tel:+2250700430402">225 07 00 43 04 02</a></span>
+                </div>
+              </div>
+            </div>
+            <div class="qr-grid">
+              <article class="qr-card">
+                <p class="role">Livreur</p>
+                <p class="hint">Tournée du jour · carte · livraison</p>
+                <img src="maquettes/salesdeck-shots/qr-driver-demo.png" alt="QR code — démo livreur" width="148" height="148" />
+                <p class="url">pwa-livreur.netlify.app/demo/livreur</p>
+              </article>
+              <article class="qr-card">
+                <p class="role">Gestionnaire</p>
+                <p class="hint">Suivi · planification · détail arrêt</p>
+                <img src="maquettes/salesdeck-shots/qr-manager-demo.png" alt="QR code — démo gestionnaire" width="148" height="148" />
+                <p class="url">pwa-livreur.netlify.app/demo/manager</p>
+              </article>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>TraceO® — Sales Deck</span><span>11</span></div>
+      </section>
+
+    </div>
+  </div>
+
+  <button type="button" class="ui-live" id="liveMode" title="Sauter les slides produit (03–07) pendant la démo">Mode réunion</button>
+  <div class="ui-count" id="count">01 / 11</div>
+  <div class="ui-dots" id="dots" aria-label="Diapositives"></div>
+  <div class="ui-nav">
+    <button type="button" id="prev" aria-label="Précédent">←</button>
+    <button type="button" class="primary" id="next" aria-label="Suivant">→</button>
+  </div>
+
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const dots = document.getElementById('dots');
+    const count = document.getElementById('count');
+    const prev = document.getElementById('prev');
+    const next = document.getElementById('next');
+    let i = 0;
+
+    slides.forEach((_, idx) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Slide ' + (idx + 1));
+      b.addEventListener('click', () => go(idx));
+      dots.appendChild(b);
+    });
+
+    const liveBtn = document.getElementById('liveMode');
+    let liveMode = new URLSearchParams(location.search).has('live');
+
+    function isSkipped(idx) {
+      return liveMode && slides[idx]?.hasAttribute('data-live-skip');
+    }
+
+    function nextIdx(from, dir) {
+      let n = from + dir;
+      while (n >= 0 && n < slides.length && isSkipped(n)) n += dir;
+      return Math.max(0, Math.min(slides.length - 1, n));
+    }
+
+    function syncLiveBtn() {
+      liveBtn.classList.toggle('on', liveMode);
+      liveBtn.textContent = liveMode ? 'Mode réunion · ON' : 'Mode réunion';
+    }
+
+    liveBtn.addEventListener('click', () => {
+      liveMode = !liveMode;
+      syncLiveBtn();
+      if (isSkipped(i)) go(nextIdx(i, 1));
+    });
+    syncLiveBtn();
+
+    function go(n) {
+      i = Math.max(0, Math.min(slides.length - 1, n));
+      if (isSkipped(i)) {
+        const dir = n >= i ? 1 : -1;
+        i = nextIdx(i - dir, dir);
+      }
+      slides.forEach((s, idx) => s.classList.toggle('on', idx === i));
+      [...dots.children].forEach((d, idx) => d.classList.toggle('on', idx === i));
+      count.textContent = String(i + 1).padStart(2, '0') + ' / ' + String(slides.length).padStart(2, '0');
+      prev.disabled = i === 0;
+      next.disabled = i === slides.length - 1;
+    }
+
+    prev.addEventListener('click', () => go(nextIdx(i, -1)));
+    next.addEventListener('click', () => go(nextIdx(i, 1)));
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowRight', ' ', 'PageDown'].includes(e.key)) { e.preventDefault(); go(nextIdx(i, 1)); }
+      if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); go(nextIdx(i, -1)); }
+      if (e.key === 'Home') go(0);
+      if (e.key === 'End') go(slides.length - 1);
+      if (e.key === 'f' || e.key === 'F') {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+        else document.exitFullscreen?.();
+      }
+    });
+
+    let touchX = null;
+    window.addEventListener('touchstart', (e) => { touchX = e.changedTouches[0].screenX; }, { passive: true });
+    window.addEventListener('touchend', (e) => {
+      if (touchX == null) return;
+      const dx = e.changedTouches[0].screenX - touchX;
+      if (Math.abs(dx) > 50) go(nextIdx(i, dx < 0 ? 1 : -1));
+      touchX = null;
+    }, { passive: true });
+
+    go(0);
+  </script>
+</body>
+</html>

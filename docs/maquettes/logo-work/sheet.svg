@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 768" fill="none" font-family="'DM Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <rect width="1024" height="768" fill="#f7f5f2"/>
+  <rect x="40" y="40" width="944" height="688" rx="28" fill="#ffffff"/>
+
+  <text x="512" y="96" text-anchor="middle" font-size="15" letter-spacing="3" font-weight="700" fill="#e85d04">TRACEO&#174; &#8212; SYST&#200;ME DE LOGO</text>
+  <text x="512" y="126" text-anchor="middle" font-size="24" font-weight="700" fill="#0b4a2c">Concept &#171; O itin&#233;raire &#187;</text>
+
+  <g transform="translate(285 175) scale(2.2)">
+    <circle cx="30" cy="34" r="13" fill="none" stroke="#0b4a2c" stroke-width="5" stroke-linecap="round" stroke-dasharray="60 22" stroke-dashoffset="6"/>
+    <circle cx="40.8" cy="43.4" r="1.7" fill="#e85d04"/>
+    <circle cx="43.6" cy="38.4" r="1.7" fill="#e85d04"/>
+    <g transform="translate(40.5 25) scale(0.8)">
+      <path fill-rule="evenodd" fill="#e85d04" d="M0 0 C -5.5 -8 -9 -11 -9 -15.5 A 9 9 0 1 1 9 -15.5 C 9 -11 5.5 -8 0 0 Z M3.6 -15.5 A 3.6 3.6 0 1 0 -3.6 -15.5 A 3.6 3.6 0 1 0 3.6 -15.5 Z"/>
+    </g>
+    <text x="70" y="44" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#0b4a2c">TraceO<tspan font-size="15" dy="-16" fill="#e85d04">&#174;</tspan></text>
+  </g>
+
+  <rect x="72" y="336" width="416" height="230" rx="22" fill="#0b4a2c"/>
+  <g transform="translate(150 392) scale(1.35)">
+    <circle cx="30" cy="34" r="13" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-dasharray="60 22" stroke-dashoffset="6"/>
+    <circle cx="40.8" cy="43.4" r="1.7" fill="#e85d04"/>
+    <circle cx="43.6" cy="38.4" r="1.7" fill="#e85d04"/>
+    <g transform="translate(40.5 25) scale(0.8)">
+      <path fill-rule="evenodd" fill="#e85d04" d="M0 0 C -5.5 -8 -9 -11 -9 -15.5 A 9 9 0 1 1 9 -15.5 C 9 -11 5.5 -8 0 0 Z M3.6 -15.5 A 3.6 3.6 0 1 0 -3.6 -15.5 A 3.6 3.6 0 1 0 3.6 -15.5 Z"/>
+    </g>
+    <text x="70" y="44" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#ffffff">TraceO<tspan font-size="15" dy="-16" fill="#e85d04">&#174;</tspan></text>
+  </g>
+  <text x="280" y="540" text-anchor="middle" font-size="15" font-weight="500" fill="#cfe0d6">Sur fond de marque (texte clair)</text>
+
+  <rect x="536" y="336" width="416" height="230" rx="22" fill="#ffffff" stroke="#e6e2d9" stroke-width="1.5"/>
+  <g transform="translate(680 360) scale(1.7)">
+    <rect width="64" height="64" rx="14" fill="#0b4a2c"/>
+    <circle cx="30" cy="34" r="13" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-dasharray="60 22" stroke-dashoffset="6"/>
+    <circle cx="40.8" cy="43.4" r="1.7" fill="#e85d04"/>
+    <circle cx="43.6" cy="38.4" r="1.7" fill="#e85d04"/>
+    <g transform="translate(40.5 25) scale(0.8)">
+      <path fill-rule="evenodd" fill="#e85d04" d="M0 0 C -5.5 -8 -9 -11 -9 -15.5 A 9 9 0 1 1 9 -15.5 C 9 -11 5.5 -8 0 0 Z M3.6 -15.5 A 3.6 3.6 0 1 0 -3.6 -15.5 A 3.6 3.6 0 1 0 3.6 -15.5 Z"/>
+    </g>
+  </g>
+  <text x="744" y="540" text-anchor="middle" font-size="15" font-weight="500" fill="#5b6b60">Ic&#244;ne &#183; favicon &#183; PWA (maskable)</text>
+
+  <circle cx="160" cy="650" r="20" fill="#0b4a2c"/>
+  <text x="192" y="645" font-size="15" font-weight="700" fill="#0b4a2c">#0b4a2c</text>
+  <text x="192" y="664" font-size="13" fill="#8a978d">Vert for&#234;t</text>
+
+  <circle cx="360" cy="650" r="20" fill="#e85d04"/>
+  <text x="392" y="645" font-size="15" font-weight="700" fill="#0b4a2c">#e85d04</text>
+  <text x="392" y="664" font-size="13" fill="#8a978d">Orange signal</text>
+
+  <g transform="translate(620 626) scale(0.78)" color="#0b4a2c">
+    <circle cx="30" cy="34" r="13" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-dasharray="60 22" stroke-dashoffset="6"/>
+    <circle cx="40.8" cy="43.4" r="1.7" fill="currentColor"/>
+    <circle cx="43.6" cy="38.4" r="1.7" fill="currentColor"/>
+    <g transform="translate(40.5 25) scale(0.8)">
+      <path fill-rule="evenodd" fill="currentColor" d="M0 0 C -5.5 -8 -9 -11 -9 -15.5 A 9 9 0 1 1 9 -15.5 C 9 -11 5.5 -8 0 0 Z M3.6 -15.5 A 3.6 3.6 0 1 0 -3.6 -15.5 A 3.6 3.6 0 1 0 3.6 -15.5 Z"/>
+    </g>
+  </g>
+  <text x="680" y="645" font-size="15" font-weight="700" fill="#0b4a2c">Monochrome</text>
+  <text x="680" y="664" font-size="13" fill="#8a978d">tampon, fax, gravure</text>
+</svg>

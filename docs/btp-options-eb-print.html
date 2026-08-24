@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>TraceO BTP — Options digitalisation EB</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --green: #0b4a2c;
+      --green-mist: #dceee4;
+      --orange: #e85d04;
+      --ink: #111827;
+      --mute: #4b5563;
+      --paper: #f6f5f2;
+      --sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      --display: "Fraunces", ui-serif, Georgia, serif;
+    }
+    * { box-sizing: border-box; }
+    @page { size: A4; margin: 18mm 16mm 20mm; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: var(--ink);
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid var(--green);
+    }
+    .doc-header h1 {
+      font-family: var(--display);
+      font-size: 18pt;
+      color: var(--green);
+      margin: 0;
+      line-height: 1.15;
+    }
+    .doc-header p { margin: 0.25rem 0 0; color: var(--mute); font-size: 9.5pt; }
+    .badge {
+      flex-shrink: 0;
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #9a3412;
+      background: #ffedd5;
+      border: 1px solid #fdba74;
+      border-radius: 999px;
+      padding: 0.25rem 0.55rem;
+    }
+    .cover {
+      page-break-after: always;
+      min-height: 250mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 8mm 0 0;
+      border-bottom: 4px solid var(--green);
+    }
+    .cover-mark {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: var(--green); color: #fff;
+      display: grid; place-items: center;
+      font-family: var(--display); font-size: 28px; font-weight: 700;
+    }
+    .cover h1 {
+      font-family: var(--display);
+      font-size: 32pt; line-height: 1.08; color: var(--green);
+      margin: 18mm 0 0.4rem; max-width: 14ch;
+    }
+    .cover .tagline { font-size: 13pt; color: var(--mute); max-width: 38ch; margin-bottom: 1rem; }
+    .cover .pill-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 1rem 0 2rem; }
+    .pill {
+      font-size: 8.5pt; font-weight: 600; padding: 0.28rem 0.55rem;
+      border-radius: 999px; background: var(--green-mist); color: var(--green);
+    }
+    .contact-card {
+      margin-top: auto; padding: 1rem 1.1rem; border-radius: 12px;
+      background: var(--paper); border: 1px solid rgba(11, 74, 44, 0.12);
+    }
+    .contact-card h2 { font-size: 11pt; margin: 0 0 0.65rem; color: var(--green); }
+    .contact-card p { margin: 0.25rem 0; font-size: 10pt; }
+    .contact-card a { color: var(--green); text-decoration: none; font-weight: 600; }
+    main > h1:first-child { display: none; }
+    h2 {
+      font-family: var(--display);
+      font-size: 15pt; color: var(--green);
+      margin: 1.35rem 0 0.55rem;
+      page-break-after: avoid;
+    }
+    h2.slide-note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+    .slide-num {
+      font-family: var(--sans);
+      font-size: 8.5pt; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #fff; background: var(--orange);
+      border-radius: 999px; padding: 0.15rem 0.5rem;
+    }
+    h3 { font-size: 11pt; margin: 1rem 0 0.35rem; page-break-after: avoid; }
+    p { margin: 0.35rem 0 0.65rem; }
+    p.presenter-note {
+      margin: 0.5rem 0 0.85rem; padding: 0.55rem 0.75rem;
+      border-left: 3px solid var(--orange); background: #fff7f0; font-size: 10pt;
+    }
+    hr { border: 0; border-top: 1px solid rgba(17, 24, 39, 0.1); margin: 1rem 0; }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 9pt;
+      margin: 0.5rem 0 1rem; page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      padding: 0.35rem 0.45rem; vertical-align: top; text-align: left;
+    }
+    th { background: var(--green-mist); color: var(--green); font-weight: 600; }
+    ul, ol { margin: 0.35rem 0 0.75rem 1.1rem; padding: 0; }
+    li { margin: 0.2rem 0; }
+    blockquote {
+      margin: 0.5rem 0 0.85rem; padding: 0.55rem 0.75rem;
+      border-left: 3px solid var(--orange); background: #fff7f0; font-size: 10pt;
+    }
+    pre {
+      font-size: 8pt; background: var(--paper); padding: 0.65rem;
+      border-radius: 8px; white-space: pre-wrap; page-break-inside: avoid;
+    }
+    code { font-size: 9pt; }
+    a { color: var(--green); }
+    .footer-note {
+      margin-top: 1.5rem; padding-top: 0.75rem;
+      border-top: 1px solid rgba(17, 24, 39, 0.1);
+      font-size: 8.5pt; color: var(--mute); text-align: center;
+    }
+    
+    .cover h1 { max-width: 22ch; font-size: 26pt; }
+    .cover .tagline { max-width: 44ch; }
+  
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div>
+      <div class="cover-mark" aria-hidden="true">O</div>
+      <h1>TraceO® BTP</h1>
+      <p class="tagline">Options de digitalisation de l’EB — Document de décision board</p>
+      <div class="pill-row">
+        <span class="pill">A1 – A8 comparées</span>
+        <span class="pill">Coûts FCFA</span>
+        <span class="pill">Recommandation A2+A5</span>
+        <span class="pill">Gates A6 / A7</span>
+      </div>
+    </div>
+    <div class="contact-card">
+      <h2>Arbitrage board — 12/08/2026</h2>
+      <p>Sept options stratégiques · Matrices · Phasage pilote J0–J90</p>
+      <p>TraceO® · pwa-livreur.netlify.app</p>
+    </div>
+  </section>
+  <main><h2>1. Contexte et enjeu</h2>
+<h3>1.1 Douleur actuelle</h3>
+<table><thead><tr><th>Acteur</th><th>Aujourd’hui</th><th>Conséquence</th></tr></thead><tbody><tr><td><strong>Technicien</strong></td><td>Message WhatsApp libre dans le groupe chantier</td><td>Pas de statut ; message noyé</td></tr><tr><td><strong>DT</strong></td><td><strong>Ressaisie</strong> fiche EB Excel</td><td>Double saisie, erreurs qté, retard</td></tr><tr><td><strong>SA</strong></td><td>Reçoit EB Excel, émet BC</td><td>Pas de lien numérique amont</td></tr><tr><td><strong>Direction</strong></td><td>Vision partielle</td><td>Pas de dossier EB traçable</td></tr></tbody></table>
+<h3>1.2 Point de départ TraceO</h3>
+<p>Le prototype couvre déjà ~<strong>30–40 %</strong> du chemin EB :</p>
+<ul>
+<li>Webhook WhatsApp (simulation dev + squelette Meta)</li>
+<li>Parser texte (règles + OpenAI optionnel)</li>
+<li>Boîte EB manager + révision DT</li>
+</ul>
+<p><strong>Gaps pour « EB production » :</strong> export fiche SA (PDF/Excel), WhatsApp Meta production, voix/photo, dossier EB complet (original + export).</p>
+<h3>1.3 Question board</h3>
+<blockquote><strong>Qui change d’habitude ?</strong> (terrain, DT, SA)  </blockquote>
+<blockquote><strong>D’où naît l’EB ?</strong> (message, formulaire, reliquat, catalogue, suggestion système)</blockquote>
+<p>Les <strong>huit options</strong> ci-dessous répondent à des <strong>modèles différents</strong>, pas à des degrés de la même solution.</p>
+<h3>1.4 Capture WhatsApp — quatre modes (repère)</h3>
+<table><thead><tr><th>Mode</th><th>Description</th><th>Option doc</th></tr></thead><tbody><tr><td><strong>Pont</strong></td><td>Technicien transfère/répond au n° TraceO</td><td>Combinable avec A2, A5</td></tr><tr><td><strong>Formulaire lien</strong></td><td>Lien / QR → page mobile (WhatsForm, etc.) → webhook TraceO</td><td><strong>A8</strong></td></tr><tr><td><strong>Bot membre du groupe</strong></td><td>Numéro TraceO <strong>dans le groupe</strong> ; lit et répond</td><td><strong>A7</strong></td></tr><tr><td><strong>Flow natif in-chat</strong></td><td>Formulaire Meta <strong>dans</strong> WhatsApp</td><td><strong>A1</strong></td></tr><tr><td><strong>Lecture passive totale</strong></td><td>Silencieux, 100 % du fil</td><td><strong>Non retenu</strong> — API Meta non garantie</td></tr></tbody></table>
+<p>Voir <a href="./BTP-WHATSAPP-DOSSIER-CHANTIER.md">BTP-WHATSAPP-DOSSIER-CHANTIER.md</a> §7.2.</p>
+<hr />
+<h2>2. Hypothèses de coûts</h2>
+<table><thead><tr><th>Hypothèse</th><th>Valeur</th></tr></thead><tbody><tr><td>Pilote</td><td>1 chantier, 5–15 techniciens, <strong>2–5 EB/jour</strong></td></tr><tr><td>Dev interne / consultant CI</td><td><strong>75 000 – 150 000 FCFA / jour</strong></td></tr><tr><td>Prototype TraceO existant</td><td>Réduit le setup des options A2, A5, A6</td></tr><tr><td>Meta WhatsApp Cloud API</td><td><strong>80 000 – 350 000 FCFA/mois</strong> (pilote)</td></tr><tr><td>IA OpenAI (texte / STT)</td><td><strong>15 000 – 400 000 FCFA/mois</strong> selon option</td></tr><tr><td>Conversion</td><td><strong>1 USD ≈ 600 FCFA</strong></td></tr><tr><td>Gate vocal J+60</td><td><strong>A6</strong> si &gt; 40 % vocaux</td></tr><tr><td>Gate bot groupe J+90</td><td><strong>A7</strong> si pont &lt; 50 % ou besoin journal complet</td></tr><tr><td>POC formulaire lien</td><td><strong>A8</strong> si besoin données propres <strong>&lt; 4 sem.</strong> (transitoire)</td></tr></tbody></table>
+<p>Les montants sont des <strong>fourchettes d’ordre de grandeur</strong> pour arbitrage — pas des devis fermes.</p>
+<hr />
+<h2>3. Option A1 — Formulaires WhatsApp natifs (Meta Flows)</h2>
+<h3>Résumé</h3>
+<p>Remplacer le parsing de messages libres par un <strong>formulaire structuré in-chat</strong> (Meta WhatsApp Flows). Le technicien remplit chantier, produit, qté, unité <strong>dans WhatsApp</strong> — zéro ambiguïté, zéro IA pour structurer.</p>
+<h3>Question stratégique</h3>
+<p>*Comment obtenir des données propres à la source sans deviner le contenu d’un message libre ?*</p>
+<h3>Flux</h3>
+<pre><code>Technicien → ouvre Flow WA → saisie structurée → brouillon EB TraceO
+    → DT valide → export fiche SA</code></pre>
+<h3>Périmètre</h3>
+<table><thead><tr><th>Inclus</th><th>Exclus</th></tr></thead><tbody><tr><td>Formulaire Meta in-chat</td><td>Parsing messages libres</td></tr><tr><td>Intégration TraceO</td><td>Voix / photo</td></tr><tr><td>Export fiche SA</td><td>Catalogue produits (voir A5)</td></tr><tr><td>Validation DT</td><td>Circuit BC aval (hors doc)</td></tr></tbody></table>
+<h3>Prérequis</h3>
+<ul>
+<li>Compte <strong>Meta Business</strong> vérifié</li>
+<li>Templates Flows <strong>approuvés Meta</strong> (délai variable en CI)</li>
+<li>Référent interne Meta</li>
+<li>Formation techniciens : « Remplir le besoin » (1 geste)</li>
+</ul>
+<h3>Coûts</h3>
+<table><thead><tr><th>Poste</th><th>Fourchette</th></tr></thead><tbody><tr><td><strong>Setup</strong></td><td><strong>5 – 10 M FCFA</strong></td></tr><tr><td><strong>Récurrent / mois</strong></td><td><strong>150 – 400 k FCFA</strong></td></tr><tr><td>Dont Meta</td><td>150 – 400 k</td></tr><tr><td>Dont IA</td><td>0</td></tr></tbody></table>
+<p><strong>Délai pilote : 10 – 14 semaines</strong> (validation templates = goulot).</p>
+<h3>Avantages</h3>
+<ol>
+<li><strong>Données propres à la source</strong> — pas d’hallucination IA</li>
+<li>Audit trail natif Meta + TraceO</li>
+<li>WhatsApp conservé comme canal</li>
+<li>Ressaisie DT cible <strong>&lt; 10 %</strong></li>
+<li>Scalable multi-chantiers (templates par site)</li>
+<li>Conformité : DT valide toujours</li>
+</ol>
+<h3>Inconvénients</h3>
+<ol>
+<li>Dépend <strong>approbation Meta Flows</strong> en Côte d’Ivoire</li>
+<li>Moins flexible pour besoins atypiques / hors catalogue</li>
+<li>Nouveau geste à former (même léger)</li>
+<li>Délai validation templates imprévisible</li>
+<li>Coût Meta récurrent non nul</li>
+<li>Hors-catalogue = voie de secours à prévoir (A2)</li>
+</ol>
+<h3>Risques et parades</h3>
+<table><thead><tr><th>Risque</th><th>Parade</th></tr></thead><tbody><tr><td>Flows non disponibles / retard Meta</td><td>Voie secours A2 en parallèle</td></tr><tr><td>Technicien contourne le Flow</td><td>Message libre → copilote DT</td></tr><tr><td>Template rigide</td><td>Champs optionnels + commentaire</td></tr></tbody></table>
+<h3>KPI succès</h3>
+<ul>
+<li><strong>≥ 90 %</strong> EB via Flow sans correction DT sur qté/unité</li>
+<li>Délai message → EB validée <strong>&lt; 2 h ouvrées</strong></li>
+</ul>
+<h3>Verdict</h3>
+<table><thead><tr><th>Choisir si</th><th>Éviter si</th></tr></thead><tbody><tr><td>Priorité <strong>fiabilité données</strong> &gt; flexibilité message libre</td><td>Meta Flows bloqué &gt; 3 mois</td></tr><tr><td>Board accepte délai onboarding Meta</td><td>Besoins 100 % atypiques / hors formulaire</td></tr></tbody></table>
+<hr />
+<h2>4. Option A2 — Copilote DT « zéro friction terrain »</h2>
+<h3>Résumé</h3>
+<p><strong>Aucun changement</strong> pour le technicien (groupe WhatsApp inchangé). Le DT ouvre TraceO, <strong>importe ou forwards</strong> les messages du jour ; l’IA structure un brouillon ; le DT valide. L’EB naît <strong>côté bureau</strong>.</p>
+<h3>Question stratégique</h3>
+<p>*Comment digitaliser sans imposer un nouveau geste aux techniciens ?*</p>
+<h3>Flux</h3>
+<pre><code>Groupe WA (inchangé) → DT importe/forwards → IA batch → brouillon EB
+    → DT valide → export fiche SA</code></pre>
+<h3>Périmètre</h3>
+<table><thead><tr><th>Inclus</th><th>Exclus</th></tr></thead><tbody><tr><td>UI copilote DT</td><td>Pont WA obligatoire terrain</td></tr><tr><td>Batch IA structuration</td><td>Formulaire technicien</td></tr><tr><td>Boîte EB + révision (existant)</td><td>Accusés statut au technicien (phase 2)</td></tr><tr><td>Export fiche SA</td><td>Catalogue (combiner A5)</td></tr></tbody></table>
+<h3>Prérequis</h3>
+<ul>
+<li>DT disponible et <strong>discipliné</strong> (revue quotidienne)</li>
+<li>Clé API OpenAI (ou équivalent)</li>
+<li>Export gabarit fiche SA</li>
+</ul>
+<h3>Coûts</h3>
+<table><thead><tr><th>Poste</th><th>Fourchette</th></tr></thead><tbody><tr><td><strong>Setup</strong></td><td><strong>3 – 6 M FCFA</strong></td></tr><tr><td><strong>Récurrent / mois</strong></td><td><strong>50 – 200 k FCFA</strong></td></tr><tr><td>Dont Meta</td><td>0 – 80 k (optionnel)</td></tr><tr><td>Dont IA</td><td>30 – 150 k</td></tr></tbody></table>
+<p><strong>Délai pilote : 6 – 8 semaines</strong></p>
+<h3>Avantages</h3>
+<ol>
+<li><strong>Zéro résistance techniciens</strong> — argument massue adoption</li>
+<li>Capitalise prototype Boîte EB (~40 % fait)</li>
+<li>Coût Meta faible ou nul</li>
+<li>Temps DT par EB <strong>÷ 2 à 3</strong> vs Excel</li>
+<li><strong>≥ 80 %</strong> EB sans frappe manuelle des lignes</li>
+<li>Combine naturellement avec <strong>A5</strong> (catalogue + exceptions)</li>
+</ol>
+<h3>Inconvénients</h3>
+<ol>
+<li>Charge DT <strong>partiellement maintenue</strong> (revue, pas ressaisie)</li>
+<li>Pas de statut temps réel pour le technicien</li>
+<li>Dépend discipline DT</li>
+<li>Batch ≠ temps réel</li>
+<li>IA : risque erreur qté → validation DT obligatoire</li>
+<li>Ne réduit pas le <strong>volume</strong> de messages WA</li>
+</ol>
+<h3>Risques et parades</h3>
+<table><thead><tr><th>Risque</th><th>Parade</th></tr></thead><tbody><tr><td>DT saturé, copilote ignoré</td><td>Priorisation EB urgentes ; alertes</td></tr><tr><td>Erreurs IA</td><td>Original message visible ; DT responsable</td></tr><tr><td>Double travail WA + TraceO</td><td>Import en 1 clic depuis forwards</td></tr></tbody></table>
+<h3>KPI succès</h3>
+<ul>
+<li>Temps DT / EB <strong>÷ 2 minimum</strong></li>
+<li><strong>≥ 80 %</strong> lignes EB sans saisie manuelle</li>
+</ul>
+<h3>Verdict</h3>
+<table><thead><tr><th>Choisir si</th><th>Éviter si</th></tr></thead><tbody><tr><td>Priorité absolue = <strong>ne pas toucher au terrain</strong></td><td>DT déjà saturé sans marge de revue</td></tr><tr><td>Combiner avec <strong>A5</strong> pour le pilote</td><td>Besoin statut technicien immédiat</td></tr></tbody></table>
+<hr />
+<h2>5. Option A3 — Excel vivant synchronisé</h2>
+<h3>Résumé</h3>
+<p>La <strong>fiche EB Excel reste l’interface</strong> DT/SA. TraceO <strong>synchronise</strong> en arrière-plan (connecteur Sheets / import planifié). Le dossier numérique se remplit sans changer l’écran métier.</p>
+<h3>Question stratégique</h3>
+<p>*Comment tracer sans retirer Excel à DT et SA ?*</p>
+<h3>Flux</h3>
+<pre><code>DT saisit Excel (habitude) → sync TraceO → dossier numérique
+    → circuit BC / livraison aval</code></pre>
+<h3>Périmètre</h3>
+<table><thead><tr><th>Inclus</th><th>Exclus</th></tr></thead><tbody><tr><td>Connecteur sync colonnes fiche SA</td><td>Suppression ressaisie</td></tr><tr><td>Dossier TraceO</td><td>Capture WhatsApp auto</td></tr><tr><td>Mapping conflits</td><td>IA parsing</td></tr></tbody></table>
+<h3>Prérequis</h3>
+<ul>
+<li>Accord SA sur mapping colonnes Excel ↔ TraceO</li>
+<li>Hébergement fichier (SharePoint, Google Sheets, ou import CSV planifié)</li>
+<li>Règles de résolution conflits</li>
+</ul>
+<h3>Coûts</h3>
+<table><thead><tr><th>Poste</th><th>Fourchette</th></tr></thead><tbody><tr><td><strong>Setup</strong></td><td><strong>4 – 7 M FCFA</strong></td></tr><tr><td><strong>Récurrent / mois</strong></td><td><strong>30 – 100 k FCFA</strong></td></tr><tr><td>Dont Meta</td><td>0</td></tr><tr><td>Dont IA</td><td>0</td></tr></tbody></table>
+<p><strong>Délai pilote : 8 – 12 semaines</strong></p>
+<h3>Avantages</h3>
+<ol>
+<li><strong>Adoption SA/DT maximale</strong> — écran familier</li>
+<li>Continuité compta et audits Excel</li>
+<li>Risque technique <strong>faible</strong></li>
+<li>Coût récurrent <strong>minimal</strong></li>
+<li>Lien BC/livraison TraceO possible en aval</li>
+<li>Board conservateur rassuré</li>
+</ol>
+<h3>Inconvénients</h3>
+<ol>
+<li><strong>Ne supprime pas</strong> la saisie — synchronise seulement</li>
+<li>Double vérité si conflits sync</li>
+<li>Perception « pas une vraie transformation »</li>
+<li>Pas de lien message WhatsApp terrain</li>
+<li>Maintenance connecteur à chaque changement Excel</li>
+<li>Gain DT <strong>&lt; 30 %</strong> typiquement</li>
+</ol>
+<h3>Risques et parades</h3>
+<table><thead><tr><th>Risque</th><th>Parade</th></tr></thead><tbody><tr><td>Versions Excel divergentes</td><td>Fichier unique référence ; verrouillage</td></tr><tr><td>SA modifie hors sync</td><td>Import planifié + log écarts</td></tr></tbody></table>
+<h3>KPI succès</h3>
+<ul>
+<li><strong>100 %</strong> EB au format SA dans TraceO</li>
+<li>Gain temps DT <strong>≥ 20 %</strong> (realistic)</li>
+</ul>
+<h3>Verdict</h3>
+<table><thead><tr><th>Choisir si</th><th>Éviter si</th></tr></thead><tbody><tr><td>Board <strong>craint le changement</strong></td><td>Objectif = <strong>éliminer</strong> ressaisie (douleur n°1)</td></tr><tr><td>SA exige Excel identique à court terme</td><td>Vision WhatsApp-first long terme</td></tr></tbody></table>
+<hr />
+<h2>6. Option A4 — EB inversée (reliquats + stock)</h2>
+<h3>Résumé</h3>
+<p><strong>Inverser le flux</strong> : la majorité des EB ne partent plus d’un message technicien mais du <strong>système</strong> — livraison partielle → EB complément ; stock sous seuil → EB suggérée ; bilan soir → anticipation. WhatsApp = <strong>exceptions et urgences</strong> seulement.</p>
+<h3>Question stratégique</h3>
+<p>*Comment réduire le volume d’EB réactives et anticiper les ruptures ?*</p>
+<h3>Flux</h3>
+<pre><code>Livraison partielle / stock sous seuil → TraceO suggère EB
+    → DT valide → export fiche SA
+WhatsApp (urgences seulement) ──────────────┘</code></pre>
+<h3>Périmètre</h3>
+<table><thead><tr><th>Inclus</th><th>Exclus</th></tr></thead><tbody><tr><td>Règles reliquat → EB complément</td><td>Saisie WA standard</td></tr><tr><td>Seuils stock DT → EB suggérée</td><td>Catalogue (A5)</td></tr><tr><td>Validation DT sur suggestions</td><td>Déploiement sans livraisons TraceO</td></tr></tbody></table>
+<h3>Prérequis</h3>
+<ul>
+<li><strong>Livraisons tracées</strong> dans TraceO (preuve, qtés)</li>
+<li>Stock S0–S1 (entrée à livraison, seuils DT)</li>
+<li>Calibrage 3–5 produits pilote</li>
+</ul>
+<h3>Coûts</h3>
+<table><thead><tr><th>Poste</th><th>Fourchette</th></tr></thead><tbody><tr><td><strong>Setup</strong></td><td><strong>8 – 14 M FCFA</strong></td></tr><tr><td><strong>Récurrent / mois</strong></td><td><strong>100 – 300 k FCFA</strong></td></tr><tr><td>Dont Meta</td><td>50 – 150 k</td></tr><tr><td>Dont IA</td><td>20 – 80 k</td></tr></tbody></table>
+<p><strong>Délai pilote : 12 – 18 semaines</strong></p>
+<h3>Avantages</h3>
+<ol>
+<li><strong>Transformant</strong> — change le métier, pas seulement l’outil</li>
+<li><strong>−30 à 50 %</strong> volume EB réactives WhatsApp</li>
+<li>Anticipation ruptures (aligné vision Phase 4 synthèse exécutive)</li>
+<li>Moins de bruit groupe WhatsApp</li>
+<li>DT valide, ne crée plus tout from scratch</li>
+<li>ROI long terme élevé</li>
+</ol>
+<h3>Inconvénients</h3>
+<ol>
+<li><strong>Prérequis livraisons fiables</strong> — sinon suggestions fausses</li>
+<li>Délai le plus long</li>
+<li>Calibrage seuils = effort DT initial</li>
+<li>Ne remplace pas saisie EB <strong>ponctuelle</strong> (combiner A2/A5)</li>
+<li>Investissement stock + livraison en parallèle</li>
+<li>Complexité organisationnelle</li>
+</ol>
+<h3>Risques et parades</h3>
+<table><thead><tr><th>Risque</th><th>Parade</th></tr></thead><tbody><tr><td>Données livraison incomplètes</td><td>Phase 1b livraisons avant A4</td></tr><tr><td>Seuils mal calibrés</td><td>Relevé « il reste X » hebdo DT</td></tr><tr><td>Suggestions ignorées</td><td>Alertes WA + dashboard</td></tr></tbody></table>
+<h3>KPI succès</h3>
+<ul>
+<li><strong>≥ 40 %</strong> EB générées par suggestion système</li>
+<li>Ruptures non anticipées pilote <strong>&lt; 2</strong> / trimestre</li>
+</ul>
+<h3>Verdict</h3>
+<table><thead><tr><th>Choisir si</th><th>Éviter si</th></tr></thead><tbody><tr><td>Board vise <strong>anticipation</strong>, pas seulement saisie</td><td>Livraisons encore hors TraceO</td></tr><tr><td>Phase 2 après pilote livraisons</td><td>Besoin gain immédiat sur ressaisie (&lt; 3 mois)</td></tr></tbody></table>
+<hr />
+<h2>7. Option A5 — Catalogue fournisseur + panier chantier</h2>
+<h3>Résumé</h3>
+<p>L’EB devient un <strong>panier</strong> issu d’un <strong>catalogue</strong> (interne ou fournisseur) : QR ou lien chantier → produits normalisés (ciment, fer, sable…), unités et libellés <strong>sans ambiguïté</strong>.</p>
+<h3>Question stratégique</h3>
+<p>*Comment éliminer les erreurs libellé / unité à la racine ?*</p>
+<h3>Flux</h3>
+<pre><code>Technicien ou DT → QR chantier → catalogue 3–5 produits
+    → panier EB → DT valide → export fiche SA</code></pre>
+<h3>Périmètre</h3>
+<table><thead><tr><th>Inclus</th><th>Exclus</th></tr></thead><tbody><tr><td>Catalogue pilote 3–5 SKU</td><td>Tous produits BTP</td></tr><tr><td>UI panier (mobile web ou WA link)</td><td>Parsing message libre</td></tr><tr><td>Lien fournisseur</td><td>Onboarding multi-fournisseurs massif</td></tr><tr><td>Export fiche SA</td><td>BC aval (hors doc)</td></tr></tbody></table>
+<h3>Prérequis</h3>
+<ul>
+<li>SA référence produits + fournisseurs pilote</li>
+<li>3–5 produits stables identifiés (cas chantier pilote)</li>
+<li>Voie secours hors catalogue (→ <strong>A2</strong>)</li>
+</ul>
+<h3>Coûts</h3>
+<table><thead><tr><th>Poste</th><th>Fourchette</th></tr></thead><tbody><tr><td><strong>Setup</strong></td><td><strong>6 – 12 M FCFA</strong></td></tr><tr><td><strong>Récurrent / mois</strong></td><td><strong>80 – 250 k FCFA</strong></td></tr><tr><td>Dont Meta</td><td>50 – 150 k</td></tr><tr><td>Dont IA</td><td>0 – 50 k</td></tr></tbody></table>
+<p><strong>Délai pilote : 10 – 14 semaines</strong></p>
+<h3>Avantages</h3>
+<ol>
+<li><strong>Zéro erreur libellé/unité</strong> sur catalogue</li>
+<li>Préparation BC SA directe (montants, refs)</li>
+<li>Scalable multi-chantiers</li>
+<li>Réduit parsing hasardeux à <strong>near zero</strong> sur 80 % besoins</li>
+<li>Aligné pilote 3–5 produits documenté</li>
+<li>Combine idéalement avec <strong>A2</strong> (exceptions)</li>
+</ol>
+<h3>Inconvénients</h3>
+<ol>
+<li>Onboarding <strong>catalogue</strong> (SA + données)</li>
+<li>Produits hors catalogue = process parallèle requis</li>
+<li>Investissement référentiel produits</li>
+<li>Technicien : nouveau geste (QR / lien)</li>
+<li>Fournisseurs non référencés = friction</li>
+<li>Setup moyen-élevé</li>
+</ol>
+<h3>Risques et parades</h3>
+<table><thead><tr><th>Risque</th><th>Parade</th></tr></thead><tbody><tr><td>Produit absent du catalogue</td><td>Voie A2 copilote DT</td></tr><tr><td>Catalogue obsolète</td><td>SA owner référentiel ; revue mensuelle</td></tr><tr><td>Faible usage QR</td><td>DT saisit panier depuis bureau</td></tr></tbody></table>
+<h3>KPI succès</h3>
+<ul>
+<li><strong>≥ 80 %</strong> EB pilote via catalogue</li>
+<li><strong>0</strong> erreur unité sur EB catalogue (audit SA)</li>
+</ul>
+<h3>Verdict</h3>
+<table><thead><tr><th>Choisir si</th><th>Éviter si</th></tr></thead><tbody><tr><td>Chantier = <strong>3–5 produits récurrents</strong></td><td>Achats très hétérogènes sans référentiel</td></tr><tr><td>Combiner avec <strong>A2</strong> pour exceptions</td><td>Refus investir données produits</td></tr></tbody></table>
+<hr />
+<h2>8. Option A6 — Canal vocal dédié (voice-first BTP)</h2>
+<h3>Résumé</h3>
+<p>Numéro WhatsApp <strong>« TraceO Vocal »</strong> : le technicien envoie <strong>uniquement des notes vocales</strong>. Pipeline STT optimisé <strong>français ivoirien + vocabulaire BTP</strong>. Texte = admin ; voix = terrain.</p>
+<h3>Question stratégique</h3>
+<p>*Comment coller à l’usage vocal dominant sur les chantiers CI ?*</p>
+<h3>Flux</h3>
+<pre><code>Technicien → note vocale WA dédiée → STT BTP → lignes EB
+    → DT valide (écoute si besoin) → export fiche SA</code></pre>
+<h3>Périmètre</h3>
+<table><thead><tr><th>Inclus</th><th>Exclus</th></tr></thead><tbody><tr><td>Canal WA vocal dédié</td><td>OCR photo (option phase 2)</td></tr><tr><td>STT + glossaire BTP</td><td>Parsing texte libre générique</td></tr><tr><td>UI relecture audio DT</td><td>Flows Meta (A1)</td></tr><tr><td>Export fiche SA</td><td>Multimodal fourre-tout</td></tr></tbody></table>
+<h3>Prérequis</h3>
+<ul>
+<li>Budget STT récurrent validé</li>
+<li>Glossaire produits BTP pilote</li>
+<li>Consentement traitement vocaux</li>
+<li>Meta Cloud API (médias)</li>
+</ul>
+<h3>Coûts</h3>
+<table><thead><tr><th>Poste</th><th>Fourchette</th></tr></thead><tbody><tr><td><strong>Setup</strong></td><td><strong>5 – 9 M FCFA</strong></td></tr><tr><td><strong>Récurrent / mois</strong></td><td><strong>120 – 450 k FCFA</strong></td></tr><tr><td>Dont Meta</td><td>80 – 200 k</td></tr><tr><td>Dont IA (STT)</td><td>80 – 300 k</td></tr></tbody></table>
+<p><strong>Délai pilote : 8 – 12 semaines</strong></p>
+<h3>Avantages</h3>
+<ol>
+<li><strong>Mains libres</strong> — naturel sur chantier</li>
+<li>Colle à usage réel CI (vocal &gt; texte)</li>
+<li>Canal <strong>optimisé</strong> vs multimodal générique</li>
+<li>Réduit illettrisme / flemme texte</li>
+<li><strong>≥ 85 %</strong> EB sans ressaisie si STT calibré</li>
+<li>Complète A5 (catalogue) ou A2 (exceptions vocales)</li>
+</ol>
+<h3>Inconvénients</h3>
+<ol>
+<li>Coût STT récurrent</li>
+<li>Bruit chantier → qualité variable</li>
+<li>DT doit écouter si confiance basse</li>
+<li>Latence traitement (30 s – 2 min)</li>
+<li>Deux numéros WA à communiquer (vocal vs admin)</li>
+<li>Pas adapté si terrain déjà texte structuré</li>
+</ol>
+<h3>Risques et parades</h3>
+<table><thead><tr><th>Risque</th><th>Parade</th></tr></thead><tbody><tr><td>STT erreur qté</td><td>DT validation + replay audio</td></tr><tr><td>Surcoût volume</td><td>Plafond messages ; durée max vocal</td></tr><tr><td>Bruit</td><td>Guide « vocal court, répéter qté »</td></tr></tbody></table>
+<h3>KPI succès</h3>
+<ul>
+<li><strong>≥ 85 %</strong> EB sans correction ligne DT</li>
+<li><strong>≥ 80 %</strong> vocaux traités sans ressaisie manuelle</li>
+</ul>
+<h3>Verdict</h3>
+<table><thead><tr><th>Choisir si</th><th>Éviter si</th></tr></thead><tbody><tr><td>Retex <strong>&gt; 50 % vocaux</strong></td><td>Techniciens texte structuré OK</td></tr><tr><td>Gate J+60 après A2+A5 insuffisant</td><td>Budget STT non validé</td></tr></tbody></table>
+<hr />
+<h2>9. Option A7 — Bot membre du groupe WhatsApp</h2>
+<h3>Résumé</h3>
+<p>Ajouter le <strong>numéro TraceO comme membre</strong> du groupe chantier : le bot <strong>lit</strong> les messages (texte, vocal, photo), <strong>classifie</strong> les EB, <strong>accuse réception</strong> et <strong>poste les statuts</strong> dans le fil — <strong>sans</strong> transfert manuel au numéro TraceO.</p>
+<h3>Question stratégique</h3>
+<p>*Comment capturer 100 % du fil groupe sans changer le geste « j’écris dans le groupe » ?*</p>
+<h3>Flux</h3>
+<pre><code>Technicien → message dans le groupe (habitude inchangée)
+    → Bot TraceO (membre) ingère + classe EB
+    → Accusé + statut dans le groupe (« EB reçue — en revue DT »)
+    → DT valide dans TraceO → export fiche SA</code></pre>
+<h3>Périmètre</h3>
+<table><thead><tr><th>Inclus</th><th>Exclus</th></tr></thead><tbody><tr><td>Bot ajouté au groupe pilote</td><td>Lecture passive silencieuse sans bot (non garanti Meta)</td></tr><tr><td>Classification EB + journal horodaté</td><td>Remplacement complet pont A2 (phase 1)</td></tr><tr><td>Accusés / statuts BC dans le groupe</td><td>Décision finance BC (hors doc)</td></tr><tr><td>Archivage original message</td><td>OCR industriel multi-documents</td></tr></tbody></table>
+<h3>Prérequis</h3>
+<ul>
+<li>Compte Meta Business vérifié + <strong>capacités groupe</strong> confirmées par BSP ou Coexistence</li>
+<li>Charte groupe : rôle du bot, mentions @TraceO pour hors-EB</li>
+<li>Filtres bruit (salutations, photos sans légende, messages admin)</li>
+<li>DT + SA formés au journal TraceO (pas seulement au fil WA)</li>
+</ul>
+<h3>Coûts</h3>
+<table><thead><tr><th>Poste</th><th>Fourchette</th></tr></thead><tbody><tr><td><strong>Setup</strong></td><td><strong>8 – 14 M FCFA</strong></td></tr><tr><td><strong>Récurrent / mois</strong></td><td><strong>200 – 600 k FCFA</strong></td></tr><tr><td>Dont Meta / BSP</td><td>100 – 350 k</td></tr><tr><td>Dont IA (classification + STT)</td><td>80 – 250 k</td></tr></tbody></table>
+<p><strong>Délai pilote : 10 – 16 semaines</strong> (dépend conformité Meta groupe)</p>
+<h3>Avantages</h3>
+<ol>
+<li><strong>Zéro friction</strong> — technicien ne change pas d’habitude</li>
+<li><strong>Journal complet</strong> du chantier si ingestion fiable</li>
+<li><strong>Transparence</strong> — accusés visibles par toute l’équipe</li>
+<li>Réduit oublis de transfert au pont</li>
+<li>Base pour dossier chantier / audit (fil structuré)</li>
+<li>Complète A2/A5 si adoption pont &lt; 50 %</li>
+</ol>
+<h3>Inconvénients</h3>
+<ol>
+<li><strong>API Meta ne garantit pas</strong> la lecture intégrale du groupe (voir dossier WhatsApp §7.2)</li>
+<li>Setup <strong>plus lourd</strong> que pont (BSP, droits bot, tests Meta)</li>
+<li><strong>Bruit</strong> du fil → coût IA + risque faux positifs EB</li>
+<li>Politique Meta <strong>évolutive</strong> (capacités groupe)</li>
+<li>Gouvernance : qui mute le bot ? messages hors périmètre</li>
+<li>Coût récurrent <strong>supérieur</strong> à A2 seul</li>
+</ol>
+<h3>Risques et parades</h3>
+<table><thead><tr><th>Risque</th><th>Parade</th></tr></thead><tbody><tr><td>Meta retire / limite bots groupe</td><td><strong>Pont A2</strong> reste mode officiel ; A7 = option J+90</td></tr><tr><td>Sur-classification (spam EB)</td><td>Seuils confiance ; DT rejette ; apprentissage chantier</td></tr><tr><td>Messages sensibles dans le groupe</td><td>Charte + rappel DM pour RH / paie</td></tr><tr><td>Latence accusés</td><td>SLA affiché ; file d’attente visible DT</td></tr></tbody></table>
+<h3>KPI succès</h3>
+<ul>
+<li><strong>≥ 90 %</strong> des EB terrain captées <strong>sans</strong> transfert manuel</li>
+<li><strong>≤ 10 %</strong> messages classés EB à tort (audit DT hebdo)</li>
+<li><strong>≥ 70 %</strong> techniciens satisfaits (pas de surcharge notifications)</li>
+</ul>
+<h3>Verdict</h3>
+<table><thead><tr><th>Choisir si</th><th>Éviter si</th></tr></thead><tbody><tr><td>Pont &lt; <strong>50 %</strong> adoption à J+90</td><td>Pilote J0–J90 (prioriser A2+A5)</td></tr><tr><td>Besoin <strong>journal chantier</strong> complet</td><td>Budget Meta/BSP non validé</td></tr><tr><td>Meta/BSP confirme capacités groupe</td><td>DT préfère contrôle pont explicite</td></tr></tbody></table>
+<p><strong>Alternatives documentées :</strong> Coexistence / BSP étendu, export manuel fil, pont transfert — <a href="./BTP-WHATSAPP-DOSSIER-CHANTIER.md">BTP-WHATSAPP-DOSSIER-CHANTIER.md</a> §7.2.</p>
+<hr />
+<h2>10. Option A8 — Formulaire lien (WhatsForm / équivalent)</h2>
+<h3>Résumé</h3>
+<p>Formulaire <strong>mobile web</strong> (ex. <a href="https://whatsform.com">WhatsForm</a>) partagé par <strong>lien épinglé</strong> ou <strong>QR</strong> dans le groupe chantier. Le technicien remplit chantier, produit, qté, unité ; à la soumission, les données arrivent par <strong>message WhatsApp</strong> sur le numéro TraceO <strong>et/ou</strong> <strong>webhook JSON</strong> vers TraceO — <strong>sans</strong> Meta Flows ni développement catalogue complet.</p>
+<h3>Question stratégique</h3>
+<p>*Comment obtenir des EB propres en quelques jours, en attendant A5 ou si Meta Flows (A1) bloque ?*</p>
+<h3>Flux</h3>
+<pre><code>Technicien → lien WhatsForm (épinglé groupe / QR container)
+    → saisie structurée 5–7 champs → Submit
+    → webhook TraceO + récap WA → brouillon EB
+    → DT valide → export fiche SA</code></pre>
+<p>Maquette pilote prête à coller : <a href="./BTP-WHATSFORM-EB-MAQUETTE-PILOTE.md">BTP-WHATSFORM-EB-MAQUETTE-PILOTE.md</a>.</p>
+<h3>Périmètre</h3>
+<table><thead><tr><th>Inclus</th><th>Exclus</th></tr></thead><tbody><tr><td>Builder no-code (WhatsForm ou similaire)</td><td>Formulaire <strong>natif in-chat</strong> Meta (→ A1)</td></tr><tr><td>Webhook POST → TraceO</td><td>Catalogue TraceO intégré (→ A5)</td></tr><tr><td>5 produits pilote en liste déroulante</td><td>Voix / photo dans le formulaire</td></tr><tr><td>Récap message WA + audit</td><td>Remplacement long terme du pont A2</td></tr></tbody></table>
+<h3>Prérequis</h3>
+<ul>
+<li>Compte WhatsForm (ou équivalent) + numéro WA TraceO</li>
+<li>Endpoint webhook TraceO (ou file d’attente manuelle POC)</li>
+<li>Lien épinglé + charte groupe (30 s formation)</li>
+<li>SA valide libellés produits Q3 (5 SKU pilote)</li>
+</ul>
+<h3>Coûts</h3>
+<table><thead><tr><th>Poste</th><th>Fourchette</th></tr></thead><tbody><tr><td><strong>Setup</strong></td><td><strong>1 – 3 M FCFA</strong></td></tr><tr><td><strong>Récurrent / mois</strong></td><td><strong>30 – 120 k FCFA</strong></td></tr><tr><td>Dont SaaS WhatsForm</td><td>15 – 60 k *(~10–30 USD/mois)*</td></tr><tr><td>Dont webhook TraceO (dev léger)</td><td>inclus setup</td></tr><tr><td>Dont Meta</td><td>0 – 50 k *(récap WA uniquement)*</td></tr><tr><td>Dont IA</td><td>0</td></tr></tbody></table>
+<p><strong>Délai pilote : 2 – 4 semaines</strong> (config + webhook + tests terrain)</p>
+<h3>Avantages</h3>
+<ol>
+<li><strong>Time-to-value minimal</strong> — POC en jours, pas mois</li>
+<li>Données <strong>structurées à la source</strong> — pas de parsing IA</li>
+<li>Webhook <strong>standard</strong> — branchement TraceO simple</li>
+<li>Coût setup <strong>le plus bas</strong> du comparatif</li>
+<li>Utile <strong>transitoire</strong> si A1 (Meta Flows) en attente validation</li>
+<li>Même logique catalogue 3–5 produits que A5 (liste déroulante)</li>
+</ol>
+<h3>Inconvénients</h3>
+<ol>
+<li><strong>Ouvre un lien</strong> — pas in-chat ; geste ≠ message groupe</li>
+<li>Outil <strong>tiers</strong> (disponibilité, CGU, données hors TraceO)</li>
+<li><strong>Non officiel Meta</strong> — distinct de WhatsApp Flows (A1)</li>
+<li>Pas de panier multi-lignes natif (1 produit / submit — multi-submit possible)</li>
+<li>Photos / vocaux <strong>hors</strong> formulaire (→ A2 parallèle)</li>
+<li><strong>Dette</strong> : migrer vers A5 ou A1 à moyen terme</li>
+</ol>
+<h3>Risques et parades</h3>
+<table><thead><tr><th>Risque</th><th>Parade</th></tr></thead><tbody><tr><td>Technicien ignore le lien</td><td>Épingler groupe + QR container ; KPI usage</td></tr><tr><td>Dépendance SaaS</td><td>Export réponses ; migration A5 planifiée</td></tr><tr><td>Webhook down</td><td>Récap WA reste ; saisie DT secours</td></tr><tr><td>« Autre produit » mal saisi</td><td>Champ commentaire + rejet DT</td></tr></tbody></table>
+<h3>KPI succès</h3>
+<ul>
+<li><strong>≥ 75 %</strong> EB standard via formulaire (vs message libre)</li>
+<li><strong>≥ 95 %</strong> champs qté/unité corrects sans correction DT</li>
+<li>Délai lien → brouillon TraceO <strong>&lt; 5 min</strong></li>
+</ul>
+<h3>Verdict</h3>
+<table><thead><tr><th>Choisir si</th><th>Éviter si</th></tr></thead><tbody><tr><td>Besoin <strong>POC &lt; 1 mois</strong> données propres</td><td>Stratégie long terme sans migration A5/A1</td></tr><tr><td>Meta Flows (A1) <strong>bloqué</strong> &gt; 8 sem.</td><td>Objectif = zéro geste hors groupe (→ A2/A7)</td></tr><tr><td>Budget setup <strong>&lt; 3 M</strong> immédiat</td><td>Board exige <strong>100 % souveraineté</strong> stack TraceO</td></tr></tbody></table>
+<h3>10.1 A8 vs A1 vs A5</h3>
+<table><thead><tr><th>Critère</th><th><strong>A8 WhatsForm</strong></th><th><strong>A1 Meta Flows</strong></th><th><strong>A5 Catalogue TraceO</strong></th></tr></thead><tbody><tr><td><strong>Où s’ouvre</strong></td><td>Lien web mobile</td><td><strong>In-chat WhatsApp</strong></td><td>Lien / QR <strong>TraceO</strong></td></tr><tr><td><strong>Setup</strong></td><td>1 – 3 M · 2 – 4 sem.</td><td>5 – 10 M · 10 – 14 sem.</td><td>6 – 12 M · 10 – 14 sem.</td></tr><tr><td><strong>Récurrent</strong></td><td>30 – 120 k</td><td>150 – 400 k</td><td>80 – 250 k</td></tr><tr><td><strong>Propriété</strong></td><td>SaaS tiers</td><td>Meta officiel</td><td><strong>TraceO</strong></td></tr><tr><td><strong>Multi-lignes EB</strong></td><td>Faible *(1 submit/ligne)*</td><td>Oui *(Flow)*</td><td><strong>Oui</strong> *(panier)*</td></tr><tr><td><strong>Intégration BC/SA</strong></td><td>Webhook → brouillon</td><td>API Meta → TraceO</td><td><strong>Native</strong> export fiche</td></tr><tr><td><strong>Rôle recommandé</strong></td><td><strong>POC / transitoire</strong></td><td>Structuré in-chat long terme</td><td><strong>Cible pilote J0–J90</strong></td></tr></tbody></table>
+<hr />
+<h2>11. Matrice comparative</h2>
+<h3>11.1 Synthèse financière</h3>
+<table><thead><tr><th>Option</th><th>Setup</th><th>Récurrent/mois</th><th>Meta</th><th>IA</th><th>Délai</th></tr></thead><tbody><tr><td><strong>A1</strong></td><td>5 – 10 M</td><td>150 – 400 k</td><td>●●●</td><td>—</td><td>10 – 14 sem.</td></tr><tr><td><strong>A2</strong></td><td>3 – 6 M</td><td>50 – 200 k</td><td>●</td><td>●●</td><td>6 – 8 sem.</td></tr><tr><td><strong>A3</strong></td><td>4 – 7 M</td><td>30 – 100 k</td><td>—</td><td>—</td><td>8 – 12 sem.</td></tr><tr><td><strong>A4</strong></td><td>8 – 14 M</td><td>100 – 300 k</td><td>●●</td><td>●</td><td>12 – 18 sem.</td></tr><tr><td><strong>A5</strong></td><td>6 – 12 M</td><td>80 – 250 k</td><td>●●</td><td>●</td><td>10 – 14 sem.</td></tr><tr><td><strong>A6</strong></td><td>5 – 9 M</td><td>120 – 450 k</td><td>●●</td><td>●●●</td><td>8 – 12 sem.</td></tr><tr><td><strong>A7</strong></td><td>8 – 14 M</td><td>200 – 600 k</td><td>●●●●</td><td>●●●</td><td>10 – 16 sem.</td></tr><tr><td><strong>A8</strong></td><td>1 – 3 M</td><td>30 – 120 k</td><td>●</td><td>—</td><td>2 – 4 sem.</td></tr></tbody></table>
+<p>*(● = intensité relative ; — = négligeable)*</p>
+<h3>11.2 Critères décisionnels</h3>
+<table><thead><tr><th>Critère</th><th>A1</th><th>A2</th><th>A3</th><th>A4</th><th>A5</th><th>A6</th><th>A7</th><th>A8</th></tr></thead><tbody><tr><td>Supprime ressaisie DT</td><td>●●●●</td><td>●●●</td><td>●</td><td>●●●●</td><td>●●●●</td><td>●●●●</td><td>●●●●</td><td>●●●●</td></tr><tr><td>Adoption terrain</td><td>●●●</td><td>●●●●</td><td>●●</td><td>●●●</td><td>●●●</td><td>●●●●</td><td>●●●●●</td><td>●●●</td></tr><tr><td>Coût initial</td><td>●●</td><td>●●●</td><td>●●●</td><td>●</td><td>●●</td><td>●●</td><td>●</td><td>●●●●</td></tr><tr><td>Coût récurrent</td><td>●●</td><td>●●●</td><td>●●●●</td><td>●●●</td><td>●●●</td><td>●●</td><td>●●</td><td>●●●●</td></tr><tr><td>Délai time-to-value</td><td>●●</td><td>●●●●</td><td>●●●</td><td>●</td><td>●●</td><td>●●●</td><td>●●</td><td>●●●●●</td></tr><tr><td>Réutilise TraceO</td><td>●●●</td><td>●●●●</td><td>●●●</td><td>●●</td><td>●●●●</td><td>●●●</td><td>●●●●</td><td>●●</td></tr><tr><td>Transformant métier</td><td>●●●</td><td>●●</td><td>●</td><td>●●●●</td><td>●●●</td><td>●●●</td><td>●●●●</td><td>●●</td></tr><tr><td>Risque technique</td><td>●●</td><td>●●●</td><td>●●●●</td><td>●●</td><td>●●●</td><td>●●</td><td>●</td><td>●●●</td></tr><tr><td>Maîtrise budget</td><td>●●</td><td>●●●●</td><td>●●●●</td><td>●●</td><td>●●●</td><td>●●</td><td>●●</td><td>●●●●</td></tr></tbody></table>
+<h3>11.3 Quadrant stratégique</h3>
+<pre><code>                    Transformant
+                         │
+           A4 ●          │    ● A7
+                         │    ● A5
+                         │    ● A1
+    Faible changement ───┼─── Fort changement terrain
+    terrain              │
+      A8 ●  A3 ●   ● A2  │    ● A6
+                         │
+                    Incremental</code></pre>
+<hr />
+<h2>12. Recommandation</h2>
+<h3>12.1 Choix principal : <strong>A2 + A5</strong></h3>
+<table><thead><tr><th>Composant</th><th>Rôle sur pilote</th></tr></thead><tbody><tr><td><strong>A5 Catalogue</strong></td><td>~80 % besoins = 3–5 produits normalisés</td></tr><tr><td><strong>A2 Copilote DT</strong></td><td>Urgences / hors catalogue — <strong>groupe WhatsApp inchangé</strong></td></tr></tbody></table>
+<table><thead><tr><th>Indicateur</th><th>Cible</th></tr></thead><tbody><tr><td>Setup combiné</td><td><strong>6 – 10 M FCFA</strong></td></tr><tr><td>Délai première EB exportée</td><td><strong>8 – 10 semaines</strong></td></tr><tr><td>Ressaisie DT</td><td><strong>≤ 30 %</strong> des EB</td></tr></tbody></table>
+<h3>12.2 Phasage proposé</h3>
+<table><thead><tr><th>Phase</th><th>Contenu</th><th>Durée</th><th>Budget cumulé</th></tr></thead><tbody><tr><td><strong>0</strong> *(optionnel)*</td><td><strong>A8</strong> WhatsForm POC + webhook (lien épinglé)</td><td>2 – 4 sem.</td><td>1 – 3 M</td></tr><tr><td><strong>1</strong></td><td>A5 catalogue TraceO + export fiche EB</td><td>6 sem.</td><td>4 – 6 M</td></tr><tr><td><strong>2</strong></td><td>A2 copilote + Meta prod (pont, exceptions)</td><td>4 sem.</td><td>+2 – 4 M</td></tr><tr><td><strong>3</strong> *(gate J+60)*</td><td>A6 vocal si &gt; 40 % vocaux</td><td>6 sem.</td><td>+3 – 5 M</td></tr><tr><td><strong>4</strong> *(gate J+90)*</td><td>A7 bot groupe si pont &lt; 50 % <strong>ou</strong> journal complet requis</td><td>8 sem.</td><td>+8 – 14 M</td></tr><tr><td><strong>Long terme</strong></td><td>A4 EB inversée après livraisons fiables</td><td>+12 sem.</td><td>+8 – 14 M</td></tr></tbody></table>
+<blockquote><strong>Phase 0 :</strong> lancer <strong>A8</strong> seulement si le board exige des EB structurées <strong>avant</strong> fin phase 1 A5, ou pour valider l’adoption « formulaire » sur 2 semaines. <strong>Désactiver A8</strong> dès A5 en production (éviter double canal).</blockquote>
+<h3>12.3 Alternatives</h3>
+<table><thead><tr><th>Si…</th><th>Alors…</th></tr></thead><tbody><tr><td>Meta Flows validé &lt; 10 sem.</td><td><strong>A1</strong> remplace A5 pour saisie structurée</td></tr><tr><td>Board ultra-conservateur</td><td><strong>A3</strong> transitoire 6 mois → puis A2+A5</td></tr><tr><td>Budget serré, DT OK</td><td><strong>A2 seul</strong> (6 – 8 sem., 3 – 6 M)</td></tr><tr><td>Adoption pont faible à J+90</td><td>Étude <strong>A7</strong> (bot membre) vs renforcement formation pont</td></tr><tr><td>Setup <strong>&lt; 3 M</strong> et délai <strong>&lt; 1 mois</strong></td><td><strong>A8</strong> POC (<a href="./BTP-WHATSFORM-EB-MAQUETTE-PILOTE.md">maquette</a>) → migration A5</td></tr></tbody></table>
+<h3>12.4 Non recommandé en entrée de pilote (J0–J90)</h3>
+<ul>
+<li><strong>A3 seul</strong> si objectif = supprimer ressaisie (sync ≠ suppression)</li>
+<li><strong>A4 seul</strong> sans livraisons TraceO fiables</li>
+<li><strong>A6 seul</strong> en big bang (coût STT sans preuve besoin vocal)</li>
+<li><strong>A7</strong> en parallèle du pont — double canal, coût Meta + bruit ; <strong>réévaluer à J+90</strong> uniquement</li>
+<li><strong>A8 seul</strong> comme cible finale — SaaS tiers, pas panier TraceO ; <strong>POC transitoire uniquement</strong></li>
+</ul>
+<h3>12.5 A7 vs pont (rappel board)</h3>
+<table><thead><tr><th></th><th><strong>Pont A2</strong> (pilote)</th><th><strong>Bot groupe A7</strong> (gate J+90)</th></tr></thead><tbody><tr><td>Geste terrain</td><td>Transfert / réponse au n° TraceO</td><td>Aucun — message dans le groupe</td></tr><tr><td>Fiabilité Meta</td><td><strong>Élevée</strong> (API documentée)</td><td><strong>Conditionnelle</strong> (capacités groupe)</td></tr><tr><td>Coût récurrent</td><td>Faible</td><td>Moyen–élevé</td></tr><tr><td>Journal fil complet</td><td>Partiel (messages captés)</td><td>Visé si ingestion OK</td></tr></tbody></table>
+<h3>12.6 A8 vs A1 vs A5 (rappel board)</h3>
+<table><thead><tr><th></th><th><strong>A8 WhatsForm</strong></th><th><strong>A1 Meta Flows</strong></th><th><strong>A5 TraceO</strong></th></tr></thead><tbody><tr><td>Délai</td><td><strong>2 – 4 sem.</strong></td><td>10 – 14 sem.</td><td>10 – 14 sem.</td></tr><tr><td>Coût setup</td><td><strong>1 – 3 M</strong></td><td>5 – 10 M</td><td>6 – 12 M</td></tr><tr><td>UX terrain</td><td>Lien web</td><td><strong>In-chat</strong></td><td>Lien / QR <strong>TraceO</strong></td></tr><tr><td>Souveraineté</td><td>Tiers</td><td>Meta</td><td><strong>TraceO</strong></td></tr><tr><td>Usage recommandé</td><td><strong>POC / attente A5</strong></td><td>Long terme in-chat</td><td><strong>Pilote J0–J90</strong></td></tr></tbody></table>
+<hr />
+<h2>13. Décisions board</h2>
+<ul>
+<li>[ ] Option retenue : A1 / A2 / A3 / A4 / A5 / A6 / A7 / A8 / <strong>A2+A5 (recommandé)</strong></li>
+<li>[ ] POC transitoire <strong>A8</strong> (WhatsForm) : oui / non — date fin POC : _______________________</li>
+<li>[ ] Chantier pilote nommé : _______________________</li>
+<li>[ ] Budget setup plafond : _______________________ FCFA</li>
+<li>[ ] Budget récurrent plafond : _______________________ FCFA / mois</li>
+<li>[ ] Go Meta Business : oui / non — Référent : _______________________</li>
+<li>[ ] Mode capture pilote : <strong>pont</strong> / formulaire lien (A8) / bot groupe / les deux *(déconseillé J0)*</li>
+<li>[ ] Produits catalogue pilote (3–5) : _______________________</li>
+<li>[ ] Gate J+60 activation A6 (vocaux) : oui / non</li>
+<li>[ ] Gate J+90 réévaluation A7 (bot groupe) : oui / non</li>
+<li>[ ] Phase long terme A4 (EB inversée) : oui / reporter / N/A</li>
+</ul>
+<hr />
+<h2>14. Annexes</h2>
+<table><thead><tr><th>Document</th><th>Lien</th></tr></thead><tbody><tr><td>Règles circuit achats</td><td><a href="./BTP-REGLES-CIRCUIT-ACHATS.md">BTP-REGLES-CIRCUIT-ACHATS.md</a></td></tr><tr><td>Retex finance</td><td><a href="./BTP-RETEX-QUESTIONNAIRE-FINANCE-2026.md">BTP-RETEX-QUESTIONNAIRE-FINANCE-2026.md</a></td></tr><tr><td>Présentation board</td><td><a href="./BTP-PRESENTATION-BOARD.md">BTP-PRESENTATION-BOARD.md</a></td></tr><tr><td>Synthèse exécutive</td><td><a href="./BTP-SYNTHESE-EXECUTIVE-DIRECTION.md">BTP-SYNTHESE-EXECUTIVE-DIRECTION.md</a></td></tr><tr><td>WhatsApp dossier chantier</td><td><a href="./BTP-WHATSAPP-DOSSIER-CHANTIER.md">BTP-WHATSAPP-DOSSIER-CHANTIER.md</a></td></tr><tr><td><strong>Maquette WhatsForm EB pilote</strong></td><td><a href="./BTP-WHATSFORM-EB-MAQUETTE-PILOTE.md">BTP-WHATSFORM-EB-MAQUETTE-PILOTE.md</a></td></tr></tbody></table>
+<hr />
+<p>*TraceO® BTP — Document de décision board — août 2026*</p><p class="footer-note">TraceO® BTP — Options digitalisation EB — 2026</p></main>
+</body>
+</html>

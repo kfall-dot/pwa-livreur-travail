@@ -1,0 +1,65 @@
+[build]
+  command = "npm run build && npm run build:server"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+NODE_VERSION = "20"
+VITE_API_URL = "/api/v1"
+# Pilote terrain : désactive le contrôle de distance GPS (client + API via env Netlify)
+# VITE_GEOFENCE_BYPASS et GEOFENCE_BYPASS sont aussi posés dans le dashboard Netlify.
+
+[context.production.environment]
+VITE_SENTRY_ENV = "production"
+
+[context.deploy-preview.environment]
+VITE_SENTRY_ENV = "preview"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["dist-server/**"]
+
+[functions."api"]
+  timeout = 60
+
+[dev]
+  command = "npm run dev -- --port 5199 --host --strictPort"
+  targetPort = 5199
+  port = 8888
+  autoLaunch = false
+
+# API avant le fallback SPA (ordre important)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# SPA fallback uniquement en prod / preview — pas en `netlify dev`
+# (sinon Vite reçoit index.html à la place des modules /src/*).
+[[context.production.redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+[[context.production.redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[context.deploy-preview.redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+[[context.deploy-preview.redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), geolocation=(self)"

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Notes présentateur — Sales Deck</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --green: #0b4a2c;
+      --green-mist: #dceee4;
+      --orange: #e85d04;
+      --ink: #111827;
+      --mute: #4b5563;
+      --paper: #f6f5f2;
+      --sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      --display: "Fraunces", ui-serif, Georgia, serif;
+    }
+    * { box-sizing: border-box; }
+    @page { size: A4; margin: 18mm 16mm 20mm; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: var(--ink);
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid var(--green);
+    }
+    .doc-header h1 {
+      font-family: var(--display);
+      font-size: 18pt;
+      color: var(--green);
+      margin: 0;
+      line-height: 1.15;
+    }
+    .doc-header p { margin: 0.25rem 0 0; color: var(--mute); font-size: 9.5pt; }
+    .badge {
+      flex-shrink: 0;
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #9a3412;
+      background: #ffedd5;
+      border: 1px solid #fdba74;
+      border-radius: 999px;
+      padding: 0.25rem 0.55rem;
+    }
+    .cover {
+      page-break-after: always;
+      min-height: 250mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 8mm 0 0;
+      border-bottom: 4px solid var(--green);
+    }
+    .cover-mark {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: var(--green); color: #fff;
+      display: grid; place-items: center;
+      font-family: var(--display); font-size: 28px; font-weight: 700;
+    }
+    .cover h1 {
+      font-family: var(--display);
+      font-size: 32pt; line-height: 1.08; color: var(--green);
+      margin: 18mm 0 0.4rem; max-width: 14ch;
+    }
+    .cover .tagline { font-size: 13pt; color: var(--mute); max-width: 38ch; margin-bottom: 1rem; }
+    .cover .pill-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 1rem 0 2rem; }
+    .pill {
+      font-size: 8.5pt; font-weight: 600; padding: 0.28rem 0.55rem;
+      border-radius: 999px; background: var(--green-mist); color: var(--green);
+    }
+    .contact-card {
+      margin-top: auto; padding: 1rem 1.1rem; border-radius: 12px;
+      background: var(--paper); border: 1px solid rgba(11, 74, 44, 0.12);
+    }
+    .contact-card h2 { font-size: 11pt; margin: 0 0 0.65rem; color: var(--green); }
+    .contact-card p { margin: 0.25rem 0; font-size: 10pt; }
+    .contact-card a { color: var(--green); text-decoration: none; font-weight: 600; }
+    main > h1:first-child { display: none; }
+    h2 {
+      font-family: var(--display);
+      font-size: 15pt; color: var(--green);
+      margin: 1.35rem 0 0.55rem;
+      page-break-after: avoid;
+    }
+    h2.slide-note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+    .slide-num {
+      font-family: var(--sans);
+      font-size: 8.5pt; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #fff; background: var(--orange);
+      border-radius: 999px; padding: 0.15rem 0.5rem;
+    }
+    h3 { font-size: 11pt; margin: 1rem 0 0.35rem; page-break-after: avoid; }
+    p { margin: 0.35rem 0 0.65rem; }
+    p.presenter-note {
+      margin: 0.5rem 0 0.85rem; padding: 0.55rem 0.75rem;
+      border-left: 3px solid var(--orange); background: #fff7f0; font-size: 10pt;
+    }
+    hr { border: 0; border-top: 1px solid rgba(17, 24, 39, 0.1); margin: 1rem 0; }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 9pt;
+      margin: 0.5rem 0 1rem; page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      padding: 0.35rem 0.45rem; vertical-align: top; text-align: left;
+    }
+    th { background: var(--green-mist); color: var(--green); font-weight: 600; }
+    ul, ol { margin: 0.35rem 0 0.75rem 1.1rem; padding: 0; }
+    li { margin: 0.2rem 0; }
+    blockquote {
+      margin: 0.5rem 0 0.85rem; padding: 0.55rem 0.75rem;
+      border-left: 3px solid var(--orange); background: #fff7f0; font-size: 10pt;
+    }
+    pre {
+      font-size: 8pt; background: var(--paper); padding: 0.65rem;
+      border-radius: 8px; white-space: pre-wrap; page-break-inside: avoid;
+    }
+    code { font-size: 9pt; }
+    a { color: var(--green); }
+    .footer-note {
+      margin-top: 1.5rem; padding-top: 0.75rem;
+      border-top: 1px solid rgba(17, 24, 39, 0.1);
+      font-size: 8.5pt; color: var(--mute); text-align: center;
+    }
+    
+  </style>
+</head>
+<body>
+  <header class="doc-header">
+    <div>
+      <h1>Notes présentateur — Sales Deck</h1>
+      <p>TraceO® · pwa-livreur.netlify.app</p>
+    </div>
+    
+  </header>
+  <main><h1>TraceO® — Deck slides (11 diapositives)</h1>
+<p><strong>Deck premium (HTML) :</strong> <a href="traceo-sales-deck-premium.html"><code>traceo-sales-deck-premium.html</code></a> — flèches / espace · <code>?live</code> ou bouton <strong>Mode réunion</strong> pour sauter 03–07 pendant une démo.  </p>
+<p><strong>PDF autonome (envoi mail) :</strong> <a href="TraceO_SalesDeck_Premium.pdf"><code>TraceO_SalesDeck_Premium.pdf</code></a>  </p>
+<p><strong>Script démo live :</strong> <a href="PRESENTATION-LIVE-SCRIPT.md"><code>PRESENTATION-LIVE-SCRIPT.md</code></a>  </p>
+<p><strong>Fiche client (leave-behind) :</strong> <a href="PRESENTATION-CLIENT.md"><code>PRESENTATION-CLIENT.md</code></a></p>
+<h2>Mode d’emploi — hybride</h2>
+<table><thead><tr><th>Contexte</th><th>Support</th><th>Slides</th></tr></thead><tbody><tr><td><strong>Envoi mail / WhatsApp</strong> (sans RDV)</td><td>PDF complet</td><td>01 → 11</td></tr><tr><td><strong>Réunion 45 min</strong></td><td>HTML <code>?live=1</code> + démo app</td><td>01–02 → <strong>démo 20 min</strong> → 08–11</td></tr><tr><td><strong>Après réunion</strong></td><td>PDF + fiche client</td><td>renvoi 01–11</td></tr></tbody></table>
+<p><strong>Chronologie réunion :</strong> accroche (01–02) · démo livreur + manager + OTP · mesure + positionnement + offre + contact QR (08–11). Voir checklist J-0 dans le script live.</p>
+<p><strong>Couleurs :</strong> vert <code>#0b4a2c</code>, accent <code>#e85d04</code>, fond <code>#f4f2ee</code>, Fraunces + DM Sans</p>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 1</span>Titre</h2>
+<p><strong>Titre principal :</strong>  </p>
+<p>Quand le client dit « je n’ai pas reçu »…  </p>
+<p><strong>qui a raison ?</strong></p>
+<p><strong>Sous-titre :</strong>  </p>
+<p>TraceO® — La plateforme de traçabilité des opérations terrain</p>
+<p><strong>Visuel :</strong> photo terrain livraison / camion + point de vente (éviter stock générique bureau)</p>
+<p class="presenter-note"><strong>Notes présentateur :</strong> Ne pas parler produit tout de suite. Poser la question. Pause.</p>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 2</span>Le chaos actuel</h2>
+<p><strong>Titre :</strong>  </p>
+<p>Le chaos actuel</p>
+<p><strong>Corps (3 colonnes ou timeline) :</strong></p>
+<table><thead><tr><th>Excel / papier</th><th>WhatsApp</th><th>« On m’a dit »</th></tr></thead><tbody><tr><td>Plan du jour</td><td>Photo floue</td><td>Version du livreur</td></tr><tr><td>Versions multiples</td><td>Vocal 47 s</td><td>Version du magasin</td></tr><tr><td>Pas d’historique</td><td>Perdu dans le groupe</td><td>Litige 3 jours</td></tr></tbody></table>
+<p><strong>Citation en bas :</strong>  </p>
+<p>*« Le problème n’est pas le GPS du camion. C’est l’absence de preuve partagée à l’arrêt. »*</p>
+<p class="presenter-note"><strong>Notes présentateur :</strong> Raconter l’histoire Treichville (voir script § Acte 1).</p>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 3</span>TraceO en 10 secondes</h2>
+<p><strong>Titre :</strong>  </p>
+<p>TraceO® en 10 secondes</p>
+<p><strong>Corps (flèche horizontale) :</strong></p>
+<pre><code>PLANIFIÉ  →  LIVRÉ  →  PROUVÉ
+(bureau)     (livreur)   (certificat)</code></pre>
+<p><strong>3 bullets :</strong></p>
+<ul>
+<li>Photos + quantités par produit</li>
+<li>Validation SMS du responsable du point</li>
+<li>Certificat consultable par le gestionnaire</li>
+</ul>
+<p><strong>Transition :</strong> « Je vous montre — en direct. » → <strong>pas de slide 4, enchaîner sur la démo</strong></p>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 4</span>(vide — démo live)</h2>
+<p>*Pas de slide à l’écran pendant la démo (20 min).*  </p>
+<p>Garder cette diapo vide ou un écran « Démo live » minimal avec logo TraceO® si besoin de pause technique.</p>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 5</span>Trois preuves, un certificat</h2>
+<p><strong>Titre :</strong>  </p>
+<p>Trois preuves, un certificat</p>
+<p><strong>Schéma (vertical) :</strong></p>
+<pre><code>📷 Photos terrain
+        ↓
+📋 Déclaration quantités (complet / partiel / refusé)
+        ↓
+📱 Code SMS responsable du point
+        ↓
+📄 Certificat de livraison</code></pre>
+<p><strong>Message :</strong>  </p>
+<p>Ce n’est pas « le livreur a cliqué sur Livré ».</p>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 6</span>Pensé pour la Côte d’Ivoire</h2>
+<p><strong>Titre :</strong>  </p>
+<p>Pensé pour la Côte d’Ivoire</p>
+<p><strong>Bullets :</strong></p>
+<ul>
+<li>Numéros <strong>+225</strong>, saisie <code>07…</code></li>
+<li><strong>SMS OTP</strong> au responsable magasin (sans app tierce)</li>
+<li>Unités métier : palette, caisse, plateau, sac…</li>
+<li><strong>Multi-entreprise</strong> : une plateforme, espaces isolés</li>
+<li>Pilote opérationnel en <strong>1 à 2 semaines</strong></li>
+</ul>
+<p><strong>Visuel :</strong> carte Abidjan ou skyline (déjà dans <code>public/brand/</code>)</p>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 7</span>Léger à déployer, lourd en valeur</h2>
+<p><strong>Titre :</strong>  </p>
+<p>Léger à déployer, lourd en valeur</p>
+<p><strong>Deux colonnes :</strong></p>
+<table><thead><tr><th>TraceO® EST</th><th>TraceO® N’EST PAS</th></tr></thead><tbody><tr><td>Preuve de livraison B2B</td><td>Un ERP</td></tr><tr><td>App livreur téléphone + PIN</td><td>Un WMS entrepôt</td></tr><tr><td>Suivi + tâches + replan</td><td>Une usine à gaz IT</td></tr></tbody></table>
+<p><strong>Phrase clé :</strong>  </p>
+<p>*« Entre Excel/WhatsApp et l’ERP — la preuve opérationnelle dès le jour 1. »*</p>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 8</span>Une journée type</h2>
+<p><strong>Titre :</strong>  </p>
+<p>Une journée type</p>
+<p><strong>Timeline :</strong></p>
+<table><thead><tr><th>Heure</th><th>Qui</th><th>Quoi</th></tr></thead><tbody><tr><td>07h30</td><td>Gestionnaire</td><td>Planifie tournée : livreur, arrêts, produits</td></tr><tr><td>08h00</td><td>Livreur</td><td>Tournée du jour, carte, parcours par arrêt</td></tr><tr><td>Sur place</td><td>Livreur + magasin</td><td>Photos → déclaration → OTP SMS</td></tr><tr><td>Soir</td><td>Gestionnaire</td><td>Suivi, certificats, tâches, replan reliquats</td></tr></tbody></table>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 9</span>Votre pilote en 2 semaines</h2>
+<p><strong>Titre :</strong>  </p>
+<p>Votre pilote en 2 semaines</p>
+<p><strong>Tableau :</strong></p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Durée</strong></td><td>2 semaines</td></tr><tr><td><strong>Périmètre</strong></td><td>1–2 livreurs · 3–8 points réels</td></tr><tr><td><strong>Setup</strong></td><td>1 h accompagnement (catalogue, points, tournée test)</td></tr><tr><td><strong>Succès</strong></td><td>% preuves complètes · temps replan · litiges sans trace</td></tr></tbody></table>
+<p><strong>QR codes (optionnel) :</strong>  </p>
+<ul>
+<li>App livreur : https://pwa-livreur.netlify.app  </li>
+<li>Manager : https://pwa-livreur.netlify.app/manager/login</li>
+</ul>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 10</span>Offre pilote</h2>
+<p><strong>Titre :</strong> On démarre quand ?</p>
+<p><strong>Offre :</strong> pilote 2 semaines · 1–2 livreurs · 3–8 points · ~1 h setup · critères de succès mesurés</p>
+<p><strong>CTA :</strong> Semaine du ___________ — 1 livreur · 3 points · kick-off pilote</p>
+<p><strong>Deck HTML :</strong> slide 10 de <a href="traceo-sales-deck-premium.html"><code>traceo-sales-deck-premium.html</code></a></p>
+<p class="presenter-note"><strong>Notes présentateur :</strong> Une seule demande. Date concrète. Distribuer fiche <a href="PRESENTATION-CLIENT.md"><code>PRESENTATION-CLIENT.md</code></a>.</p>
+<hr />
+<h2 class="slide-note"><span class="slide-num">Slide 11</span>Contact &amp; QR codes</h2>
+<p><strong>Titre :</strong> Accédez à TraceO®</p>
+<p><strong>Contact :</strong> <code>kfallet@gmail.com</code> · https://pwa-livreur.netlify.app · <strong>225 07 00 43 04 02</strong></p>
+<p><strong>QR codes (démo visuelle) :</strong></p>
+<ul>
+<li><strong>Livreur</strong> — https://pwa-livreur.netlify.app/demo/livreur (diaporama mobile : connexion, tournée, carte, preuve OTP)</li>
+<li><strong>Gestionnaire</strong> — https://pwa-livreur.netlify.app/demo/manager (diaporama bureau : suivi, planification)</li>
+</ul>
+<p><strong>Deck HTML :</strong> slide 11 de <a href="traceo-sales-deck-premium.html"><code>traceo-sales-deck-premium.html</code></a></p>
+<p class="presenter-note"><strong>Notes présentateur :</strong> Scanner les QR depuis le téléphone du client — diaporama de captures d’écran, <strong>aucune connexion</strong> au système réel (sécurisé en réunion). Navigation : boutons ou swipe.</p>
+<hr />
+<h2>Export Canva / PowerPoint</h2>
+<ol>
+<li>Créer présentation <strong>16:9</strong>, police sans-serif (Inter, DM Sans ou équivalent)</li>
+<li>Coller titre + corps de chaque slide ci-dessus</li>
+<li>Slide 4 = image logo seul ou écran « Démo »</li>
+<li>Exporter PDF de secours si réseau coupé en salle</li>
+</ol>
+<p><strong>Deck HTML prêt à l’emploi :</strong> ouvrir <a href="traceo-sales-deck-premium.html"><code>traceo-sales-deck-premium.html</code></a> dans le navigateur (navigation flèches ← → ou boutons).</p>
+<hr />
+<p>*Deck v1 — juillet 2026 — aligné <a href="PRESENTATION-LIVE-SCRIPT.md"><code>PRESENTATION-LIVE-SCRIPT.md</code></a>*</p><p class="footer-note">TraceO® — généré le 03/08/2026</p></main>
+</body>
+</html>

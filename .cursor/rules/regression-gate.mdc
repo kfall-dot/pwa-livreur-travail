@@ -1,0 +1,34 @@
+---
+description: Obligation de tests de non-régression après toute modification fonctionnelle
+alwaysApply: true
+---
+
+# Porte de non-régression
+
+Après **chaque** ajout ou correction fonctionnelle (UI, API, seed, config dev, E2E) :
+
+1. **Lancer** `npm run regression` (ou au minimum `npm run build:server && npm run test:e2e`).
+2. **Ne pas** considérer la tâche terminée si un test échoue — corriger ou ajouter un test qui couvre le bug.
+3. **Nouveau bug corrigé** → ajouter un test E2E **et** une ligne dans `e2e/INVARIANTS.md` (invariant métier explicite).
+
+`regression OK` = les invariants listés dans `e2e/INVARIANTS.md` tiennent encore — **pas** une garantie d’absence de tout bug.
+
+## Fichiers de référence
+
+| Zone | Spec |
+|------|------|
+| Matrice d’invariants (à lire / mettre à jour) | `e2e/INVARIANTS.md` |
+| Dev local / API JSON / seed / reset | `e2e/00-dev-setup.spec.ts` |
+| Login livreur + unités affichées | `e2e/auth.spec.ts` |
+| Flux livraison | `e2e/delivery-flow.spec.ts` |
+| Manager replan, édition tournée, Suivi | `e2e/manager-replan.spec.ts` |
+| Consultation livraison livrée (quantités) | `e2e/manager-delivered-detail.spec.ts` |
+
+## Règles
+
+- Ne pas livrer de feature sans test E2E quand le parcours est testable (Playwright + netlify dev).
+- Chaque bug corrigé : formuler l’invariant (« si manager fait X, livreur voit Y ») puis le verrouiller par un test.
+- Incrémenter `MIN_E2E_TESTS` dans `scripts/regression.sh` quand des tests sont ajoutés.
+- La CI GitHub (`.github/workflows/e2e.yml`) doit rester alignée sur `npm run regression`.
+- **Automatique** : hook Cursor `stop` (`.cursor/hooks.json`) + hook git `pre-push` (activé via `npm install` → `prepare`).
+- Désactiver le hook Cursor temporairement : `CURSOR_SKIP_REGRESSION=1`.

@@ -1,0 +1,134 @@
+/** Chantiers et fournisseurs extraits de POINTS FOURNISSEURS DES BC NEWS (feuille JUILLET). */
+
+export const BTP_CATALOG_SITES_FROM_BC_REGISTER = [
+  '35° ARRONDISSEMENT',
+  'ANADER BINGERVILLE',
+  'ANADER PLATEAU',
+  'ASSINIE',
+  'BELLE COTE',
+  'BELLE COTE PDG',
+  'BINGERVILLE LAURIER 20',
+  'BOUAKE COMMERCE',
+  'BOUAKE COMMERCE ENTREPOT',
+  'BUREAI BESSIKOI ( 2858)',
+  'BUREAU BESSEKKOI',
+  'BUREAU BESSIKOI',
+  'BUREAU BESSIKOI ( BUREAU)',
+  'BUREAU BESSIKOI ( Danho)',
+  'BUREAU BESSIKOI ( DGA)',
+  'BUREAU BESSIKOI ( ENTRETIEN)',
+  'BUREAU BESSIKOI (Amani)',
+  'BUREAU BESSIKOI (DGA )',
+  'BUREAU BESSIKOI (DT)',
+  'BUREAU BESSIKOI (Rh)',
+  'BUREAU BESSIKOI (Solo)',
+  'CAMELIA',
+  'CHANTIER PRIVE',
+  'DG CI ENERGIE',
+  'DG CI ENERGIES',
+  'ECOLE PRIMAIRE KOESTREM',
+  'EFPC',
+  'FADYM AGRI',
+  'FADYM GROUPE',
+  'FADYM SECURITE',
+  'GHF BOUAKE',
+  'IMMEUBLE BESSIKOI',
+  'IMMEUBLE BESSIKOI 4EME',
+  'IMMEUBLE SOTRA',
+  'IMMEUBLE TOURE',
+  'IVOIRE LOGDE ASSINIE',
+  'LAURIER 20 BINGERVILLE',
+  'ONAD',
+  'ONAD AVOIR',
+  'RESIDENCE 35EME',
+  'SYNACASSI',
+  'TEBIKOI',
+  'TERMINUS 81/82',
+] as const
+
+export const BTP_CATALOG_SUPPLIERS_FROM_BC_REGISTER = [
+  'ABLO CIM',
+  'ACHAT DE BATTERIE',
+  'ACHAT DE FILTRE',
+  'ACHAT DE PNEU',
+  'ACHAT TELEPHONE',
+  'ACTION SOCIAM',
+  'AZIZ QUINCAILLERIE',
+  'BOUET',
+  'CARRIERE MOELLE',
+  'CARRIERE SABLE',
+  'CIMAC SA',
+  'CONTREPLAQUE',
+  'DARISTORE POUBELLE',
+  'DK INDUSTRIE',
+  'EGGEDY',
+  'EXPEDITION ART',
+  'EXPEDITION TOUBA',
+  'FADCO',
+  'GIFC',
+  'INDUSTRAP',
+  'LOUA QUINCAILLERIE',
+  'MARTERIEL DE SECURITE',
+  'MIA SEIGNEURIE',
+  'MIB ENCRE',
+  'MIB RAME',
+  'MISSION BOUAKE AMANI',
+  'MOUSSA CONTREPLAQUE',
+  'ORIENTAL GRANITE',
+  'OUSMANE',
+  'PARTICULIER',
+  'PARTICULIER BARRE MOYEUX',
+  'PARTICULIER CAROCOLE',
+  'PARTICULIER CIMENT',
+  'PARTICULIER COLLE',
+  'PARTICULIER DETAILLANT',
+  'PARTICULIER FER',
+  'PARTICULIER PIECE DETACHE',
+  'PARTICULIER QUINCAILLERIE',
+  'PARTICULIER SABLE & GRAVIER',
+  'PEAGE FER',
+  'POLICE MAL ARRIME',
+  'QUINCALLERIE AD',
+  'REPARATION FREIN',
+  'SAMI RENEVATION',
+  'SERVICE DEPANAGE',
+  'SETOA',
+  'SIMC',
+  'SOCIAM',
+  'SOCOPRIX',
+  'SODECI',
+  'SOGELUX',
+  'STATION TOTAL',
+  'TIMO BETON',
+  'TOTAL QUINCAILLERIE',
+  'TRANSPORT MATERIEL DE CHINE',
+  'UBH 01',
+  'UBH 02',
+  'UNIVERSEL INDUSTRIE',
+  'VIDANDE SOLO',
+  'VIDANGE DANHO',
+  'VISITE TECHNIQUE',
+] as const
+
+export function btpCatalogSlug(name: string): string {
+  const s = name
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 48)
+  return s || 'item'
+}
+
+export function uniqueBtpCatalogSlug(name: string, used: Set<string>): string {
+  const base = btpCatalogSlug(name)
+  let slug = base
+  let n = 2
+  while (used.has(slug)) {
+    slug = `${base}-${n}`
+    n += 1
+  }
+  used.add(slug)
+  return slug
+}

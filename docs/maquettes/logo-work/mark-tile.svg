@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#0b4a2c"/>
+  <!-- Route ring (open, gap at top-right) -->
+  <circle cx="30" cy="34" r="13" fill="none" stroke="#ffffff" stroke-width="5"
+          stroke-linecap="round" stroke-dasharray="60 22" stroke-dashoffset="6"/>
+  <!-- Dotted trail leading to pin -->
+  <circle cx="40.8" cy="43.4" r="1.7" fill="#e85d04"/>
+  <circle cx="43.6" cy="38.4" r="1.7" fill="#e85d04"/>
+  <!-- Location pin (tip touches ring, top-right) -->
+  <g transform="translate(40.5 25) scale(0.8)">
+    <path d="M0 0 C -5.5 -8 -9 -11 -9 -15.5 A 9 9 0 1 1 9 -15.5 C 9 -11 5.5 -8 0 0 Z" fill="#e85d04"/>
+    <circle cx="0" cy="-15.5" r="3.6" fill="#0b4a2c"/>
+  </g>
+</svg>

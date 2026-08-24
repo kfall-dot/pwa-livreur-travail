@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": ".cursor/hooks/run-regression.sh",
+        "timeout": 600
+      }
+    ]
+  }
+}

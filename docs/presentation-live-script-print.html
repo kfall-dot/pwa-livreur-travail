@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Script présentation live (40–45 min)</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --green: #0b4a2c;
+      --green-mist: #dceee4;
+      --orange: #e85d04;
+      --ink: #111827;
+      --mute: #4b5563;
+      --paper: #f6f5f2;
+      --sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      --display: "Fraunces", ui-serif, Georgia, serif;
+    }
+    * { box-sizing: border-box; }
+    @page { size: A4; margin: 18mm 16mm 20mm; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: var(--ink);
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid var(--green);
+    }
+    .doc-header h1 {
+      font-family: var(--display);
+      font-size: 18pt;
+      color: var(--green);
+      margin: 0;
+      line-height: 1.15;
+    }
+    .doc-header p { margin: 0.25rem 0 0; color: var(--mute); font-size: 9.5pt; }
+    .badge {
+      flex-shrink: 0;
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #9a3412;
+      background: #ffedd5;
+      border: 1px solid #fdba74;
+      border-radius: 999px;
+      padding: 0.25rem 0.55rem;
+    }
+    .cover {
+      page-break-after: always;
+      min-height: 250mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 8mm 0 0;
+      border-bottom: 4px solid var(--green);
+    }
+    .cover-mark {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: var(--green); color: #fff;
+      display: grid; place-items: center;
+      font-family: var(--display); font-size: 28px; font-weight: 700;
+    }
+    .cover h1 {
+      font-family: var(--display);
+      font-size: 32pt; line-height: 1.08; color: var(--green);
+      margin: 18mm 0 0.4rem; max-width: 14ch;
+    }
+    .cover .tagline { font-size: 13pt; color: var(--mute); max-width: 38ch; margin-bottom: 1rem; }
+    .cover .pill-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 1rem 0 2rem; }
+    .pill {
+      font-size: 8.5pt; font-weight: 600; padding: 0.28rem 0.55rem;
+      border-radius: 999px; background: var(--green-mist); color: var(--green);
+    }
+    .contact-card {
+      margin-top: auto; padding: 1rem 1.1rem; border-radius: 12px;
+      background: var(--paper); border: 1px solid rgba(11, 74, 44, 0.12);
+    }
+    .contact-card h2 { font-size: 11pt; margin: 0 0 0.65rem; color: var(--green); }
+    .contact-card p { margin: 0.25rem 0; font-size: 10pt; }
+    .contact-card a { color: var(--green); text-decoration: none; font-weight: 600; }
+    main > h1:first-child { display: none; }
+    h2 {
+      font-family: var(--display);
+      font-size: 15pt; color: var(--green);
+      margin: 1.35rem 0 0.55rem;
+      page-break-after: avoid;
+    }
+    h2.slide-note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+    .slide-num {
+      font-family: var(--sans);
+      font-size: 8.5pt; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #fff; background: var(--orange);
+      border-radius: 999px; padding: 0.15rem 0.5rem;
+    }
+    h3 { font-size: 11pt; margin: 1rem 0 0.35rem; page-break-after: avoid; }
+    p { margin: 0.35rem 0 0.65rem; }
+    p.presenter-note {
+      margin: 0.5rem 0 0.85rem; padding: 0.55rem 0.75rem;
+      border-left: 3px solid var(--orange); background: #fff7f0; font-size: 10pt;
+    }
+    hr { border: 0; border-top: 1px solid rgba(17, 24, 39, 0.1); margin: 1rem 0; }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 9pt;
+      margin: 0.5rem 0 1rem; page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      padding: 0.35rem 0.45rem; vertical-align: top; text-align: left;
+    }
+    th { background: var(--green-mist); color: var(--green); font-weight: 600; }
+    ul, ol { margin: 0.35rem 0 0.75rem 1.1rem; padding: 0; }
+    li { margin: 0.2rem 0; }
+    blockquote {
+      margin: 0.5rem 0 0.85rem; padding: 0.55rem 0.75rem;
+      border-left: 3px solid var(--orange); background: #fff7f0; font-size: 10pt;
+    }
+    pre {
+      font-size: 8pt; background: var(--paper); padding: 0.65rem;
+      border-radius: 8px; white-space: pre-wrap; page-break-inside: avoid;
+    }
+    code { font-size: 9pt; }
+    a { color: var(--green); }
+    .footer-note {
+      margin-top: 1.5rem; padding-top: 0.75rem;
+      border-top: 1px solid rgba(17, 24, 39, 0.1);
+      font-size: 8.5pt; color: var(--mute); text-align: center;
+    }
+    
+  </style>
+</head>
+<body>
+  <header class="doc-header">
+    <div>
+      <h1>Script présentation live (40–45 min)</h1>
+      <p>TraceO® · pwa-livreur.netlify.app</p>
+    </div>
+    <span class="badge">Usage interne</span>
+  </header>
+  <main><h1>TraceO® — Script présentation live (40–45 min)</h1>
+<p><strong>Public :</strong> board + client pilote potentiel  </p>
+<p><strong>Durée :</strong> 40–45 min + 10 min Q&amp;R  </p>
+<p><strong>Règle d’or :</strong> 70 % démo / histoire, 30 % slides  </p>
+<p><strong>Slides :</strong> voir <a href="PRESENTATION-SLIDES.md"><code>PRESENTATION-SLIDES.md</code></a></p>
+<hr />
+<h2>Checklist J-0 (15 min avant — obligatoire)</h2>
+<p>Cocher dans l’ordre. <strong>Ne pas se fier à un test de la veille</strong> : les identifiants prod peuvent changer (reset mot de passe, PIN livreur).</p>
+<ul>
+<li>[ ] <strong>Manager</strong> : connexion sur https://pwa-livreur.netlify.app/manager/login  </li>
+</ul>
+<p>      → <code>kfallet@gmail.com</code> / <code>admin1234</code> (ou mot de passe défini après reset)  </p>
+<p>      → onglet <strong>Suivi</strong> ouvert sur la date du jour</p>
+<ul>
+<li>[ ] <strong>Livreur</strong> : connexion sur https://pwa-livreur.netlify.app  </li>
+</ul>
+<p>      → Aya <code>0700430402</code> / PIN <code>1234</code> (vérifier dans Manager → Livreurs si besoin)</p>
+<ul>
+<li>[ ] <strong>Test sec API</strong> : <code>DELIVERY_ID=del-k3 npm run presentation:dry-run</code> → viser <strong>6/6 OK</strong></li>
+<li>[ ] <strong>Textbee</strong> : téléphone Android allumé, SIM CI, app connectée</li>
+<li>[ ] <strong>Slides</strong> : <code>docs/presentation-deck.html</code> ouvert (plein écran F11)</li>
+<li>[ ] <strong>Arrêt démo</strong> : <code>del-k3</code> (Yopougon) encore utilisable — sinon <code>del-k1</code> / nouvelle tournée</li>
+</ul>
+<p><strong>Identifiants prod (juillet 2026)</strong></p>
+<table><thead><tr><th>Rôle</th><th>URL</th><th>Identifiant</th><th>Secret</th></tr></thead><tbody><tr><td>Manager</td><td><code>/manager/login</code></td><td><code>kfallet@gmail.com</code></td><td><code>admin1234</code> *(sauf si reset)*</td></tr><tr><td>Livreur démo OTP</td><td><code>/</code></td><td><code>0700430402</code></td><td><code>1234</code></td></tr><tr><td>Livreur alternatif</td><td><code>/</code></td><td><code>0701234567</code></td><td><code>1234</code></td></tr></tbody></table>
+<blockquote><code>manager@demo.fr</code> est l’e-mail <strong>seed local / doc historique</strong> — en prod pilote, utiliser <strong><code>kfallet@gmail.com</code></strong> (<code>SEED_MANAGER_EMAIL</code> sur Netlify).</blockquote>
+<p><strong>Si échec connexion manager</strong> : https://pwa-livreur.netlify.app/manager/forgot-password  </p>
+<p><strong>Si livreur verrouillé</strong> : voir <a href="SUPPORT-PILOTE.md"><code>SUPPORT-PILOTE.md</code></a> (Netlify Blobs).</p>
+<p><strong>Si « Identifiants invalides » alors que le mot de passe est correct</strong> : la table <code>managers</code> en prod peut être vide (reset DB). Réaligner les données démo :</p>
+<pre><code>export NETLIFY_DB_URL=&quot;$(npx netlify env:get NETLIFY_DB_URL --context production)&quot;
+export SEED_MANAGER_EMAIL=kfallet@gmail.com MANAGER_PASSWORD=admin1234 DRIVER_PIN=1234
+npx tsx --input-type=module -e &quot;import { seedDemoData } from './server/db/seed.ts'; console.log(await seedDemoData())&quot;</code></pre>
+<p>Puis retester la connexion manager.</p>
+<p><strong>Arrêt démo recommandé :</strong> <code>del-k3</code> — Entrepôt Yopougon · GPS <code>5.367</code>, <code>-4.0702</code> · 2 photos requises.</p>
+<hr />
+<h2>Chronologie globale</h2>
+<table><thead><tr><th>Plage</th><th>Acte</th><th>Support</th></tr></thead><tbody><tr><td>0:00–5:00</td><td>Accroche litige</td><td>Slides 1–3</td></tr><tr><td>5:00–25:00</td><td>Démo live</td><td>Smartphone + laptop</td></tr><tr><td>25:00–40:00</td><td>Vision + pilote</td><td>Slides 5–10</td></tr><tr><td>40:00–50:00</td><td>Q&amp;R</td><td>—</td></tr></tbody></table>
+<hr />
+<h2>ACTE 1 — Accroche (5 min)</h2>
+<h3>Slide 1 — Titre (0:00–0:30)</h3>
+<p><strong>À l’écran :</strong> *TraceO® — Quand le client dit « je n’ai pas reçu », qui a raison ?*</p>
+<p><strong>À dire :</strong></p>
+<blockquote>Bonjour. Aujourd’hui je ne vais pas vous parler d’un logiciel de livraison.  </blockquote>
+<blockquote>Je vais vous parler de ce qui se passe le vendredi à 17h, quand personne ne peut trancher.</blockquote>
+<hr />
+<h3>Slide 2 — La scène (0:30–2:30)</h3>
+<p><strong>À l’écran :</strong> *Le chaos actuel — Excel → WhatsApp → « on m’a dit »*</p>
+<p><strong>À dire (raconter, pas lire) :</strong></p>
+<blockquote>Vendredi 17h. Le magasin de Treichville appelle : « Il manque 12 caisses. »  </blockquote>
+<blockquote>Le livreur dit : « J’ai tout déposé. »  </blockquote>
+<blockquote>Au bureau, on ouvre WhatsApp : une photo floue, un vocal de 47 secondes.  </blockquote>
+<blockquote>Personne n’a la même version des faits.  </blockquote>
+<blockquote>Le litige dure trois jours. Le client est mécontent. Le livreur est frustré.  </blockquote>
+<blockquote>Et le responsable logistique passe son week-end à relancer au lieu de piloter.</blockquote>
+<p><strong>Pause 2 secondes.</strong></p>
+<blockquote>Ce n’est pas un problème de GPS. Le camion était peut-être bien là.  </blockquote>
+<blockquote>Ce qui manque, c’est une <strong>preuve partagée</strong> à l’arrêt : quoi, combien, validé par qui.</blockquote>
+<hr />
+<h3>Slide 3 — Le coût caché (2:30–5:00)</h3>
+<p><strong>À l’écran :</strong> *TraceO en 10 secondes — planifié → livré → prouvé*</p>
+<p><strong>À dire :</strong></p>
+<blockquote>Le coût, ce n’est pas seulement la marchandise contestée. C’est :</blockquote>
+<blockquote>- le temps de dispatch et de relances ;</blockquote>
+<blockquote>- les litiges qu’on ne tranche jamais proprement ;</blockquote>
+<blockquote>- la confiance qui baisse chez le point de vente.</blockquote>
+<p>&gt;</p>
+<blockquote>TraceO® répond à une question simple : <strong>comment prouver une livraison B2B</strong>  </blockquote>
+<blockquote>sans ERP lourd, sans App Store pour le livreur, sans application pour le magasin ?</blockquote>
+<p>&gt;</p>
+<blockquote>La réponse tient en trois mots : <strong>planifié, livré, prouvé</strong>.  </blockquote>
+<blockquote>Je vous montre maintenant — en direct.</blockquote>
+<p><strong>Transition :</strong> poser le téléphone en main, éteindre ou minimiser les slides.</p>
+<hr />
+<h2>ACTE 2 — Démo live (20 min)</h2>
+<blockquote><strong>Ne pas commencer par le manager.</strong> Le wow vient du téléphone.</blockquote>
+<h3>Étape 1 — Connexion livreur (5:00–7:00)</h3>
+<p><strong>Écran :</strong> smartphone — https://pwa-livreur.netlify.app</p>
+<p><strong>Actions :</strong></p>
+<ol>
+<li>Saisir <code>0700430402</code></li>
+<li>PIN <code>1234</code></li>
+<li>Montrer la tournée du jour (3 arrêts Abidjan)</li>
+<li>Ouvrir la <strong>carte</strong> (dépôt + arrêts)</li>
+</ol>
+<p><strong>À dire :</strong></p>
+<blockquote>Pas de compte Google, pas de téléchargement sur le Play Store.  </blockquote>
+<blockquote>Téléphone ivoirien, code PIN à quatre chiffres — comme un distributeur automatique.  </blockquote>
+<blockquote>Le livreur voit sa tournée du jour : séquence, adresses, produits, créneaux.</blockquote>
+<hr />
+<h3>Étape 2 — Démarrer l’arrêt (7:00–10:00)</h3>
+<p><strong>Écran :</strong> arrêt <strong>Entrepôt Yopougon</strong> (<code>del-k3</code>, 3e arrêt)</p>
+<p><strong>Actions :</strong></p>
+<ol>
+<li>Ouvrir l’arrêt</li>
+<li><strong>Démarrer</strong> (GPS — géofence bypassée en pilote si besoin)</li>
+<li>Montrer le parcours guidé (étapes en haut)</li>
+</ol>
+<p><strong>À dire :</strong></p>
+<blockquote>Chaque arrêt suit le même parcours imposé — pas de raccourci « j’ai livré » sans preuve.  </blockquote>
+<blockquote>On démarre l’arrêt quand on est sur zone.  </blockquote>
+<blockquote>Ensuite : photos, déclaration, validation du responsable du point.</blockquote>
+<hr />
+<h3>Étape 3 — Photos (10:00–13:00)</h3>
+<p><strong>Actions :</strong></p>
+<ol>
+<li>Prendre <strong>1 photo</strong> (2 requises sur del-k3 — enchaîner si temps)</li>
+<li>Montrer le compteur photos</li>
+</ol>
+<p><strong>À dire :</strong></p>
+<blockquote>Le nombre de photos est configurable par tournée.  </blockquote>
+<blockquote>Ce n’est pas une photo WhatsApp perdue dans un groupe : c’est attaché à la commande, à l’arrêt, à la date.</blockquote>
+<hr />
+<h3>Étape 4 — Déclaration (13:00–16:00)</h3>
+<p><strong>Actions :</strong></p>
+<ol>
+<li>Choisir <strong>Livraison complète</strong></li>
+<li>Valider les quantités par produit (palettes mixtes, salade iceberg…)</li>
+<li><strong>Mentionner</strong> sans montrer : « On peut aussi déclarer partiel ou refusé — le bureau reçoit une tâche automatique. »</li>
+</ol>
+<p><strong>À dire :</strong></p>
+<blockquote>Ici le livreur déclare ce qui a été accepté, refusé, par produit et par unité — palette, caisse, etc.  </blockquote>
+<blockquote>Ce n’est pas un bouton « OK » : c’est structuré pour les litiges.  </blockquote>
+<blockquote>Si le magasin n’accepte que la moitié, on documente un <strong>partiel</strong> — et le bureau est notifié.</blockquote>
+<hr />
+<h3>Étape 5 — OTP SMS (16:00–19:00) — MOMENT WOW</h3>
+<p><strong>Actions :</strong></p>
+<ol>
+<li><strong>Envoyer le code SMS</strong> au responsable du point</li>
+<li>Montrer le SMS reçu sur le téléphone (<code>+2250700430402</code> en démo)</li>
+<li>Saisir le code à 6 chiffres</li>
+<li><strong>Confirmer</strong></li>
+</ol>
+<p><strong>À dire :</strong></p>
+<blockquote>Le code part par SMS au responsable du magasin — pas besoin qu’il installe TraceO.  </blockquote>
+<blockquote>Il vérifie la marchandise, puis communique le code au livreur.  </blockquote>
+<blockquote>C’est la validation du <strong>point de livraison</strong>, pas seulement du chauffeur.</blockquote>
+<p><strong>Si SMS lent :</strong> « Textbee transmet en quelques secondes — le responsable doit avoir son téléphone allumé. »</p>
+<hr />
+<h3>Étape 6 — Certificat livreur (19:00–20:00)</h3>
+<p><strong>Actions :</strong></p>
+<ol>
+<li>Montrer le <strong>certificat</strong> généré côté livreur</li>
+<li>Noter l’identifiant / lien si affiché</li>
+</ol>
+<p><strong>À dire :</strong></p>
+<blockquote>La livraison est close. Le certificat existe — horodaté, lié à cette commande.</blockquote>
+<hr />
+<h3>Étape 7 — Manager Suivi (20:00–25:00)</h3>
+<p><strong>Écran :</strong> laptop — https://pwa-livreur.netlify.app/manager/login (<code>kfallet@gmail.com</code> / <code>admin1234</code>)</p>
+<p><strong>Actions :</strong></p>
+<ol>
+<li>Onglet <strong>Suivi</strong> — date du jour</li>
+<li><strong>Rafraîchir</strong> — l’arrêt Yopougon passe en « livré »</li>
+<li>Ouvrir le <strong>détail</strong> : quantités, photos, déclaration</li>
+<li>Ouvrir le <strong>certificat</strong></li>
+</ol>
+<p><strong>À dire :</strong></p>
+<blockquote>Pendant que le livreur était sur le terrain, le bureau peut suivre en temps réel.  </blockquote>
+<blockquote>Même données, même vérité : photos, quantités déclarées, validation OTP, certificat.  </blockquote>
+<blockquote>Si demain le client conteste, on ne cherche plus dans WhatsApp — on ouvre cette fiche.</blockquote>
+<p><strong>Bonus (2 min si temps) :</strong> onglet <strong>Tâches</strong> → montrer une tâche « partielle » ou « manquée » seedée.</p>
+<blockquote>« Le terrain dérape tous les jours — ce n’est pas un happy path artificiel. »</blockquote>
+<p><strong>Transition :</strong> reprendre les slides.</p>
+<hr />
+<h2>ACTE 3 — Vision et conversion (15 min)</h2>
+<h3>Slide 5 — Trois preuves, un certificat (25:00–28:00)</h3>
+<p><strong>À dire :</strong></p>
+<blockquote>Ce que vous venez de voir, ce n’est pas du tracking GPS. C’est une preuve à trois niveaux :</blockquote>
+<blockquote>1. <strong>Photos</strong> terrain  </blockquote>
+<blockquote>2. <strong>Déclaration</strong> structurée par produit  </blockquote>
+<blockquote>3. <strong>Validation SMS</strong> du responsable du point  </blockquote>
+<blockquote>→ qui produit un <strong>certificat</strong> consultable.</blockquote>
+<hr />
+<h3>Slide 6 — Pensé pour la Côte d’Ivoire (28:00–31:00)</h3>
+<p><strong>À dire :</strong></p>
+<blockquote>Numéros +225, SMS OTP, unités métier ivoiriennes — palette, caisse, plateau.  </blockquote>
+<blockquote>Multi-entreprise : chaque société a son espace isolé sur la même plateforme.  </blockquote>
+<blockquote>Et surtout : <strong>opérationnel dès le jour 1</strong> — pas un projet d’intégration de six mois.</blockquote>
+<hr />
+<h3>Slide 7 — Léger à déployer (31:00–33:00)</h3>
+<p><strong>À dire :</strong></p>
+<blockquote>TraceO® n’est pas un ERP. Ce n’est pas un WMS.  </blockquote>
+<blockquote>On ne remplace pas votre système de gestion demain.  </blockquote>
+<blockquote>On <strong>sécurise la preuve de livraison</strong> dès aujourd’hui — entre Excel/WhatsApp et les suites lourdes.</blockquote>
+<hr />
+<h3>Slide 8 — Une journée type (33:00–35:00)</h3>
+<p><strong>À dire :</strong></p>
+<blockquote>Le matin : le gestionnaire planifie la tournée — livreur, arrêts, produits, créneaux.  </blockquote>
+<blockquote>Sur la route : le livreur exécute le parcours qu’on vient de voir.  </blockquote>
+<blockquote>Le soir : le bureau consulte le suivi, traite les tâches, replanifie les reliquats sans tout ressaisir.</blockquote>
+<hr />
+<h3>Slide 9 — Pilote en 2 semaines (35:00–38:00)</h3>
+<p><strong>À l’écran :</strong> tableau pilote (durée, périmètre, setup, succès)</p>
+<p><strong>À dire :</strong></p>
+<blockquote>On propose un pilote concret :</blockquote>
+<blockquote>- <strong>2 semaines</strong></blockquote>
+<blockquote>- <strong>1 à 2 livreurs</strong>, <strong>3 à 8 points réels</strong> — vos produits, vos adresses</blockquote>
+<blockquote>- <strong>1 heure</strong> de mise en service accompagnée</blockquote>
+<blockquote>- On mesure : % de preuves complètes, temps de replan, litiges sans trace</blockquote>
+<p>&gt;</p>
+<blockquote>Checklist détaillée : <a href="CHECKLIST-JOUR-J-PILOTE.md"><code>CHECKLIST-JOUR-J-PILOTE.md</code></a></blockquote>
+<hr />
+<h3>Slide 10 — On démarre quand ? (38:00–40:00)</h3>
+<p><strong>À dire :</strong></p>
+<blockquote>Une seule question : <strong>quand lance-t-on le pilote avec vos points Abidjan ?</strong>  </blockquote>
+<blockquote>Une semaine, un livreur, vos vrais produits — et on revient avec les chiffres.</blockquote>
+<p>&gt;</p>
+<blockquote>Voici la fiche récap et l’URL : <strong>pwa-livreur.netlify.app</strong></blockquote>
+<p><strong>Distribuer</strong> la fiche A4 / PDF <a href="PRESENTATION-CLIENT.md"><code>PRESENTATION-CLIENT.md</code></a>.</p>
+<hr />
+<h2>Q&amp;R — réponses courtes préparées</h2>
+<table><thead><tr><th>Question</th><th>Réponse</th></tr></thead><tbody><tr><td>« Et si pas de réseau ? »</td><td>Cache local pour consultation ; OTP et confirmation nécessitent le réseau.</td></tr><tr><td>« Le magasin doit installer quelque chose ? »</td><td>Non — SMS seulement.</td></tr><tr><td>« Compatible ERP ? »</td><td>Export / certificat consultable ; pas de connecteur ERP natif en phase 1.</td></tr><tr><td>« Combien de livreurs max ? »</td><td>Plateforme multi-tenant — scaling par entreprise.</td></tr><tr><td>« Sécurité des données ? »</td><td>Espace isolé par compagnie, HTTPS, pas de partage entre clients.</td></tr></tbody></table>
+<hr />
+<h2>Variante 25 min (urgence)</h2>
+<table><thead><tr><th>Min</th><th>Contenu</th></tr></thead><tbody><tr><td>0–3</td><td>Slides 1–2 (accroche litige)</td></tr><tr><td>3–18</td><td>Démo complète (étapes 1–7, version courte)</td></tr><tr><td>18–25</td><td>Slides 9–10 (pilote + CTA)</td></tr></tbody></table>
+<hr />
+<h2>Phrases à placer (mémo)</h2>
+<ol>
+<li>« On ne remplace pas votre ERP demain — on sécurise la preuve dès aujourd’hui. »</li>
+<li>« Le responsable du magasin valide par SMS, sans installer TraceO. »</li>
+<li>« Partiel, refus, replan : ce n’est plus du chaos WhatsApp, c’est un parcours. »</li>
+</ol>
+<hr />
+<h2>À éviter absolument</h2>
+<ul>
+<li>Liste de fonctionnalités avant la démo</li>
+<li>Jargon technique (Netlify, Sentry, PWA, Drizzle…)</li>
+<li>Démo Kouassi / Paris devant un public ivoirien</li>
+<li>Finir sans date de pilote ni décision demandée</li>
+</ul>
+<hr />
+<p>*Script aligné sur la plateforme TraceO® — juillet 2026.*</p><p class="footer-note">TraceO® — généré le 03/08/2026</p></main>
+</body>
+</html>

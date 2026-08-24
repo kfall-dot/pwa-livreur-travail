@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>TraceO® — Fiche client</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --green: #0b4a2c;
+      --green-mist: #dceee4;
+      --orange: #e85d04;
+      --ink: #111827;
+      --mute: #4b5563;
+      --paper: #f6f5f2;
+      --sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      --display: "Fraunces", ui-serif, Georgia, serif;
+    }
+    * { box-sizing: border-box; }
+    @page { size: A4; margin: 18mm 16mm 20mm; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: var(--ink);
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid var(--green);
+    }
+    .doc-header h1 {
+      font-family: var(--display);
+      font-size: 18pt;
+      color: var(--green);
+      margin: 0;
+      line-height: 1.15;
+    }
+    .doc-header p { margin: 0.25rem 0 0; color: var(--mute); font-size: 9.5pt; }
+    .badge {
+      flex-shrink: 0;
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #9a3412;
+      background: #ffedd5;
+      border: 1px solid #fdba74;
+      border-radius: 999px;
+      padding: 0.25rem 0.55rem;
+    }
+    .cover {
+      page-break-after: always;
+      min-height: 250mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 8mm 0 0;
+      border-bottom: 4px solid var(--green);
+    }
+    .cover-mark {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: var(--green); color: #fff;
+      display: grid; place-items: center;
+      font-family: var(--display); font-size: 28px; font-weight: 700;
+    }
+    .cover h1 {
+      font-family: var(--display);
+      font-size: 32pt; line-height: 1.08; color: var(--green);
+      margin: 18mm 0 0.4rem; max-width: 14ch;
+    }
+    .cover .tagline { font-size: 13pt; color: var(--mute); max-width: 38ch; margin-bottom: 1rem; }
+    .cover .pill-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 1rem 0 2rem; }
+    .pill {
+      font-size: 8.5pt; font-weight: 600; padding: 0.28rem 0.55rem;
+      border-radius: 999px; background: var(--green-mist); color: var(--green);
+    }
+    .contact-card {
+      margin-top: auto; padding: 1rem 1.1rem; border-radius: 12px;
+      background: var(--paper); border: 1px solid rgba(11, 74, 44, 0.12);
+    }
+    .contact-card h2 { font-size: 11pt; margin: 0 0 0.65rem; color: var(--green); }
+    .contact-card p { margin: 0.25rem 0; font-size: 10pt; }
+    .contact-card a { color: var(--green); text-decoration: none; font-weight: 600; }
+    main > h1:first-child { display: none; }
+    h2 {
+      font-family: var(--display);
+      font-size: 15pt; color: var(--green);
+      margin: 1.35rem 0 0.55rem;
+      page-break-after: avoid;
+    }
+    h2.slide-note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+    .slide-num {
+      font-family: var(--sans);
+      font-size: 8.5pt; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #fff; background: var(--orange);
+      border-radius: 999px; padding: 0.15rem 0.5rem;
+    }
+    h3 { font-size: 11pt; margin: 1rem 0 0.35rem; page-break-after: avoid; }
+    p { margin: 0.35rem 0 0.65rem; }
+    p.presenter-note {
+      margin: 0.5rem 0 0.85rem; padding: 0.55rem 0.75rem;
+      border-left: 3px solid var(--orange); background: #fff7f0; font-size: 10pt;
+    }
+    hr { border: 0; border-top: 1px solid rgba(17, 24, 39, 0.1); margin: 1rem 0; }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 9pt;
+      margin: 0.5rem 0 1rem; page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      padding: 0.35rem 0.45rem; vertical-align: top; text-align: left;
+    }
+    th { background: var(--green-mist); color: var(--green); font-weight: 600; }
+    ul, ol { margin: 0.35rem 0 0.75rem 1.1rem; padding: 0; }
+    li { margin: 0.2rem 0; }
+    blockquote {
+      margin: 0.5rem 0 0.85rem; padding: 0.55rem 0.75rem;
+      border-left: 3px solid var(--orange); background: #fff7f0; font-size: 10pt;
+    }
+    pre {
+      font-size: 8pt; background: var(--paper); padding: 0.65rem;
+      border-radius: 8px; white-space: pre-wrap; page-break-inside: avoid;
+    }
+    code { font-size: 9pt; }
+    a { color: var(--green); }
+    .footer-note {
+      margin-top: 1.5rem; padding-top: 0.75rem;
+      border-top: 1px solid rgba(17, 24, 39, 0.1);
+      font-size: 8.5pt; color: var(--mute); text-align: center;
+    }
+    
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div>
+      <div class="cover-mark" aria-hidden="true">O</div>
+      <h1>TraceO®</h1>
+      <p class="tagline">La plateforme de traçabilité des opérations terrain.</p>
+      <div class="pill-row">
+        <span class="pill">Photos</span><span class="pill">Quantités déclarées</span>
+        <span class="pill">Code SMS responsable</span><span class="pill">Certificat consultable</span>
+      </div>
+    </div>
+    <div class="contact-card">
+      <h2>TraceO® — Côte d’Ivoire</h2>
+      <p>E-mail · <a href="mailto:kfallet@gmail.com">kfallet@gmail.com</a></p>
+      <p>Site · <a href="https://pwa-livreur.netlify.app">pwa-livreur.netlify.app</a></p>
+      <p>Téléphone · <a href="tel:+2250700430402">225 07 00 43 04 02</a></p>
+    </div>
+  </section>
+  <main><h1>TraceO® — Fiche de présentation</h1>
+<p><strong>La plateforme de traçabilité des opérations terrain.</strong>  </p>
+<p>Photos · quantités déclarées · code SMS du responsable du point · certificat consultable.</p>
+<p>Démonstration en ligne : <a href="https://pwa-livreur.netlify.app">pwa-livreur.netlify.app</a></p>
+<hr />
+<h2>1. Résumé</h2>
+<p><strong>TraceO®</strong> est une plateforme SaaS de <strong>planification, d’exécution et de traçabilité des livraisons B2B</strong>, pensée pour le terrain en <strong>Côte d’Ivoire</strong>.</p>
+<p>Elle s’adresse aux entreprises qui envoient régulièrement des marchandises (palettes, caisses, colis, produits divers) vers des <strong>points de vente, dépôts, chantiers ou sites clients</strong>, et qui ont besoin non seulement de « savoir où est le camion », mais de <strong>prouver ce qui a été livré</strong> — ou refusé, ou livré en partie.</p>
+<h3>Ce que la plateforme couvre</h3>
+<table><thead><tr><th>Domaine</th><th>Contenu</th></tr></thead><tbody><tr><td><strong>Organisation</strong></td><td>Catalogue produits, points de livraison, flotte livreurs, tournées multi-arrêts</td></tr><tr><td><strong>Exécution</strong></td><td>Application livreur sur smartphone (installable), carte, parcours guidé par arrêt</td></tr><tr><td><strong>Preuve</strong></td><td>Photos, déclaration des quantités par produit, validation par code SMS, certificat</td></tr><tr><td><strong>Pilotage</strong></td><td>Suivi des statuts, tâches automatiques (partiel, manqué, réaffectation), replanification</td></tr><tr><td><strong>Multi-entreprises</strong></td><td>Chaque compagnie a son espace isolé sur une plateforme unique</td></tr></tbody></table>
+<h3>En une phrase</h3>
+<p>Remplacer la chaîne <strong>Excel → WhatsApp → « on m’a dit »</strong> par un parcours structuré <strong>planifié → livré → prouvé</strong>, utilisable le jour même par le bureau et le livreur.</p>
+<h3>Pour qui lire cette fiche</h3>
+<p>Dirigeants, responsables logistique / exploitation / opérations, et décideurs qui évaluent un outil de terrain avant un pilote ou un déploiement multi-sites.</p>
+<hr />
+<h2>2. Contexte et problématique</h2>
+<h3>2.1 Contexte métier</h3>
+<p>En distribution et livraison B2B, le « dernier kilomètre » vers le point de vente ou le site client reste souvent le maillon le moins industrialisé :</p>
+<ul>
+<li>le <strong>plan</strong> (qui livre quoi, où, quand) est fait au bureau ;</li>
+<li>l’<strong>exécution</strong> se joue sur la route, avec des aléas (responsable absent, stock refusé, quantité incomplète, retard) ;</li>
+<li>la <strong>preuve</strong> — si elle existe — repose sur un message, une photo isolée, ou la mémoire des personnes.</li>
+</ul>
+<p>Or, c’est précisément à cet endroit que naissent les <strong>litiges commerciaux</strong>, les <strong>écarts de stock</strong>, les <strong>relances clients</strong> et la perte de confiance entre le siège, le livreur et le point de livraison.</p>
+<h3>2.2 Comment ça se passe aujourd’hui (souvent)</h3>
+<table><thead><tr><th>Étape</th><th>Pratique courante</th><th>Faiblesse</th></tr></thead><tbody><tr><td>Planification</td><td>Excel, papier, messages vocaux</td><td>Versions multiples, oublis, pas d’historique propre</td></tr><tr><td>Transmission au livreur</td><td>WhatsApp, appel</td><td>Pas de « source de vérité » unique</td></tr><tr><td>Sur place</td><td>Signature papier, photo floue, ou rien</td><td>Preuve non standardisée, difficile à retrouver</td></tr><tr><td>Écart / refus</td><td>Discussion téléphonique</td><td>Pas de quantités structurées ni de motif tracé</td></tr><tr><td>Reliquat</td><td>Nouvelle saisie manuelle</td><td>Double travail, erreurs, perte de lien avec la commande d’origine</td></tr><tr><td>Contrôle a posteriori</td><td>Recherche dans les conversations</td><td>Impossible d’auditer proprement une semaine de tournées</td></tr></tbody></table>
+<h3>2.3 Impacts pour l’entreprise</h3>
+<ol>
+<li><strong>Litiges coûteux</strong> — sans preuve partagée, chaque écart devient une négociation.</li>
+<li><strong>Temps d’encadrement</strong> — le responsable passe sa journée à relancer plutôt qu’à piloter.</li>
+<li><strong>Qualité de service perçue</strong> — le client point de vente n’a pas non plus de trace claire.</li>
+<li><strong>Flotte difficile à manager</strong> — qui a livré quoi ? qui a un reliquat ? qui est en retard ?</li>
+<li><strong>Croissance freinée</strong> — plus de livreurs et de points = plus de chaos si le processus reste informel.</li>
+</ol>
+<h3>2.4 Ce dont le marché a réellement besoin</h3>
+<p>Pas forcément un ERP ou un WMS complet dès le premier jour. Le besoin prioritaire, pour beaucoup de PME et d’opérateurs de livraison B2B, est :</p>
+<blockquote>Un outil <strong>léger à prendre en main</strong>, utilisable <strong>sur téléphone ivoirien</strong>, qui impose un <strong>parcours de preuve</strong> à chaque arrêt, et qui donne au bureau une <strong>vue opérationnelle</strong> (statuts, quantités, certificats, tâches à traiter).</blockquote>
+<p>C’est ce vide — entre le tableur et les suites logistiques lourdes — que TraceO® vise.</p>
+<hr />
+<h2>3. Solution</h2>
+<h3>3.1 Vision produit</h3>
+<p><strong>TraceO®</strong> connecte deux rôles sur les mêmes données :</p>
+<ul>
+<li>le <strong>gestionnaire</strong> prépare et pilote (catalogue, flotte, tournées, suivi, tâches) ;</li>
+<li>le <strong>livreur</strong> exécute sur smartphone (tournée du jour, carte, photos, déclaration, OTP, certificat).</li>
+</ul>
+<p>Chaque <strong>entreprise cliente</strong> dispose de son propre espace : produits, points, livreurs et tournées ne se mélangent pas avec ceux des autres compagnies.</p>
+<h3>3.2 Architecture fonctionnelle (vue métier)</h3>
+<pre><code>┌─────────────────────────────┐     ┌──────────────────────────────┐
+│  GESTIONNAIRE               │     │  LIVREUR (smartphone)        │
+│  Planifier · Suivre ·       │◄───►│  Tournée · Carte · Preuve    │
+│  Catalogue · Livreurs ·     │     │  Photos · OTP · Certificat   │
+│  Tâches                     │     │                              │
+└─────────────────────────────┘     └──────────────────────────────┘
+                 │
+                 ▼
+        Espace entreprise isolé
+        (produits, points, flotte, tournées)</code></pre>
+<h3>3.3 Côté gestionnaire — capacités détaillées</h3>
+<p><strong>Authentification</strong>  </p>
+<p>Connexion par e-mail et mot de passe. Session dédiée au tableau de bord manager.</p>
+<p><strong>Catalogue produits</strong>  </p>
+<p>Création et maintenance des articles livrables : libellé, unité (palette, caisse, kg, colis, carton, plateau, sac, bidon, unité), activation / désactivation. Ce catalogue alimente la planification : on ne « invente » pas les produits à chaque tournée.</p>
+<p><strong>Points de livraison</strong>  </p>
+<p>Fiche point (supermarché, dépôt, chantier, etc.) : nom, adresse, coordonnées, contact responsable, <strong>téléphone du responsable pour la validation SMS</strong>. Un point inactif n’est plus proposé pour de nouvelles tournées.</p>
+<p><strong>Livreurs</strong>  </p>
+<p>Création d’un compte livreur (nom, téléphone +225, PIN). Suivi du statut actif / suspendu. La désactivation d’un livreur qui a encore des tournées futures génère des <strong>tâches de réaffectation</strong> pour ne pas laisser des commandes orphelines.</p>
+<p><strong>Planification de tournées</strong>  </p>
+<p>Pour une date donnée : choix du livreur, dépôt (nom + adresse), créneau, puis <strong>plusieurs arrêts</strong>. Chaque arrêt référence un point du catalogue, une ou plusieurs lignes produits (quantité + unité), une référence de commande, un créneau, le nombre de photos requises, des instructions. Les arrêts déjà livrés restent en lecture seule ; les autres peuvent être modifiés.</p>
+<p><strong>Suivi des livraisons</strong>  </p>
+<p>Vue filtrable par date et statut (à démarrer, en cours, en attente OTP, livré, échoué…). Indicateurs (total, validées, en attente). Liste groupée par tournée. Détail d’une livraison : quantités attendues vs livrées, déclaration livreur, photos, lien certificat, accès à la modification / replan.</p>
+<p><strong>Replanification</strong>  </p>
+<p>Quand le terrain ne se déroule pas comme prévu : replanifier une tournée complète, ou un <strong>reliquat partiel</strong>, sans tout reconstruire à la main. Les arrêts non livrés de l’ancienne tournée sont correctement clôturés / supersédés pour éviter les doublons.</p>
+<p><strong>Tâches opérationnelles</strong>  </p>
+<p>Le système crée des tâches selon les événements : livraison confirmée, livraison partielle, livraison manquée / échouée, annulation, réaffectation. Le gestionnaire peut ouvrir la livraison, la tournée, replanifier si éligible, ou marquer la tâche comme traitée.</p>
+<h3>3.4 Côté livreur — capacités détaillées</h3>
+<p><strong>Accès simple</strong>  </p>
+<p>Téléphone ivoirien (+225, saisie possible en <code>07…</code>) + PIN. Pas de compte Google obligatoire, pas de passage forcé par un store d’applications : l’app s’utilise dans le navigateur et peut s’installer comme application (PWA).</p>
+<p><strong>Tableau de bord du jour</strong>  </p>
+<p>Liste des arrêts de la date sélectionnée, calendrier des jours avec livraisons, progression (% livrés), cartes d’arrêt (séquence, statut, adresse, contenu, créneau). Plusieurs tournées le même jour sont présentées de façon unifiée pour le chauffeur.</p>
+<p><strong>Carte</strong>  </p>
+<p>Visualisation du dépôt, des arrêts et de l’itinéraire ; position GPS si autorisée ; accès rapide à une livraison depuis la carte.</p>
+<p><strong>Parcours d’un arrêt (cœur de la preuve)</strong></p>
+<table><thead><tr><th>Étape</th><th>Rôle</th></tr></thead><tbody><tr><td><strong>Démarrer</strong></td><td>Le livreur démarre l’arrêt (contrôle de proximité du point)</td></tr><tr><td><strong>Photos</strong></td><td>Prise de photos (nombre configurable selon la tournée)</td></tr><tr><td><strong>Déclaration</strong></td><td>Complet, <strong>partiel</strong> ou <strong>refusé</strong> — ligne par produit (accepté / refusé / motif)</td></tr><tr><td><strong>OTP SMS</strong></td><td>Un code est envoyé au téléphone du <strong>responsable du point</strong> ; le livreur le saisit (renvoi possible)</td></tr><tr><td><strong>Confirmation</strong></td><td>Validation → génération d’un <strong>certificat de livraison</strong> consultable ensuite</td></tr></tbody></table>
+<p>Le livreur peut consulter un arrêt déjà clôturé (quantités attendues / livrées, statut adapté). Un historique du jour et les liens certificat sont accessibles depuis le profil.</p>
+<p><strong>Usage terrain</strong>  </p>
+<p>Conçu pour un usage quotidien sur smartphone, y compris avec cache local et reprise quand le réseau revient (certaines étapes critiques comme l’OTP restent liées au réseau).</p>
+<h3>3.5 Une journée type (scénario)</h3>
+<ol>
+<li><strong>07h30 — Bureau</strong> : le gestionnaire planifie la tournée de Kouassi : 4 arrêts Abidjan, produits du catalogue (ex. 3 palettes + 12 caisses), créneaux, instructions.</li>
+<li><strong>08h00 — Livreur</strong> : Kouassi se connecte, voit sa liste et la carte, part du dépôt.</li>
+<li><strong>Arrêt 1</strong> : démarrage près du point → photos → déclaration complète → SMS au responsable → code saisi → certificat généré.</li>
+<li><strong>Arrêt 2</strong> : le point n’accepte que la moitié → déclaration <strong>partielle</strong> documentée → le bureau reçoit une tâche « partielle ».</li>
+<li><strong>Après-midi — Bureau</strong> : consultation des quantités, photos, certificat ; <strong>replan</strong> du reliquat pour le lendemain sans ressaisir toute la commande.</li>
+<li><strong>Fin de journée</strong> : vue claire de ce qui est livré, partiel, en attente ou à retraiter.</li>
+</ol>
+<h3>3.6 Mise en service d’une entreprise</h3>
+<ol>
+<li>Créer l’espace entreprise (inscription ou onboarding accompagné).  </li>
+<li>Renseigner le catalogue <strong>produits</strong> et les <strong>points</strong> (avec téléphone responsable OTP).  </li>
+<li>Créer 1 à N <strong>livreurs</strong>.  </li>
+<li>Planifier une première tournée pilote.  </li>
+<li>Exécuter le parcours complet sur un téléphone réel.  </li>
+<li>Généraliser aux tournées quotidiennes, puis traiter les tâches / replans au fil de l’eau.</li>
+</ol>
+<p><strong>Liens utiles</strong></p>
+<table><thead><tr><th>Action</th><th>URL</th></tr></thead><tbody><tr><td>Créer un espace</td><td><a href="https://pwa-livreur.netlify.app/manager/register">pwa-livreur.netlify.app/manager/register</a></td></tr><tr><td>Connexion manager</td><td><a href="https://pwa-livreur.netlify.app/manager/login">pwa-livreur.netlify.app/manager/login</a></td></tr><tr><td>App livreur</td><td><a href="https://pwa-livreur.netlify.app">pwa-livreur.netlify.app</a></td></tr></tbody></table>
+<h3>3.7 Périmètre volontaire (ce que la solution n’essaie pas d’être)</h3>
+<p>TraceO® se concentre sur la <strong>boucle livraison opérationnelle</strong>. Ce n’est pas, à ce stade :</p>
+<ul>
+<li>un ERP / une comptabilité / une facturation automatisée ;</li>
+<li>un WMS d’entrepôt complet ;</li>
+<li>une solution de branding white-label par client.</li>
+</ul>
+<p>Ce recentrage permet une <strong>prise en main rapide</strong> et un pilote sur de vraies tournées sans projet de transformation de 12 mois.</p>
+<hr />
+<h2>4. Marché cible</h2>
+<h3>4.1 Segment prioritaire</h3>
+<p>Entreprises qui :</p>
+<ul>
+<li>livrent en <strong>B2B</strong> (point de vente, dépôt, site, chantier) ;</li>
+<li>ont un <strong>volume régulier</strong> de tournées (plusieurs arrêts / jour ou / semaine) ;</li>
+<li>manipulent des <strong>quantités et unités métier</strong> (pas seulement « 1 colis ») ;</li>
+<li>subissent déjà des <strong>litiges</strong> ou un manque de preuve à l’arrivée ;</li>
+<li>disposent d’au moins un <strong>responsable au bureau</strong> et d’une <strong>flotte</strong> (salariée ou dédiée).</li>
+</ul>
+<h3>4.2 Typologies d’entreprises</h3>
+<table><thead><tr><th>Typologie</th><th>Exemples d’usage</th><th>Pourquoi TraceO® convient</th></tr></thead><tbody><tr><td><strong>Grossistes / distributeurs</strong></td><td>Livraison magasins, dépôts régionaux</td><td>Catalogue produits + preuve quantité</td></tr><tr><td><strong>Opérateurs de livraison B2B</strong></td><td>Flotte multi-clients ou multi-sites</td><td>Espaces isolés, suivi, replan</td></tr><tr><td><strong>Industriels / producteurs</strong></td><td>Livraison clients ou enseignes</td><td>Certificat et traçabilité par arrêt</td></tr><tr><td><strong>Fournisseurs chantiers / BTP</strong></td><td>Sites avec responsable sur place</td><td>OTP SMS au contact du point</td></tr><tr><td><strong>Centrales / filiales régionales</strong></td><td>Plusieurs équipes locales</td><td>Même plateforme, espaces séparés si besoin</td></tr></tbody></table>
+<h3>4.3 Profils décideurs et utilisateurs</h3>
+<table><thead><tr><th>Rôle</th><th>Attente principale</th></tr></thead><tbody><tr><td><strong>Directeur / gérant PME</strong></td><td>Réduire les litiges, professionnaliser l’image, piloter sans usine à gaz</td></tr><tr><td><strong>Responsable logistique / exploitation</strong></td><td>Planifier, suivre, replanifier, avoir des preuves pour l’interne et le client</td></tr><tr><td><strong>Superviseurs / dispatch</strong></td><td>Tâches claires (partiel, manqué, réaffectation), moins de relances WhatsApp</td></tr><tr><td><strong>Livreurs</strong></td><td>Parcours simple, téléphone + PIN, pas de formation longue</td></tr><tr><td><strong>Responsable du point de livraison</strong></td><td>Valider par SMS sans installer d’application</td></tr></tbody></table>
+<h3>4.4 Géographie et contexte local</h3>
+<ul>
+<li><strong>Priorité : Côte d’Ivoire</strong> — numéros +225, usage smartphone courant, points de livraison urbains (ex. Abidjan) et périurbains.</li>
+<li>Parcours conçu pour un responsable joignable par <strong>SMS</strong> sur place.</li>
+<li>Unités et vocabulaire adaptés à la distribution (palette, caisse, etc.).</li>
+<li>Déploiement multi-entreprises : plusieurs compagnies ivoiriennes (ou filiales) peuvent cohabiter sur la même plateforme sans partager leurs données.</li>
+</ul>
+<h3>4.5 Signaux d’achat (quand le besoin est « chaud »)</h3>
+<ul>
+<li>Litiges récurrents sur les quantités livrées  </li>
+<li>Clients points de vente qui demandent une meilleure preuve  </li>
+<li>Croissance de la flotte (passage de 2 à 10+ livreurs)  </li>
+<li>Perte de temps massive sur WhatsApp / Excel  </li>
+<li>Volonté de professionnaliser l’exploitation avant d’investir dans un ERP  </li>
+</ul>
+<h3>4.6 Hors cible (phase actuelle)</h3>
+<table><thead><tr><th>Hors cible</th><th>Pourquoi</th></tr></thead><tbody><tr><td>Pure livraison B2C e-commerce grand public</td><td>Besoin différent (créneaux particuliers, densités, app client finale)</td></tr><tr><td>Remplacement d’un ERP / outil de facturation</td><td>Hors périmètre produit actuel</td></tr><tr><td>Entreprises sans besoin de preuve à l’arrêt</td><td>Peu de valeur perçue vs Excel</td></tr><tr><td>Organisations sans smartphone terrain</td><td>Le livreur est un acteur clé du parcours</td></tr></tbody></table>
+<h3>4.7 Modèle d’adoption recommandé</h3>
+<ol>
+<li><strong>Pilote</strong> : 1 entreprise, 1–2 livreurs, un sous-ensemble de points et produits.  </li>
+<li><strong>Mesure</strong> : litiges évités, temps de replan, taux de preuves complètes.  </li>
+<li><strong>Extension</strong> : toute la flotte, puis éventuelle ouverture à d’autres filiales / compagnies.</li>
+</ol>
+<hr />
+<h2>5. Positionnement et avantages concurrentiels</h2>
+<h3>5.1 Positionnement</h3>
+<blockquote><strong>TraceO® = la preuve de livraison opérationnelle pour le B2B terrain</strong>, entre le couple Excel/WhatsApp et les suites logistiques / ERP.</blockquote>
+<p>Proposition de valeur :</p>
+<ul>
+<li><strong>Pour le bureau</strong> : planifier, voir, corriger, archiver la preuve.  </li>
+<li><strong>Pour le livreur</strong> : un parcours clair, sans friction.  </li>
+<li><strong>Pour le point de livraison</strong> : valider sans installer d’outil.  </li>
+<li><strong>Pour l’entreprise</strong> : un espace dédié, prêt à cohabiter avec d’autres clients sur la même plateforme.</li>
+</ul>
+<h3>5.2 Carte concurrentielle (simplifiée)</h3>
+<table><thead><tr><th>Approche</th><th>Force</th><th>Faiblesse</th><th>TraceO®</th></tr></thead><tbody><tr><td><strong>Excel + WhatsApp</strong></td><td>Gratuit, familier</td><td>Pas de preuve structurée, pas d’audit</td><td>Remplace la chaîne opérationnelle</td></tr><tr><td><strong>Tracking GPS / flotte seul</strong></td><td>Position du véhicule</td><td>Ne prouve pas les quantités ni l’accord du point</td><td>Ajoute la preuve métier (déclaration + OTP)</td></tr><tr><td><strong>Signature papier</strong></td><td>Habitude terrain</td><td>Perte, fraude, non digital</td><td>Digitalise et centralise</td></tr><tr><td><strong>Suite TMS / ERP</strong></td><td>Couverture large</td><td>Coût, délai, complexité pour le livreur</td><td>Plus léger, focalisé livraison + preuve</td></tr><tr><td><strong>App étrangère non localisée</strong></td><td>Fonctions avancées</td><td>Friction +225, OTP local, unités, prise en main</td><td>Pensé pour le contexte CI</td></tr></tbody></table>
+<h3>5.3 Avantages concurrentiels détaillés</h3>
+<p><strong>1. Preuve à trois niveaux (différenciateur central)</strong>  </p>
+<p>Ce n’est pas seulement « le livreur a cliqué sur Livré ». À chaque arrêt validé, on cumule :</p>
+<ul>
+<li>des <strong>photos</strong> ;</li>
+<li>une <strong>déclaration structurée</strong> (complet / partiel / refus, par produit) ;</li>
+<li>une <strong>validation du responsable du point</strong> via code SMS ;</li>
+<li>un <strong>certificat</strong> consultable ensuite par le gestionnaire.</li>
+</ul>
+<p><strong>2. Le terrain « qui dérape » est prévu dans le produit</strong>  </p>
+<p>Partiel, refus, manqué, replan, réaffectation : ce ne sont pas des cas exotiques gérés hors système. Ils génèrent des <strong>statuts</strong> et des <strong>tâches</strong> exploitables au bureau.</p>
+<p><strong>3. Catalogue métier, pas des champs libres jetables</strong>  </p>
+<p>Produits et points sont des référentiels. Le planifié et le livré restent <strong>comparables</strong> (attendu vs livré), ce qui est la base de tout contrôle et de tout litige.</p>
+<p><strong>4. Friction minimale côté livreur</strong>  </p>
+<p>Téléphone + PIN, PWA installable, parcours guidé. Moins de résistance à l’adoption que des outils qui exigent un store, un e-mail pro, ou une formation longue.</p>
+<p><strong>5. Validation par le point sans application tierce</strong>  </p>
+<p>Le responsable reçoit un SMS : il n’a pas besoin d’installer TraceO®. C’est un avantage fort en B2B où l’on ne contrôle pas le terminal du client.</p>
+<p><strong>6. Multi-entreprise natif</strong>  </p>
+<p>Une plateforme, plusieurs compagnies, données isolées. Adapté à un éditeur / opérateur qui sert plusieurs clients, ou à un groupe avec plusieurs entités — sans déployer une instance logicielle par compagnie.</p>
+<p><strong>7. Time-to-value court</strong>  </p>
+<p>Inscription ou onboarding → catalogues → livreurs → première tournée prouvée le jour même. Le pilote se juge sur des <strong>vraies livraisons</strong>, pas sur un projet d’intégration de six mois.</p>
+<h3>5.4 Synthèse des messages clés (pitch)</h3>
+<ol>
+<li>« On ne remplace pas votre ERP demain : on <strong>sécurise la preuve de livraison dès aujourd’hui</strong>. »  </li>
+<li>« Le livreur livre ; le responsable du point <strong>valide par SMS</strong> ; vous gardez le <strong>certificat</strong>. »  </li>
+<li>« Partiel, refus, replan : ce n’est plus un chaos WhatsApp, c’est un <strong>parcours</strong>. »  </li>
+<li>« Chaque entreprise a <strong>son espace</strong> ; une seule plateforme à utiliser. »  </li>
+<li>« Conçu pour la <strong>Côte d’Ivoire</strong> et le B2B terrain, pas pour un usage générique importé. »</li>
+</ol>
+<h3>5.5 Critères de succès d’un pilote (pour le client)</h3>
+<table><thead><tr><th>Indicateur</th><th>Objectif typique</th></tr></thead><tbody><tr><td>% d’arrêts avec preuve complète (photos + OTP + certificat)</td><td>En forte hausse vs avant</td></tr><tr><td>Temps pour replanifier un reliquat</td><td>En baisse nette</td></tr><tr><td>Nombre de litiges « sans trace »</td><td>En baisse</td></tr><tr><td>Adoption livreurs (connexion quotidienne)</td><td>Stable après 1–2 semaines</td></tr><tr><td>Charge WhatsApp / appels de dispatch</td><td>En baisse</td></tr></tbody></table>
+<hr />
+<h2>Prochaine étape</h2>
+<p>Nous recommandons un <strong>pilote</strong> sur vos tournées réelles : vos points, vos produits, 1 à 2 livreurs, une à deux semaines d’exploitation, puis revue des indicateurs ci-dessus.</p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Démonstration</strong></td><td><a href="https://pwa-livreur.netlify.app">pwa-livreur.netlify.app</a></td></tr><tr><td><strong>Créer un espace</strong></td><td><a href="https://pwa-livreur.netlify.app/manager/register">pwa-livreur.netlify.app/manager/register</a></td></tr><tr><td><strong>Contact / demande de pilote</strong></td><td>kfallet@gmail.com · 225 07 00 43 04 02</td></tr><tr><td><strong>Site</strong></td><td><a href="https://pwa-livreur.netlify.app">pwa-livreur.netlify.app</a></td></tr></tbody></table>
+<p>*— Document commercial — capacités disponibles sur la plateforme (août 2026).*</p><p class="footer-note">Document commercial TraceO® — 2026</p></main>
+</body>
+</html>

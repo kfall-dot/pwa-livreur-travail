@@ -1,0 +1,40 @@
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  audit:
+    name: npm audit + env script
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Production env audit (simulated)
+        run: |
+          CONTEXT=production \
+          JWT_SECRET="$(openssl rand -base64 48)" \
+          SMS_PROVIDER=textbee \
+          EMAIL_PROVIDER=smtp \
+          PUBLIC_BASE_URL=https://example.netlify.app \
+          bash scripts/audit-production-env.sh
+
+      - name: Unit tests (security modules)
+        run: npm run test:unit
