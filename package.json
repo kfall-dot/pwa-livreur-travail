@@ -32,9 +32,14 @@
     "prepare": "bash scripts/install-githooks.sh",
     "db:generate": "drizzle-kit generate",
     "db:fingerprint": "bash scripts/db-fingerprint.sh",
-    "netlify": "netlify",
+                "netlify": "netlify",
     "netlify:dev": "bash scripts/netlify-dev.sh",
-    "db:migrate": "netlify database migrations apply"
+    "db:migrate": "netlify database migrations apply",
+    "pages:dev": "bash scripts/cloudflare-dev.sh",
+    "pages:build:frontend": "npm run build",
+    "pages:build:worker": "npm run build:server",
+    "pages:deploy:frontend": "npx wrangler pages deploy dist",
+    "pages:deploy:worker": "npx wrangler deploy"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9",

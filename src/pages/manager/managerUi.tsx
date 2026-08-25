@@ -2,7 +2,9 @@ import type { ReactNode, CSSProperties } from 'react'
 import { deliveryDisplayStatusLabel, resolveDeliveryDisplayStatus } from '../../lib/deliveryStatusDisplay'
 import { statusLabel } from './managerConstants'
 
-/** Tokens TraceO (famille A) — préférer var(--*) pour rester aligné avec index.css */
+/** Tokens TraceO (famille A) — préférer var(--*) pour rester aligné avec index.css
+ *  Les contrôles interactifs (boutons, tabs, inputs) utilisent désormais les classes
+ *  .mgr-btn / .mgr-tab / .mgr-input de index.css (états hover/focus/active inclus). */
 export const css = {
   bg: 'var(--bg)',
   /** @deprecated alias historique — utiliser `brand` */
@@ -12,25 +14,6 @@ export const css = {
   dark: 'var(--text)',
   muted: 'var(--text-muted)',
   border: 'var(--border)',
-  input: {
-    padding: '7px 10px',
-    border: '1px solid var(--border)',
-    borderRadius: 6,
-    fontSize: 13,
-    width: '100%',
-    boxSizing: 'border-box',
-    background: 'var(--bg-elevated)',
-    fontFamily: 'inherit',
-  } as CSSProperties,
-  inputCompact: {
-    padding: '6px 8px',
-    border: '1px solid var(--border)',
-    borderRadius: 6,
-    fontSize: 13,
-    width: 'auto',
-    background: 'var(--bg-elevated)',
-    fontFamily: 'inherit',
-  } as CSSProperties,
   td: { padding: '10px 14px', verticalAlign: 'top' } as CSSProperties,
   label: {
     fontSize: 13,
@@ -52,71 +35,6 @@ export const css = {
     fontWeight: 800,
     color: 'var(--text)',
     fontFamily: 'var(--font-sans)',
-  } as CSSProperties,
-  tab: {
-    padding: '8px 16px',
-    borderRadius: '8px 8px 0 0',
-    border: '1px solid var(--border)',
-    borderBottom: 'none',
-    background: 'transparent',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 700,
-    color: 'var(--text-muted)',
-    fontFamily: 'inherit',
-  } as CSSProperties,
-  tabActive: {
-    padding: '8px 16px',
-    borderRadius: '8px 8px 0 0',
-    border: '1px solid var(--border)',
-    borderBottom: '2px solid var(--brand)',
-    background: 'var(--bg-elevated)',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 700,
-    color: 'var(--brand)',
-    fontFamily: 'inherit',
-  } as CSSProperties,
-  btnGold: {
-    padding: '8px 18px',
-    background: 'var(--action)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 6,
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 600,
-    fontFamily: 'inherit',
-  } as CSSProperties,
-  btnGhost: {
-    padding: '8px 14px',
-    background: 'none',
-    border: '1px solid var(--border)',
-    borderRadius: 6,
-    cursor: 'pointer',
-    fontSize: 13,
-    color: 'var(--text)',
-    fontFamily: 'inherit',
-  } as CSSProperties,
-  btnOutline: {
-    padding: '5px 12px',
-    background: 'none',
-    border: '1px solid var(--border)',
-    borderRadius: 6,
-    cursor: 'pointer',
-    fontSize: 12,
-    color: 'var(--text)',
-    fontFamily: 'inherit',
-  } as CSSProperties,
-  btnDanger: {
-    padding: '5px 12px',
-    background: 'none',
-    border: '1px solid #fecaca',
-    borderRadius: 6,
-    cursor: 'pointer',
-    fontSize: 12,
-    color: 'var(--danger)',
-    fontFamily: 'inherit',
   } as CSSProperties,
   layout: {
     display: 'flex',
@@ -328,5 +246,125 @@ export function EmptyHint({ children }: { children: ReactNode }) {
     <p className="empty-state" role="status" style={{ padding: '1.25rem 0.5rem', fontSize: 13 }}>
       {children}
     </p>
+  )
+}
+
+// ─── Composants de liste pro (recherche, filtres, badges, avatars) ───────────
+
+/** Avatar circulaire à initiales, couleur déterminée par le nom. */
+const AVATAR_COLORS = ['#0b4a2c', '#e85d04', '#92400e', '#1d4ed8', '#6d28d9', '#0e7490', '#b91c1c']
+export function InitialsAvatar({ name }: { name: string }) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('') || '?'
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0
+  const color = AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+  return (
+    <span className="mgr-avatar" style={{ background: color }} aria-hidden="true">
+      {initials}
+    </span>
+  )
+}
+
+/** Badge d'état lisible (complète un Toggle pour nommer l'état). */
+export function StatusBadge({
+  active,
+  okLabel = 'Actif',
+  offLabel = 'Inactif',
+}: {
+  active: boolean
+  okLabel?: string
+  offLabel?: string
+}) {
+  return (
+    <span className={`mgr-badge ${active ? 'mgr-badge--ok' : 'mgr-badge--off'}`}>
+      {active ? okLabel : offLabel}
+    </span>
+  )
+}
+
+/** Champ de recherche filtrante avec icône loupe. */
+export function ListSearchInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+}) {
+  return (
+    <div className="mgr-search">
+      <svg className="mgr-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <path d="m21 21-4-4" />
+      </svg>
+      <input
+        type="search"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  )
+}
+
+/** Groupe de filtres segmentés (Tous / Actifs / Suspendus…). */
+export function FilterSegmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ label: string; value: T }>
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="mgr-filter-seg" role="group">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          className={value === o.value ? 'on' : ''}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Titre de liste avec compteur dynamique. */
+export function ListHeading({ title, count, suffix }: { title: string; count?: number; suffix?: string }) {
+  return (
+    <div className="mgr-list-head">
+      <h3 className="mgr-list-title">
+        {title}
+        {count != null && (
+          <span className="mgr-count-chip">
+            {count} {suffix ?? (count === 1 ? 'élément' : 'éléments')}
+          </span>
+        )}
+      </h3>
+    </div>
+  )
+}
+
+/** Rangée de mini-cartes statistiques. */
+export function MiniStatRow({ items }: { items: Array<{ value: number | string; label: string; accent?: boolean }> }) {
+  return (
+    <div className="mgr-stat-row">
+      {items.map((it) => (
+        <div key={it.label} className="mgr-mini-stat" style={it.accent ? undefined : undefined}>
+          <div className="mgr-mini-stat__v" style={{ color: it.accent ? 'var(--brand)' : undefined }}>{it.value}</div>
+          <div className="mgr-mini-stat__l">{it.label}</div>
+        </div>
+      ))}
+    </div>
   )
 }

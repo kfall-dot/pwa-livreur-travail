@@ -175,7 +175,7 @@ function SupplierSelect({
       disabled={disabled}
       required={required}
       onChange={(e) => onChange(e.target.value)}
-      style={css.input}
+      className="mgr-input"
       data-testid={testId}
     >
       <option value="">À préciser</option>
@@ -881,7 +881,7 @@ export function AchatsTab({
           type="button"
           data-testid="mgr-achats-inbox"
           onClick={() => { setView('inbox'); setSelectedRequestId(null) }}
-          style={view === 'inbox' ? css.tabActive : css.tab}
+          className={view === 'inbox' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
         >
           Boîte EB{drafts.length > 0 ? ` (${drafts.length})` : ''}
         </button>
@@ -890,7 +890,7 @@ export function AchatsTab({
           type="button"
           data-testid="mgr-achats-requests"
           onClick={() => { setView('requests'); setSelectedDraftId(null) }}
-          style={view === 'requests' ? css.tabActive : css.tab}
+          className={view === 'requests' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
         >
           Demandes d&apos;achat
         </button>
@@ -966,14 +966,14 @@ export function AchatsTab({
                 onChange={(e) => setPasteText(e.target.value)}
                 placeholder="Collez ici le message WhatsApp…"
                 rows={4}
-                style={{ ...css.input, width: '100%', marginTop: 8, resize: 'vertical', fontFamily: 'inherit' }}
+                className="mgr-input" style={{ width: '100%', marginTop: 8, resize: 'vertical', fontFamily: 'inherit' }}
                 data-testid="mgr-achats-paste-text"
               />
               <button
                 type="button"
                 onClick={() => void handlePasteWhatsapp()}
                 disabled={pasteLoading || blankLoading || !pasteText.trim()}
-                style={{ ...css.btnGold, marginTop: 10 }}
+                className="mgr-btn mgr-btn--primary" style={{ marginTop: 10 }}
                 data-testid="mgr-achats-paste-submit"
               >
                 {pasteLoading ? 'Analyse…' : 'Créer le brouillon'}
@@ -982,7 +982,7 @@ export function AchatsTab({
                 type="button"
                 onClick={() => void handleBlankFiche()}
                 disabled={pasteLoading || blankLoading}
-                style={{ ...css.btnOutline, marginTop: 10, marginLeft: 8 }}
+                className="mgr-btn mgr-btn--outline" style={{ marginTop: 10, marginLeft: 8 }}
                 data-testid="mgr-achats-blank-fiche"
               >
                 {blankLoading ? 'Création…' : 'Générer une fiche EB vierge'}
@@ -1247,7 +1247,7 @@ function DraftReviewPanel({
 
   return (
     <div data-testid="mgr-achats-draft-review" style={css.section}>
-      <button type="button" onClick={onBack} style={{ ...css.btnGhost, marginBottom: '1rem' }}>
+      <button type="button" onClick={onBack} className="mgr-btn mgr-btn--ghost" style={{ marginBottom: '1rem' }}>
         ← Retour à la boîte EB
       </button>
 
@@ -1333,7 +1333,7 @@ function DraftReviewPanel({
                   value={editSiteId}
                   disabled={!canEdit}
                   onChange={(e) => onSiteChange(e.target.value)}
-                  style={css.input}
+                  className="mgr-input"
                   data-testid="mgr-achats-draft-site"
                 >
                   <option value="">— Sélectionner —</option>
@@ -1356,7 +1356,7 @@ function DraftReviewPanel({
                   onChange={(e) => onObjetChange(e.target.value)}
                   placeholder="BESOIN - …"
                   autoComplete="off"
-                  style={css.input}
+                  className="mgr-input"
                   data-testid="mgr-achats-draft-objet"
                 />
               </td>
@@ -1368,7 +1368,7 @@ function DraftReviewPanel({
                   onChange={(e) => onRequesterChange(e.target.value)}
                   placeholder="Nom du demandeur chantier"
                   autoComplete="off"
-                  style={css.input}
+                  className="mgr-input"
                   data-testid="mgr-achats-draft-requester"
                 />
               </td>
@@ -1384,7 +1384,7 @@ function DraftReviewPanel({
                   value={editUrgency}
                   disabled={!canEdit}
                   onChange={(e) => onUrgencyChange(e.target.value)}
-                  style={css.input}
+                  className="mgr-input"
                   data-testid="mgr-achats-draft-urgency"
                 >
                   <option value="normal">Normal</option>
@@ -1399,7 +1399,7 @@ function DraftReviewPanel({
                   onChange={(e) => onNeededByChange(e.target.value)}
                   placeholder="Ex. 20/08/2026 ou demain matin"
                   autoComplete="off"
-                  style={css.input}
+                  className="mgr-input"
                   data-testid="mgr-achats-draft-needed-by"
                 />
               </td>
@@ -1443,7 +1443,7 @@ function DraftReviewPanel({
                           spendCategory: keepManual ? line.spendCategory : inferred,
                         })
                       }}
-                      style={css.input}
+                      className="mgr-input"
                       data-testid={`mgr-achats-line-label-${i}`}
                       autoComplete="off"
                     />
@@ -1453,7 +1453,7 @@ function DraftReviewPanel({
                       value={normalizeEbSpendCategory(line.spendCategory)}
                       disabled={!canEdit}
                       onChange={(e) => onLineChange(i, { spendCategory: e.target.value })}
-                      style={css.input}
+                      className="mgr-input"
                       data-testid={`mgr-achats-line-category-${i}`}
                     >
                       {EB_SPEND_CATEGORIES.map((c) => (
@@ -1466,7 +1466,7 @@ function DraftReviewPanel({
                       value={line.unit}
                       disabled={!canEdit}
                       onChange={(e) => onLineChange(i, { unit: e.target.value })}
-                      style={{ ...css.input, width: 90 }}
+                      className="mgr-input" style={{ width: 90 }}
                     />
                   </td>
                   <td style={css.lineTd}>
@@ -1477,7 +1477,7 @@ function DraftReviewPanel({
                       value={line.quantity}
                       disabled={!canEdit}
                       onChange={(e) => onLineChange(i, { quantity: Number.parseFloat(e.target.value) || 0 })}
-                      style={{ ...css.input, width: 80 }}
+                      className="mgr-input" style={{ width: 80 }}
                       data-testid={`mgr-achats-line-qty-${i}`}
                     />
                   </td>
@@ -1497,7 +1497,7 @@ function DraftReviewPanel({
                       value={line.paymentMode ?? ''}
                       disabled={!canEdit}
                       onChange={(e) => onLineChange(i, { paymentMode: e.target.value })}
-                      style={css.input}
+                      className="mgr-input"
                       data-testid={`mgr-achats-line-payment-${i}`}
                     >
                       <option value="">À préciser</option>
@@ -1508,7 +1508,7 @@ function DraftReviewPanel({
                   </td>
                   {canEdit && (
                     <td style={css.lineTd}>
-                      <button type="button" onClick={() => onRemoveLine(i)} style={css.btnDanger}>×</button>
+                      <button type="button" onClick={() => onRemoveLine(i)} className="mgr-btn mgr-btn--danger">×</button>
                     </td>
                   )}
                 </tr>
@@ -1517,7 +1517,7 @@ function DraftReviewPanel({
           </table>
         </div>
         {canEdit && (
-          <button type="button" onClick={onAddLine} style={{ ...css.btnOutline, margin: 8 }}>
+          <button type="button" onClick={onAddLine} className="mgr-btn mgr-btn--outline" style={{ margin: 8 }}>
             + Ligne
           </button>
         )}
@@ -1562,7 +1562,7 @@ function DraftReviewPanel({
                 value={editPin}
                 onChange={(e) => onPinChange(e.target.value)}
                 placeholder="1234"
-                style={{ ...css.input, width: 100 }}
+                className="mgr-input" style={{ width: 100 }}
                 data-testid="mgr-achats-sign-pin"
               />
             </label>
@@ -1572,7 +1572,7 @@ function DraftReviewPanel({
             data-testid="mgr-achats-draft-validate"
             onClick={onValidate}
             disabled={actionLoading}
-            style={css.btnGhost}
+            className="mgr-btn mgr-btn--ghost"
           >
             Enregistrer le brouillon
           </button>
@@ -1581,7 +1581,7 @@ function DraftReviewPanel({
             data-testid="btp-draft-submit"
             onClick={onSubmit}
             disabled={actionLoading}
-            style={css.btnGold}
+            className="mgr-btn mgr-btn--primary"
           >
             Valider
           </button>
@@ -1749,7 +1749,7 @@ function RequestDetailPanel({
 
   return (
     <div data-testid="mgr-achats-request-detail" style={css.section}>
-      <button type="button" onClick={onBack} style={{ ...css.btnGhost, marginBottom: '1rem' }}>
+      <button type="button" onClick={onBack} className="mgr-btn mgr-btn--ghost" style={{ marginBottom: '1rem' }}>
         ← Retour aux demandes
       </button>
 
@@ -1803,7 +1803,7 @@ function RequestDetailPanel({
                 type="button"
                 data-testid="mgr-achats-treasury-print"
                 onClick={() => printHtml(treasuryHtmlUrl(treasuryOrder!.id))}
-                style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
+                className="mgr-btn mgr-btn--ghost" style={{ padding: 0, fontWeight: 600 }}
               >
                 Imprimer
               </button>
@@ -1890,7 +1890,7 @@ function RequestDetailPanel({
                         step="1"
                         value={l.unitPriceFcfa ?? ''}
                         onChange={(e) => onUnitPriceChange(l.id, Number.parseFloat(e.target.value) || 0)}
-                        style={{ ...css.input, width: 110 }}
+                        className="mgr-input" style={{ width: 110 }}
                         data-testid={`mgr-achats-line-unit-price-${i}`}
                       />
                     ) : (
@@ -1912,7 +1912,7 @@ function RequestDetailPanel({
                         step="1"
                         value={l.amountFcfa ?? ''}
                         onChange={(e) => onAmountChange(l.id, Number.parseFloat(e.target.value) || 0)}
-                        style={{ ...css.input, width: 120 }}
+                        className="mgr-input" style={{ width: 120 }}
                         data-testid={`mgr-achats-line-amount-${i}`}
                       />
                     ) : (
@@ -1945,7 +1945,7 @@ function RequestDetailPanel({
                         value={l.paymentMode ?? ''}
                         required
                         onChange={(e) => onLineCommercial(l.id, { paymentMode: e.target.value })}
-                        style={css.input}
+                        className="mgr-input"
                         data-testid={`mgr-achats-line-payment-${i}`}
                       >
                         <option value="">À préciser</option>
@@ -1963,8 +1963,8 @@ function RequestDetailPanel({
                         type="button"
                         data-testid={`mgr-achats-line-attachment-name-${i}`}
                         onClick={() => void handleOpenAttachment(l.id, l.attachmentFileName ?? '')}
+                        className="mgr-btn mgr-btn--ghost"
                         style={{
-                          ...css.btnGhost,
                           padding: 0,
                           textDecoration: 'underline',
                           color: 'var(--accent, #0b4a2c)',
@@ -2034,8 +2034,8 @@ function RequestDetailPanel({
                     data-testid={`mgr-achats-line-attachment-${i}`}
                     onClick={() => void handleOpenAttachment(l.id, l.attachmentFileName ?? '')}
                     disabled={previewLoading}
+                    className="mgr-btn mgr-btn--ghost"
                     style={{
-                      ...css.btnGhost,
                       textDecoration: 'underline',
                       color: 'var(--accent, #0b4a2c)',
                     }}
@@ -2047,8 +2047,8 @@ function RequestDetailPanel({
                 )}
                 {canPrice && (
                   <label
+                    className="mgr-btn mgr-btn--outline"
                     style={{
-                      ...css.btnOutline,
                       margin: 0,
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -2076,7 +2076,7 @@ function RequestDetailPanel({
                     data-testid={`mgr-achats-line-attach-remove-${i}`}
                     onClick={() => onRemoveAttachment(l.id)}
                     disabled={actionLoading}
-                    style={css.btnDanger}
+                    className="mgr-btn mgr-btn--danger"
                   >
                     Retirer
                   </button>
@@ -2128,7 +2128,7 @@ function RequestDetailPanel({
                   type="button"
                   data-testid={i === 0 ? 'mgr-achats-document-print' : `mgr-achats-document-print-${i}`}
                   onClick={() => printHtml(documentHtmlUrl(po.id))}
-                  style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
+                  className="mgr-btn mgr-btn--ghost" style={{ padding: 0, fontWeight: 600 }}
                 >
                   Imprimer
                 </button>
@@ -2157,7 +2157,7 @@ function RequestDetailPanel({
               type="button"
               data-testid="mgr-achats-treasury-print"
               onClick={() => printHtml(treasuryHtmlUrl(treasuryOrder!.id))}
-              style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
+              className="mgr-btn mgr-btn--ghost" style={{ padding: 0, fontWeight: 600 }}
             >
               Imprimer
             </button>
@@ -2183,7 +2183,7 @@ function RequestDetailPanel({
                 data-testid="mgr-achats-create-bt"
                 onClick={onCreateTreasury}
                 disabled={actionLoading}
-                style={css.btnOutline}
+                className="mgr-btn mgr-btn--outline"
               >
                 {treasuryOrder ? 'Regénérer le bon de trésorerie' : 'Générer le bon de trésorerie'}
               </button>
@@ -2195,7 +2195,7 @@ function RequestDetailPanel({
               data-testid="mgr-achats-save-pricing"
               onClick={onSavePricing}
               disabled={actionLoading}
-              style={css.btnGhost}
+              className="mgr-btn mgr-btn--ghost"
             >
               Enregistrer les lignes
             </button>
@@ -2204,7 +2204,7 @@ function RequestDetailPanel({
               data-testid="mgr-achats-submit-finance"
               onClick={onSubmitFinance}
               disabled={actionLoading}
-              style={css.btnGold}
+              className="mgr-btn mgr-btn--primary"
             >
               Soumettre au CdG
             </button>
@@ -2249,7 +2249,7 @@ function RequestDetailPanel({
                         data-testid={`mgr-achats-create-po-${s.id}`}
                         onClick={() => onCreatePo(s.id)}
                         disabled={actionLoading}
-                        style={css.btnOutline}
+                        className="mgr-btn mgr-btn--outline"
                       >
                         Créer le BC
                       </button>
@@ -2264,8 +2264,8 @@ function RequestDetailPanel({
             data-testid="mgr-achats-create-po"
             onClick={() => onCreatePo()}
             disabled={actionLoading || allPosCreated}
+            className="mgr-btn mgr-btn--primary"
             style={{
-              ...css.btnGold,
               marginTop: 10,
               ...(allPosCreated ? { opacity: 0.55, cursor: 'not-allowed', background: '#9ca3af' } : {}),
             }}
@@ -2283,7 +2283,7 @@ function RequestDetailPanel({
                 value={approvalComment}
                 onChange={(e) => onCommentChange(e.target.value)}
                 rows={2}
-                style={{ ...css.input, resize: 'vertical' }}
+                className="mgr-input" style={{ resize: 'vertical' }}
                 data-testid="mgr-achats-comment"
               />
             </Field>
@@ -2297,7 +2297,7 @@ function RequestDetailPanel({
                 value={approvalPin}
                 onChange={(e) => onPinChange(e.target.value)}
                 placeholder="••••"
-                style={{ ...css.input, width: 120 }}
+                className="mgr-input" style={{ width: 120 }}
                 data-testid="mgr-achats-sign-pin"
               />
             </Field>
@@ -2318,7 +2318,7 @@ function RequestDetailPanel({
                     data-testid={i === 0 ? 'btp-schedule-delivery' : `btp-schedule-delivery-${po.id}`}
                     onClick={() => onScheduleDelivery(po.id)}
                     disabled={actionLoading}
-                    style={{ ...css.btnGold, marginTop: 8, marginRight: 8 }}
+                    className="mgr-btn mgr-btn--primary" style={{ marginTop: 8, marginRight: 8 }}
                   >
                     Planifier une tournée{name ? ` — ${name}` : ''}
                   </button>
@@ -2335,7 +2335,7 @@ function RequestDetailPanel({
                 data-testid="btp-approve-btn"
                 onClick={onApprove}
                 disabled={actionLoading}
-                style={css.btnGold}
+                className="mgr-btn mgr-btn--primary"
               >
                 Approuver
               </button>
@@ -2346,7 +2346,7 @@ function RequestDetailPanel({
                 data-testid="mgr-achats-reject"
                 onClick={onReject}
                 disabled={actionLoading}
-                style={css.btnDanger}
+                className="mgr-btn mgr-btn--danger"
               >
                 Rejeter
               </button>
@@ -2404,7 +2404,7 @@ function RequestDetailPanel({
               </strong>
               <div style={{ display: 'flex', gap: 8 }}>
                 {preview ? (
-                  <a href={preview.url} download={preview.fileName} style={css.btnOutline}>
+                  <a href={preview.url} download={preview.fileName} className="mgr-btn mgr-btn--outline">
                     Télécharger
                   </a>
                 ) : null}
@@ -2412,7 +2412,7 @@ function RequestDetailPanel({
                   type="button"
                   data-testid="mgr-achats-attachment-preview-close"
                   onClick={closePreview}
-                  style={css.btnGhost}
+                  className="mgr-btn mgr-btn--ghost"
                 >
                   Fermer
                 </button>

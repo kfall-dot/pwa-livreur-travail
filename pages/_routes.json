@@ -1,0 +1,40 @@
+{
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Cloudflare Pages — redirections & headers
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Le frontend est build par `npm run build` (Vite → dist/), puis déployé via
+  //    npx wrangler pages deploy dist
+  //
+  // Les appels API sont gérés par le Worker `pwa-livreur-api` (défini dans
+  //    ../wrangler.jsonc), mais on conserve la règle de fallback SPA ici.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  "include": [
+    "!/api/*"          // l'API (Worker) prend le dessus — mais sur Pages c’est un routeur séparé
+  ],
+  "routes": [
+    {
+      "pattern": "/api/*",
+      "middleware": ["worker:pwa-livreur-api"]
+    },
+    {
+      "pattern": "/*",
+      "serve": "index.html",
+      "status": 200,
+      "conditions": {
+        "headers": {
+          "user-agent": "!(curl|wget)"
+        }
+      }
+    }
+  ],
+
+  "headers": {
+    "/*": {
+      "X-Frame-Options":         "DENY",
+      "X-Content-Type-Options":  "nosniff",
+      "Referrer-Policy":         "strict-origin-when-cross-origin",
+      "Permissions-Policy":      "camera=(self), geolocation=(self)"
+    }
+  }
+}

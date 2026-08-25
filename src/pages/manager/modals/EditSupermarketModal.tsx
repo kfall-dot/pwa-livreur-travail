@@ -3,7 +3,7 @@ import { authFetch } from '../managerApi'
 import { CI_PHONE_INPUT_TITLE, CI_PHONE_PLACEHOLDER } from '../../../lib/phone'
 import { isValidContactEmail, normalizeContactEmail } from '../../../../shared/email'
 import { SITE_TYPES, isSiteType } from '../../../../shared/catalogEnums'
-import { AlertBox, Field, css } from '../managerUi'
+import { AlertBox, Field } from '../managerUi'
 import type { Supermarket } from '../managerTypes'
 
 export function EditSupermarketModal({
@@ -70,12 +70,12 @@ export function EditSupermarketModal({
         {error && <AlertBox>{error}</AlertBox>}
         <form onSubmit={(e) => void handleSave(e)}>
           <Field label="Nom *">
-            <input type="text" value={form.name} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+            <input type="text" value={form.name} required className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
           </Field>
           <Field label="Type">
             <select
               value={form.siteType}
-              style={css.input}
+              className="mgr-input"
               data-testid="mgr-chantier-type-edit"
               onChange={(e) => setForm((p) => ({ ...p, siteType: isSiteType(e.target.value) ? e.target.value : 'prive' }))}
             >
@@ -85,7 +85,7 @@ export function EditSupermarketModal({
             </select>
           </Field>
           <Field label="Adresse *">
-            <input type="text" value={form.address} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} />
+            <input type="text" value={form.address} required className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} />
           </Field>
           <Field label="Tél. responsable (OTP) *">
             <input
@@ -94,27 +94,27 @@ export function EditSupermarketModal({
               required
               placeholder={CI_PHONE_PLACEHOLDER}
               title={CI_PHONE_INPUT_TITLE}
-              style={css.input}
+              className="mgr-input"
               onChange={(e) => setForm((p) => ({ ...p, contactPhone: e.target.value }))}
             />
           </Field>
           <Field label="Nom responsable">
-            <input type="text" value={form.contactName} style={css.input} onChange={(e) => setForm((p) => ({ ...p, contactName: e.target.value }))} />
+            <input type="text" value={form.contactName} className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, contactName: e.target.value }))} />
           </Field>
           <Field label="E-mail responsable *">
-            <input type="email" required value={form.contactEmail} style={css.input} onChange={(e) => setForm((p) => ({ ...p, contactEmail: e.target.value }))} />
+            <input type="email" required value={form.contactEmail} className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, contactEmail: e.target.value }))} />
           </Field>
           <div style={{ display: 'flex', gap: 8 }}>
             <Field label="Latitude">
-              <input type="text" value={form.lat} style={css.input} onChange={(e) => setForm((p) => ({ ...p, lat: e.target.value }))} />
+              <input type="text" value={form.lat} className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, lat: e.target.value }))} />
             </Field>
             <Field label="Longitude">
-              <input type="text" value={form.lng} style={css.input} onChange={(e) => setForm((p) => ({ ...p, lng: e.target.value }))} />
+              <input type="text" value={form.lng} className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, lng: e.target.value }))} />
             </Field>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} style={css.btnGold}>{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
-            <button type="button" onClick={onClose} style={css.btnGhost}>Annuler</button>
+            <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary">{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
+            <button type="button" onClick={onClose} className="mgr-btn mgr-btn--ghost">Annuler</button>
           </div>
         </form>
       </div>

@@ -159,7 +159,7 @@ function EnvelopeBanner({
               step={1}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              style={{ ...css.input, display: 'block', marginTop: 4, width: 160 }}
+              className="mgr-input" style={{ display: 'block', marginTop: 4, width: 160 }}
             />
           </label>
           <label style={css.meta}>
@@ -169,14 +169,14 @@ function EnvelopeBanner({
               type="password"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              style={{ ...css.input, display: 'block', marginTop: 4, width: 100 }}
+              className="mgr-input" style={{ display: 'block', marginTop: 4, width: 100 }}
             />
           </label>
           <button
             type="button"
             data-testid="mgr-suivi-enveloppe-freeze"
             disabled={busy}
-            style={css.btnGold}
+            className="mgr-btn mgr-btn--primary"
             onClick={() =>
               void run(
                 () => freezeSiteBudget(budget.siteId, Number.parseInt(amount, 10), pin),
@@ -200,7 +200,7 @@ function EnvelopeBanner({
                 step={1}
                 value={amdAmount}
                 onChange={(e) => setAmdAmount(e.target.value)}
-                style={{ ...css.input, display: 'block', marginTop: 4, width: 160 }}
+                className="mgr-input" style={{ display: 'block', marginTop: 4, width: 160 }}
               />
             </label>
             <label style={{ ...css.meta, flex: '1 1 220px' }}>
@@ -209,14 +209,14 @@ function EnvelopeBanner({
                 data-testid="mgr-suivi-avenant-reason"
                 value={amdReason}
                 onChange={(e) => setAmdReason(e.target.value)}
-                style={{ ...css.input, display: 'block', marginTop: 4, width: '100%' }}
+                className="mgr-input" style={{ display: 'block', marginTop: 4, width: '100%' }}
               />
             </label>
             <button
               type="button"
               data-testid="mgr-suivi-avenant-submit"
               disabled={busy}
-              style={css.btnOutline}
+              className="mgr-btn mgr-btn--outline"
               onClick={() =>
                 void run(
                   () => createSiteBudgetAmendment(budget.siteId, Number.parseInt(amdAmount, 10), amdReason),
@@ -242,7 +242,7 @@ function EnvelopeBanner({
               type="password"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              style={{ ...css.input, display: 'block', marginTop: 4, width: 100 }}
+              className="mgr-input" style={{ display: 'block', marginTop: 4, width: 100 }}
             />
           </label>
           <div style={{ ...css.actionRow, marginTop: 8 }}>
@@ -250,7 +250,7 @@ function EnvelopeBanner({
               type="button"
               data-testid="mgr-suivi-avenant-approve"
               disabled={busy}
-              style={css.btnGold}
+              className="mgr-btn mgr-btn--primary"
               onClick={() =>
                 void run(
                   () => decideSiteBudgetAmendment(budget.siteId, draft.id, 'approve', pin),
@@ -264,7 +264,7 @@ function EnvelopeBanner({
               type="button"
               data-testid="mgr-suivi-avenant-reject"
               disabled={busy}
-              style={css.btnOutline}
+              className="mgr-btn mgr-btn--outline"
               onClick={() =>
                 void run(
                   () => decideSiteBudgetAmendment(budget.siteId, draft.id, 'reject', pin, 'Rejeté'),
@@ -405,7 +405,7 @@ export function SuiviChantierTab({
             Enveloppe CdG : budget, % d’engagement, écart, feux 2 % / 5 %, avenant manquant. Puis stock livré.
           </p>
         </div>
-        <button type="button" onClick={() => void load()} style={css.btnOutline} data-testid="mgr-suivi-chantier-refresh">
+        <button type="button" onClick={() => void load()} className="mgr-btn mgr-btn--outline" data-testid="mgr-suivi-chantier-refresh">
           Actualiser
         </button>
       </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { authFetch } from '../managerApi'
-import { AlertBox, css, Field } from '../managerUi'
+import { AlertBox, Field } from '../managerUi'
 import type { UnitRow } from '../managerTypes'
 
 export function EditUnitModal({
@@ -55,15 +55,15 @@ export function EditUnitModal({
         {error && <AlertBox>{error}</AlertBox>}
         <form onSubmit={(e) => void handleSave(e)}>
           <Field label="Libellé affiché *">
-            <input type="text" value={form.label} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} />
+            <input type="text" value={form.label} required className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} />
           </Field>
           <div style={{ marginBottom: 8 }} />
           <Field label="Ordre d'affichage">
-            <input type="number" min="0" value={form.displayOrder} style={css.input} onChange={(e) => setForm((p) => ({ ...p, displayOrder: e.target.value }))} />
+            <input type="number" min="0" value={form.displayOrder} className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, displayOrder: e.target.value }))} />
           </Field>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} style={css.btnGold}>{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
-            <button type="button" onClick={onClose} style={css.btnGhost}>Annuler</button>
+            <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary">{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
+            <button type="button" onClick={onClose} className="mgr-btn mgr-btn--ghost">Annuler</button>
           </div>
         </form>
       </div>
