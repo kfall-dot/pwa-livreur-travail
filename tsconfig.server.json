@@ -9,6 +9,6 @@
     "outDir": "dist-server",
     "rootDir": "."
   },
-  "include": ["server/**/*.ts", "netlify/functions/**/*.ts", "shared/**/*.ts"],
+    "include": ["server/**/*.ts", "netlify/functions/**/*.ts", "shared/**/*.ts", "server/worker.entry.ts"],
   "exclude": ["**/*.test.ts"]
 }

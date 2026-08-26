@@ -14,12 +14,8 @@ validateProductionBypassAtStartup()
 validateProductionSecurityAtStartup()
 const app = createApp()
 
-app.listen(PORT, () => {
-  console.log(`API Livreur → http://localhost:${PORT}/api`)
-  console.log(`Health      → http://localhost:${PORT}/api/health`)
-  console.log(`E-mail      → ${describeEmailProvider()}`)
-  console.log(`SMS OTP     → ${describeSmsProvider()}`)
-  if (testBypass.geofence) {
-    console.log('GEOFENCE_BYPASS actif (tests)')
-  }
-})
+// ... code existant ...
+
+// 🔧 Cloudflare Workers : import side-effect pour forcer la compilation de worker.ts
+// dans tsconfig.server.json → outDir = dist-server/worker.js
+void import('./worker.js')

@@ -39,6 +39,25 @@ function createDb() {
   return drizzle({ schema })
 }
 
-export const db = createDb()
+/**
+ * Client applicatif — NE PAS créer au chargement du module.
+ *
+ * Netlify évalue le bundle des fonctions lors du déploiement (upload de la
+ * version Cloudflare Worker interne « pwa-livreur-api ») SANS injecter
+ * NETLIFY_DB_URL : un `drizzle()` exécuté au top-level y lève
+ * « NETLIFY_DB_URL environment variable is not set » et fait échouer tout le
+ * déploiement. Le client est donc construit paresseusement à la première
+ * utilisation (une requête), quand les variables d'environnement sont
+ * réellement disponibles.
+ */
+export const db = new Proxy({} as ReturnType<typeof createDb>, {
+  get(_target, prop, receiver) {
+    cachedDb ??= createDb()
+    const value = Reflect.get(cachedDb as object, prop, receiver)
+    return typeof value === 'function' ? value.bind(cachedDb) : value
+  },
+})
+
+let cachedDb: ReturnType<typeof createDb> | undefined
 
 export * from './schema.js'
