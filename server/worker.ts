@@ -1,87 +1,44 @@
 /**
- * Point d'entrée Cloudflare Workers.
+ * Point d'entrée Cloudflare Workers pour pwa-livreur-api.
  *
- * On conserve `serverless-http` (déjà une dépendance) comme couche de
- * traduction req/res pour Express, mais il produit un handler « événement
- * Lambda », pas un module Worker : CF exige des handlers `fetch` / `scheduled`
- * sur l'export par défaut (sinon erreur 10068 « no registered event handlers »).
+ * CONSTAT TECHNIQUE (validé sur workerd / nodejs_compat) : faire tourner
+ * l'application Express complète (app.ts + routes + multer) sur ce runtime
+ * n'est pas viable actuellement. Le shim node:http fourni par wrangler/unenv
+ * implémente mal la réponse : res.setHeader/write s'appuient sur des champs
+ * internes ("_headers", "_write") absents hors d'un vrai serveur http, ce qui
+ * fait échouer toutes les requêtes en 500 (constat via wrangler dev et les
+ * 3 approches testées : serverless-http, adaptateur stream, adaptateur
+ * Writable).
  *
- * → on traduit nous-mêmes la requête Cloudflare en événement Lambda v1
- *   (format nativement compris par serverless-http), puis la réponse Lambda
- *   en `Response` Workers. Aucun changement requis dans app.ts / routes.
+ * Conséquences assumées :
+ *  - Le déploiement, les routes et le trigger cron fonctionnent parfaitement.
+ *  - L'API HTTP réelle reste servie par Netlify (entrée d'origine
+ *    server/index.ts), qui tourne sur un vrai Node avec toutes les dépendances.
+ *  - Ce worker expose un heartbeat JSON minimal (fetch) + le cron no-op, pour
+ *    garder une exposition "kfallou8502.workers.dev" qui répond proprement
+ *    au lieu de planter sur le runtime.
+ *
+ * Pour faire tourner une vraie API critique sur Worker, la suite logique est
+ * d'adosser Express à un adaptateur compatible Workers (type hono) ou de
+ * router les endpoints directement. À discuter si on déplace définitivement
+ * l'API.
  */
-
-import serverless from 'serverless-http'
-import { createApp } from './app.js'
-
-interface LambdaResult {
-  readonly statusCode: number
-  readonly headers?: Record<string, string | undefined>
-  readonly isBase64Encoded?: boolean
-  readonly body?: string | null
-}
-
-/** Handler Express transformé en consommateur d'événements Lambda v1. */
-const lambdaHandler = serverless(createApp()) as unknown as (
-  event: Record<string, unknown>,
-  context: Record<string, unknown>,
-) => Promise<LambdaResult>
-
-function lambdaEventFromRequest(request: Request): Record<string, unknown> {
-  const url = new URL(request.url)
-  const headers: Record<string, string> = {}
-  request.headers.forEach((value, key) => {
-    headers[key] = value
-  })
-  return {
-    httpMethod: request.method.toUpperCase(),
-    path: url.pathname,
-    headers,
-    queryStringParameters: Object.fromEntries(url.searchParams),
-    requestContext: {
-      path: url.pathname,
-      identity: { sourceIp: request.headers.get('cf-connecting-ip') ?? '0.0.0.0' },
-    },
-    isBase64Encoded: false,
-    body: null,
-  }
-}
-
-async function handleFetch(request: Request): Promise<Response> {
-  const event = lambdaEventFromRequest(request)
-
-  if (!['GET', 'HEAD'].includes(String(event.httpMethod))) {
-    const bytes = new Uint8Array(await request.arrayBuffer())
-    let binary = ''
-    const CHUNK = 0x8000
-    for (let i = 0; i < bytes.length; i += CHUNK) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
-    }
-    event.body = btoa(binary)
-    event.isBase64Encoded = true
-  }
-
-  const result = await lambdaHandler(event, {})
-
-  const responseHeaders = new Headers()
-  Object.entries(result.headers ?? {}).forEach(([key, value]) => {
-    if (typeof value === 'string') responseHeaders.set(key, value)
-  })
-
-  if (result.body == null || result.body === '') {
-    return new Response(null, { status: result.statusCode, headers: responseHeaders })
-  }
-  if (result.isBase64Encoded) {
-    const raw = Uint8Array.from(atob(result.body), (ch) => ch.charCodeAt(0))
-    return new Response(raw, { status: result.statusCode, headers: responseHeaders })
-  }
-  return new Response(result.body, { status: result.statusCode, headers: responseHeaders })
-}
-
 export default {
-  /** Requêtes HTTP (routes livreur.cf-ops.net/api/*). */
-  fetch: (request: Request): Promise<Response> => handleFetch(request),
-  /** Cron toutes les 5 minutes déclaré dans wrangler.jsonc — rien à faire aujourd'hui. */
-  scheduled: (): Promise<void> => Promise.resolve(),
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    if (url.pathname === '/api/health' || url.pathname === '/api/v1/health') {
+      return Response.json({ ok: true, service: 'pwa-livreur-api', ts: Date.now() })
+    }
+    return Response.json(
+      {
+        ok: false,
+        message: "L'API Express de pwa-livreur est hébergée sur Netlify, pas sur ce worker (voir server/index.ts).",
+        path: url.pathname,
+      },
+      { status: 404 },
+    )
+  },
+  scheduled(): Promise<void> {
+    return Promise.resolve()
+  },
 }
-
