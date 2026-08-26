@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { DriverHero } from '../components/DriverHero'
 import { StatusBadge } from '../components/StatusBadge'
 import { useAuth } from '../contexts/AuthContext'
 import { useTour } from '../contexts/TourContext'
@@ -21,36 +22,6 @@ async function openCertificate(receiptId: string, certificateUrl?: string) {
   window.open(URL.createObjectURL(blob), '_blank', 'noopener,noreferrer')
 }
 
-/** Anneau de progression SVG (donut). */
-function ProgressRing({ percent }: { percent: number }) {
-  const r = 34
-  const c = 2 * Math.PI * r
-  const clamped = Math.max(0, Math.min(100, percent))
-  return (
-    <div className="prof-ring" role="img" aria-label={`Progression du jour : ${clamped} %`}>
-      <svg width="96" height="96" viewBox="0 0 84 84">
-        <circle cx="42" cy="42" r={r} fill="none" stroke="rgba(255,255,255,.18)" strokeWidth="8" />
-        <circle
-          cx="42"
-          cy="42"
-          r={r}
-          fill="none"
-          stroke="#fff"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - clamped / 100)}
-          transform="rotate(-90 42 42)"
-          style={{ transition: 'stroke-dashoffset .6s ease' }}
-        />
-      </svg>
-      <div className="prof-ring__center">
-        <span className="prof-ring__pct">{clamped}%</span>
-      </div>
-    </div>
-  )
-}
-
 export function ProfilePage() {
   const { driver, logout } = useAuth()
   const { tour, loading } = useTour()
@@ -63,77 +34,53 @@ export function ProfilePage() {
   }
 
   const todayStops = tour?.stops ?? []
-  const total = todayStops.length
   const deliveredCount = todayStops.filter((s) => s.status === 'delivered').length
   const rejectedCount = todayStops.filter(
     (s) => s.declarationOutcome === 'rejected' || s.status === 'failed',
   ).length
   const remainingCount = todayStops.filter((s) => !isDeliveryTerminal(s.status)).length
-  const percent = total > 0 ? Math.round((deliveredCount / total) * 100) : 0
-  const initials = (driver?.name ?? 'L')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join('') || 'L'
+  const helloName = driver?.name?.trim().split(/\s+/)[0] || 'Livreur'
 
   return (
     <div className="page profile-page profile-page--traceo">
-      {/* ── Identité + journée (sombre premium, pleine largeur) ── */}
-      <div className="prof-splash">
-        <div className="prof-splash__identity">
-            <span className="prof-splash__avatar" aria-hidden="true">{initials}</span>
-            <span className="prof-splash__id">
-              <strong>{driver?.name ?? 'Livreur'}</strong>
-              <small>Livreur · {driver?.phone}</small>
-            </span>
-            <span className={`prof-atn${online ? ' on' : ''}`}>
-              <i aria-hidden="true" />{online ? 'En ligne' : 'Hors ligne'}
-            </span>
-          </div>
+      <DriverHero name={helloName} />
 
-          <section className="prof-day" aria-label="Progression du jour">
-            <div className="prof-day__left">
-              <p className="prof-day__title">Ma journée</p>
-              {total > 0 ? (
-                <>
-                  <p className="prof-day__count">
-                    {deliveredCount}<span>/{total} livraisons</span>
-                  </p>
-                  <p className="prof-day__hint">
-                    {remainingCount === 0
-                      ? '🎉 Tournée terminée, bravo !'
-                      : `Encore ${remainingCount} arrêt${remainingCount > 1 ? 's' : ''} à faire`}
-                  </p>
-                </>
-              ) : (
-                <p className="prof-day__count prof-day__count--empty">
-                  {loading ? 'Chargement…' : 'Pas de tournée'}
-                </p>
-              )}
+      <div className="driver-panel">
+        <header className="page-header driver-panel__intro">
+          <h1>Profil livreur</h1>
+          {driver?.phone && <p className="profile-phone">{driver.phone}</p>}
+          <div className="profile-stats" aria-label="Statistiques du jour">
+            <div className="profile-stat profile-stat--success">
+              <span className="profile-stat__value">{deliveredCount}</span>
+              <span className="profile-stat__label">Livrées</span>
             </div>
-            <ProgressRing percent={total > 0 ? percent : 0} />
-          </section>
-
-          <div className="prof-stats" aria-label="Statistiques du jour">
-            <button type="button" className="prof-stat prof-stat--success" onClick={() => navigate('/')}>
-              <span className="prof-stat__value">{deliveredCount}</span>
-              <span className="prof-stat__label">Livrées</span>
-            </button>
-            <button type="button" className="prof-stat" onClick={() => navigate('/')}>
-              <span className="prof-stat__value">{remainingCount}</span>
-              <span className="prof-stat__label">Restantes</span>
-            </button>
-            <button type="button" className="prof-stat prof-stat--warn">
-              <span className="prof-stat__value">{rejectedCount}</span>
-              <span className="prof-stat__label">Refus</span>
-            </button>
+            <div className="profile-stat">
+              <span className="profile-stat__value">{remainingCount}</span>
+              <span className="profile-stat__label">Restantes</span>
+            </div>
+            <div className="profile-stat profile-stat--warn">
+              <span className="profile-stat__value">{rejectedCount}</span>
+              <span className="profile-stat__label">Refus</span>
+            </div>
           </div>
-        </div>
+        </header>
 
-        <div className="driver-panel">
-        {/* ── Historique / timeline ──────────────────────────── */}
+        <section className="profile-tools" aria-label="Outils">
+          <h2 className="section-title">Outils</h2>
+          <ul className="profile-tools__list">
+            <li>
+              <span className="profile-tools__label">Synchronisation</span>
+              <span className={`profile-tools__value${online ? ' profile-tools__value--ok' : ''}`}>
+                {online ? 'En ligne' : 'Hors ligne'}
+              </span>
+            </li>
+            <li>
+              <span className="profile-tools__label">Application</span>
+              <span className="profile-tools__value">TraceO® PWA</span>
+            </li>
+          </ul>
+        </section>
+
         <section aria-label="Historique du jour">
           <h2 className="section-title">Livraisons du jour</h2>
           {loading && todayStops.length === 0 && (
@@ -149,78 +96,40 @@ export function ProfilePage() {
             </div>
           )}
           {todayStops.length > 0 && (
-            <ol className="prof-timeline">
+            <ul className="history-list">
               {todayStops.map((s) => (
-                <li key={s.id} className="prof-stop">
-                  <button
-                    type="button"
-                    className="prof-stop__main"
-                    onClick={() => navigate(`/delivery/${s.id}`)}
-                    aria-label={`Ouvrir la livraison ${s.name}`}
-                  >
-                    <span
-                      className={`prof-stop__dot prof-stop__dot--${
-                        s.status === 'delivered' ? 'done' : isDeliveryTerminal(s.status) ? 'ko' : 'todo'
-                      }`}
-                      aria-hidden="true"
-                    >
-                      {s.status === 'delivered' ? '✓' : isDeliveryTerminal(s.status) ? '×' : ''}
-                    </span>
-                    <span className="prof-stop__body">
-                      <span className="prof-stop__name">#{s.sequence} {s.name}</span>
-                      <span className="prof-stop__meta">
-                        {s.timeWindow?.start} · {s.units} {s.unitType}
-                        {s.address ? ` · ${s.address}` : ''}
-                      </span>
-                      <StatusBadge status={s.status} declarationOutcome={s.declarationOutcome} />
-                    </span>
-                    <svg className="prof-stop__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-                  </button>
+                <li key={s.id} className="history-item">
+                  <div>
+                    <strong>
+                      #{s.sequence} {s.name}
+                    </strong>
+                    <StatusBadge status={s.status} declarationOutcome={s.declarationOutcome} />
+                  </div>
                   {s.receiptId && (
                     <button
                       type="button"
                       className="cert-link"
-                      onClick={(e) => {
-                        e.stopPropagation()
+                      onClick={() =>
                         void openCertificate(s.receiptId!, s.certificateUrl).catch(() =>
                           alert('Certificat inaccessible'),
                         )
-                      }}
+                      }
                     >
-                      📄 Certificat
+                      Certificat {s.receiptId}
                     </button>
                   )}
                 </li>
               ))}
-            </ol>
+            </ul>
           )}
-        </section>
-
-        {/* ── Compte ─────────────────────────────────────────── */}
-        <section className="prof-account" aria-label="Compte">
-          <h2 className="section-title">Compte</h2>
-          <ul className="prof-account__list">
-            <li>
-              <span>Téléphone</span>
-              <strong>{driver?.phone ?? '—'}</strong>
-            </li>
-            <li>
-              <span>Synchronisation</span>
-              <strong>{online ? '🟢 En ligne' : '🔴 Hors ligne'}</strong>
-            </li>
-            <li>
-              <span>Application</span>
-              <strong>TraceO® PWA</strong>
-            </li>
-          </ul>
         </section>
 
         <button
           type="button"
-          className="btn btn-danger prof-logout"
+          className="btn btn-danger profile-logout"
           onClick={() => void handleLogout()}
         >
-          Se déconnecter
+          Déconnexion
         </button>
       </div>
     </div>

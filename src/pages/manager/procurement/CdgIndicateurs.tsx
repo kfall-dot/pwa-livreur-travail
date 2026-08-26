@@ -145,7 +145,7 @@ export function CdgIndicateurPage({
   const asOf = formatIsoFr(snapshot.asOf)
   return (
     <div data-testid="mgr-cdg-indicator-page" data-indicator={indicator}>
-      <button type="button" onClick={onBack} className="mgr-btn mgr-btn--outline" data-testid="mgr-cdg-indicator-back">
+      <button type="button" onClick={onBack} style={css.btnOutline} data-testid="mgr-cdg-indicator-back">
         ← Synthèse
       </button>
       <h2 style={{ ...css.sectionTitle, margin: '16px 0 8px' }}>{meta.title}</h2>

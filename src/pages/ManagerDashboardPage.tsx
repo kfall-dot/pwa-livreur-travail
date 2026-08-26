@@ -34,15 +34,9 @@ import {
   DashboardStatusBadge,
   EmptyHint,
   Field,
-  FilterSegmented,
-  InitialsAvatar,
-  ListHeading,
-  ListSearchInput,
   LoadingHint,
-  MiniStatRow,
   Row,
   StatCard,
-  StatusBadge,
   Toggle,
 } from './manager/managerUi'
 import { formatPartialTaskLine, ProductQuantityList, suiviQuantityDisplay } from './manager/productHelpers'
@@ -369,7 +363,7 @@ export function ManagerDashboardPage() {
           <button
             type="button"
             onClick={() => setHideE2eDbWarning(true)}
-            className="mgr-btn mgr-btn--ghost" style={{ padding: '2px 8px' }}
+            style={{ ...css.btnGhost, padding: '2px 8px' }}
             aria-label="Masquer l’avertissement base de tests"
           >
             ×
@@ -430,11 +424,11 @@ export function ManagerDashboardPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {isAdmin && (
-              <Link to="/manager/security" className="mgr-btn mgr-btn--ghost" style={{ textDecoration: 'none' }}>
+              <Link to="/manager/security" style={{ ...css.btnGhost, textDecoration: 'none' }}>
                 Sécurité 2FA
               </Link>
             )}
-            <button type="button" onClick={logout} className="mgr-btn mgr-btn--ghost">Déconnexion</button>
+            <button type="button" onClick={logout} style={css.btnGhost}>Déconnexion</button>
           </div>
         </header>
 
@@ -445,7 +439,7 @@ export function ManagerDashboardPage() {
                 type="button"
                 data-testid="mgr-tab-livreurs"
                 onClick={() => setTab('livreurs')}
-                className={tab === 'livreurs' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
+                style={tab === 'livreurs' ? css.tabActive : css.tab}
               >
                 Livreurs
               </button>
@@ -454,7 +448,7 @@ export function ManagerDashboardPage() {
                   type="button"
                   data-testid="mgr-tab-gestionnaires"
                   onClick={() => setTab('gestionnaires')}
-                  className={tab === 'gestionnaires' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
+                  style={tab === 'gestionnaires' ? css.tabActive : css.tab}
                 >
                   Gestionnaires
                 </button>
@@ -467,7 +461,7 @@ export function ManagerDashboardPage() {
                 type="button"
                 data-testid="mgr-tab-points"
                 onClick={() => setTab('points')}
-                className={tab === 'points' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
+                style={tab === 'points' ? css.tabActive : css.tab}
               >
                 Chantiers
               </button>
@@ -475,7 +469,7 @@ export function ManagerDashboardPage() {
                 type="button"
                 data-testid="mgr-tab-fournisseurs"
                 onClick={() => setTab('fournisseurs')}
-                className={tab === 'fournisseurs' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
+                style={tab === 'fournisseurs' ? css.tabActive : css.tab}
               >
                 Fournisseurs
               </button>
@@ -483,7 +477,7 @@ export function ManagerDashboardPage() {
                 type="button"
                 data-testid="mgr-tab-produits"
                 onClick={() => setTab('produits')}
-                className={tab === 'produits' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
+                style={tab === 'produits' ? css.tabActive : css.tab}
               >
                 Catalogue produits
               </button>
@@ -491,7 +485,7 @@ export function ManagerDashboardPage() {
                 type="button"
                 data-testid="mgr-tab-unites"
                 onClick={() => setTab('unites')}
-                className={tab === 'unites' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
+                style={tab === 'unites' ? css.tabActive : css.tab}
               >
                 Unités de mesure
               </button>
@@ -739,7 +733,7 @@ function SuiviTab({
           <p style={{ margin: 0, fontSize: 14 }}>
             <strong>{pendingTaskCount}</strong> tâche(s) en attente (confirmations, partielles, non effectuées…).
           </p>
-          <button type="button" onClick={onGoToTasks} className="mgr-btn mgr-btn--primary">Voir les tâches</button>
+          <button type="button" onClick={onGoToTasks} style={css.btnGold}>Voir les tâches</button>
         </div>
       )}
 
@@ -753,12 +747,12 @@ function SuiviTab({
       {/* Filters */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
         <label style={css.label}>Date</label>
-        <input type="date" data-testid="mgr-suivi-date" value={date} onChange={(e) => setDate(e.target.value)} className="mgr-input mgr-input--compact" style={{ width: 150 }} />
+        <input type="date" data-testid="mgr-suivi-date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...css.inputCompact, width: 150 }} />
         <label style={css.label}>Statut</label>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="mgr-input mgr-input--compact" style={{ width: 160 }}>
+        <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...css.inputCompact, width: 160 }}>
           {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
-        <button onClick={() => void fetch_()} className="mgr-btn mgr-btn--primary">Filtrer</button>
+        <button onClick={() => void fetch_()} style={css.btnGold}>Filtrer</button>
       </div>
 
       {error && <AlertBox>{error}</AlertBox>}
@@ -777,8 +771,8 @@ function SuiviTab({
               {statusFiltered ? ' (filtre statut actif)' : ''}
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={expandAllTours} className="mgr-btn mgr-btn--outline">Tout déplier</button>
-              <button type="button" onClick={collapseAllTours} className="mgr-btn mgr-btn--outline">Tout replier</button>
+              <button type="button" onClick={expandAllTours} style={css.btnOutline}>Tout déplier</button>
+              <button type="button" onClick={collapseAllTours} style={css.btnOutline}>Tout replier</button>
             </div>
           </div>
 
@@ -836,7 +830,7 @@ function SuiviTab({
                         type="button"
                         data-testid={`mgr-suivi-replan-${group.tourId}`}
                         onClick={() => onReplanTour?.(group.tourId, group.tourDate)}
-                        className="mgr-btn mgr-btn--outline"
+                        style={css.btnOutline}
                       >
                         Replanifier
                       </button>
@@ -845,7 +839,7 @@ function SuiviTab({
                       type="button"
                       data-testid={`mgr-suivi-edit-${group.tourId}`}
                       onClick={() => onEditTour?.(group.tourId, group.tourDate)}
-                      className="mgr-btn mgr-btn--outline"
+                      style={css.btnOutline}
                     >
                       Modifier la tournée
                     </button>
@@ -854,7 +848,7 @@ function SuiviTab({
                         type="button"
                         data-testid={`mgr-suivi-delete-${group.tourId}`}
                         onClick={() => void deleteTour(group.tourId, group.driverName, group.deliveredCount)}
-                        className="mgr-btn mgr-btn--danger"
+                        style={css.btnDanger}
                       >
                         Supprimer
                       </button>
@@ -1334,7 +1328,7 @@ function PlanifierTab({
     <div>
       <Row>
         <Field label="Date à planifier">
-          <input type="date" data-testid="mgr-planifier-date" value={date} onChange={(e) => setDate(e.target.value)} className="mgr-input" />
+          <input type="date" data-testid="mgr-planifier-date" value={date} onChange={(e) => setDate(e.target.value)} style={css.input} />
         </Field>
       </Row>
 
@@ -1342,85 +1336,57 @@ function PlanifierTab({
         <h2 style={css.sectionTitle}>Tournées du {dateFr}</h2>
         {tours.length === 0
           ? <EmptyHint>Aucune tournée planifiée pour cette date.</EmptyHint>
-          : tours.map((t) => {
-              const ratio = t.totalStops > 0 ? Math.min(1, t.delivered / t.totalStops) : 0
-              const done = t.totalStops > 0 && t.delivered >= t.totalStops
-              return (
-                <div key={t.tourId} className="mgr-tour-card">
-                  <div className="mgr-person">
-                    <InitialsAvatar name={t.driverName} />
-                    <div>
-                      <div className="mgr-person-name">{t.driverName}</div>
-                      <div className="mgr-person-sub">{t.depotName || 'Dépôt non précisé'}</div>
-                      <div
-                        style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 8 }}
-                        data-testid={`mgr-planifier-tour-status-${t.tourId}`}
-                      >
-                        <span
-                          className={`mgr-badge ${done ? 'mgr-badge--ok' : 'mgr-badge--off'}`}
-                          style={
-                            !done && t.delivered > 0
-                              ? { color: '#92400e', background: '#fef3c7' }
-                              : undefined
-                          }
-                        >
-                          {tourLifecycleLabel(t.delivered, t.totalStops)}
-                        </span>
-                        <span className="mgr-progress__label">{t.delivered}/{t.totalStops} livrés</span>
-                        <span className="mgr-progress" aria-hidden="true">
-                          <span className="mgr-progress__bar" style={{ width: `${Math.round(ratio * 100)}%` }} />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {t.delivered < t.totalStops && (
-                      <button
-                        type="button"
-                        data-testid={`mgr-planifier-replan-${t.tourId}`}
-                        onClick={() => {
-                          onInlineReplanStart?.()
-                          void loadReplanTemplate(t.tourId, undefined, t.tourDate)
-                        }}
-                        className="mgr-btn mgr-btn--outline"
-                      >
-                        Replanifier
-                      </button>
-                    )}
-                    <button type="button" onClick={() => setEditTourId(t.tourId)} className="mgr-icon-btn" title={`Modifier la tournée de ${t.driverName}`} aria-label={`Modifier la tournée de ${t.driverName}`}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
-                    </button>
-                    {t.delivered === 0 && (
-                      <button
-                        type="button"
-                        data-testid={`mgr-planifier-delete-${t.tourId}`}
-                        onClick={async () => {
-                          if (!confirmDeletion(`Supprimer définitivement la tournée de « ${t.driverName} » (${t.totalStops} arrêt${t.totalStops > 1 ? 's' : ''}) ?`)) {
-                            return
-                          }
-                          const res = await authFetch(`/dashboard/tours/${encodeURIComponent(t.tourId)}`, { method: 'DELETE' })
-                          const data = (await res.json()) as { message?: string }
-                          if (!res.ok) {
-                            window.alert(data.message ?? 'Suppression impossible')
-                            return
-                          }
-                          void fetchTours(date)
-                          onTourSaved?.(date)
-                          onTasksChanged?.()
-                        }}
-                        className="mgr-icon-btn"
-                        title={`Supprimer la tournée de ${t.driverName}`}
-                        aria-label={`Supprimer la tournée de ${t.driverName}`}
-                        style={{ color: 'var(--danger)' }}
-                      >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" /></svg>
-                      </button>
-                    )}
-                  </div>
+          : tours.map((t) => (
+            <div key={t.tourId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)', gap: 8, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>{t.driverName}</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>{t.totalStops} arrêt(s) · {t.delivered} livré(s) · {t.depotName}</div>
+                <div style={{ fontSize: 11, color: 'var(--brand)', marginTop: 2 }} data-testid={`mgr-planifier-tour-status-${t.tourId}`}>
+                  {tourLifecycleLabel(t.delivered, t.totalStops)}
                 </div>
-              )
-            })
-          }
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {t.delivered < t.totalStops && (
+                  <button
+                    type="button"
+                    data-testid={`mgr-planifier-replan-${t.tourId}`}
+                    onClick={() => {
+                      onInlineReplanStart?.()
+                      void loadReplanTemplate(t.tourId, undefined, t.tourDate)
+                    }}
+                    style={css.btnOutline}
+                  >
+                    Replanifier
+                  </button>
+                )}
+                <button type="button" onClick={() => setEditTourId(t.tourId)} style={css.btnOutline}>Modifier</button>
+                {t.delivered === 0 && (
+                  <button
+                    type="button"
+                    data-testid={`mgr-planifier-delete-${t.tourId}`}
+                    onClick={async () => {
+                      if (!confirmDeletion(`Supprimer définitivement la tournée de « ${t.driverName} » (${t.totalStops} arrêt${t.totalStops > 1 ? 's' : ''}) ?`)) {
+                        return
+                      }
+                      const res = await authFetch(`/dashboard/tours/${encodeURIComponent(t.tourId)}`, { method: 'DELETE' })
+                      const data = (await res.json()) as { message?: string }
+                      if (!res.ok) {
+                        window.alert(data.message ?? 'Suppression impossible')
+                        return
+                      }
+                      void fetchTours(date)
+                      onTourSaved?.(date)
+                      onTasksChanged?.()
+                    }}
+                    style={css.btnDanger}
+                  >
+                    Supprimer
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        }
       {editTourId && (
         <EditTourModal
           tourId={editTourId}
@@ -1457,10 +1423,9 @@ function PlanifierTab({
         {replanSourceDate && <StopsValidationHint stops={stops} />}
 
         <form onSubmit={(e) => void handleCreate(e)} data-testid="mgr-planifier-form">
-          <p style={{ margin: '0 0 0.5rem', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--brand)' }}>① Livreur et horaires</p>
           <Row>
             <Field label="Date de tournée *" style={{ flex: 1 }}>
-              <input type="date" value={newTour.date} required className="mgr-input" onChange={(e) => setNewTour((p) => ({ ...p, date: e.target.value }))} />
+              <input type="date" value={newTour.date} required style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, date: e.target.value }))} />
             </Field>
             <Field label="Livreur *" style={{ flex: 2 }}>
               <select
@@ -1468,7 +1433,7 @@ function PlanifierTab({
                 value={newTour.driverId}
                 required
                 disabled={driversLoading || drivers.filter((d) => d.status === 'active').length === 0}
-                className="mgr-input"
+                style={css.input}
                 onChange={(e) => setNewTour((p) => ({ ...p, driverId: e.target.value }))}
               >
                 <option value="">
@@ -1488,7 +1453,7 @@ function PlanifierTab({
                   <button
                     type="button"
                     onClick={() => void loadDrivers()}
-                    className="mgr-btn mgr-btn--outline" style={{ padding: '2px 8px', fontSize: 13 }}
+                    style={{ ...css.btnOutline, padding: '2px 8px', fontSize: 13 }}
                   >
                     Réessayer
                   </button>
@@ -1503,24 +1468,25 @@ function PlanifierTab({
           </Row>
           <Row>
             <Field label="Créneau début">
-              <input type="time" value={newTour.tourStart} className="mgr-input" onChange={(e) => setNewTour((p) => ({ ...p, tourStart: e.target.value }))} />
+              <input type="time" value={newTour.tourStart} style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, tourStart: e.target.value }))} />
             </Field>
             <Field label="Créneau fin">
-              <input type="time" value={newTour.tourEnd} className="mgr-input" onChange={(e) => setNewTour((p) => ({ ...p, tourEnd: e.target.value }))} />
+              <input type="time" value={newTour.tourEnd} style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, tourEnd: e.target.value }))} />
             </Field>
           </Row>
-          <p style={{ margin: '0.75rem 0 0.25rem', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--brand)' }}>② Départ (dépôt / fournisseur)</p>
           <Row>
             <Field label={useFournisseurLabels ? 'Fournisseur *' : 'Nom du dépôt *'} style={{ flex: 1 }}>
-              <input type="text" data-testid="mgr-create-depot" value={newTour.depotName} required placeholder={useFournisseurLabels ? 'Ex: CimIvoire' : 'Ex: Entrepôt Nord'} className="mgr-input" onChange={(e) => setNewTour((p) => ({ ...p, depotName: e.target.value }))} />
+              <input type="text" data-testid="mgr-create-depot" value={newTour.depotName} required placeholder={useFournisseurLabels ? 'Ex: CimIvoire' : 'Ex: Entrepôt Nord'} style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, depotName: e.target.value }))} />
             </Field>
+          </Row>
+          <Row>
             <Field label={useFournisseurLabels ? 'Adresse du fournisseur *' : 'Adresse du dépôt *'} style={{ flex: 1 }}>
-              <input type="text" data-testid="mgr-create-depot-address" value={newTour.depotAddress} required placeholder={useFournisseurLabels ? 'Adresse du fournisseur' : '12 Rue des Logistiques, Abidjan…'} className="mgr-input" onChange={(e) => setNewTour((p) => ({ ...p, depotAddress: e.target.value }))} />
+              <input type="text" data-testid="mgr-create-depot-address" value={newTour.depotAddress} required placeholder={useFournisseurLabels ? 'Adresse du fournisseur' : '12 Rue des Logistiques, Abidjan…'} style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, depotAddress: e.target.value }))} />
             </Field>
           </Row>
 
           <div style={{ marginTop: '1.5rem' }}>
-            <h3 style={{ margin: '0 0 0.75rem', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--brand)' }}>③ Arrêts / livraisons</h3>
+            <h3 style={{ margin: '0 0 0.75rem', fontSize: 15, fontWeight: 700 }}>Arrêts / livraisons</h3>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>Plusieurs produits par arrêt. Chaque arrêt = un magasin, un OTP à la livraison.</p>
 
             {stops.map((s, idx) => (
@@ -1535,16 +1501,16 @@ function PlanifierTab({
                 onChange={(next) => setStops((prev) => prev.map((st, i) => i === idx ? next : st))}
               />
             ))}
-            <button type="button" onClick={addStop} className="mgr-btn mgr-btn--outline" style={{ marginBottom: '1rem' }}>+ Ajouter un arrêt</button>
+            <button type="button" onClick={addStop} style={{ ...css.btnOutline, marginBottom: '1rem' }}>+ Ajouter un arrêt</button>
           </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <button type="submit" data-testid="mgr-create-tour" disabled={creating} className="mgr-btn mgr-btn--primary">
+            <button type="submit" data-testid="mgr-create-tour" disabled={creating} style={css.btnGold}>
               {creating ? 'Création…' : replanSourceDate
                 ? (replanKind === 'partial' ? 'Créer la tournée pour le reliquat' : 'Créer la tournée replanifiée')
                 : 'Créer la tournée et notifier le livreur'}
             </button>
-            <button type="button" data-testid="mgr-replan-cancel" onClick={cancelReplan} className="mgr-btn mgr-btn--ghost">
+            <button type="button" data-testid="mgr-replan-cancel" onClick={cancelReplan} style={css.btnGhost}>
               {isReplanActive ? 'Annuler la replanification' : 'Annuler'}
             </button>
           </div>
@@ -1563,17 +1529,6 @@ function LivreursTab({ handleAuth, onTasksChanged }: { handleAuth: (s: number) =
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
-  const [driverSearch, setDriverSearch] = useState('')
-  const [driverStatusFilter, setDriverStatusFilter] = useState<'all' | 'active' | 'suspended'>('all')
-
-  const filteredDrivers = useMemo(() => {
-    const q = driverSearch.trim().toLowerCase()
-    return drivers.filter((d) => {
-      if (driverStatusFilter !== 'all' && d.status !== driverStatusFilter) return false
-      if (!q) return true
-      return d.name.toLowerCase().includes(q) || d.phone.replace(/\s/g, '').includes(q.replace(/\s/g, ''))
-    })
-  }, [drivers, driverSearch, driverStatusFilter])
 
   const fetchDrivers = useCallback(async () => {
     setLoading(true)
@@ -1620,7 +1575,7 @@ function LivreursTab({ handleAuth, onTasksChanged }: { handleAuth: (s: number) =
         {error && <AlertBox>{error}</AlertBox>}
         <form onSubmit={(e) => void handleAdd(e)}>
           <h3 style={{ fontSize: 14, margin: '0 0 0.75rem' }}>Nouveau livreur</h3>
-          <Field label="Nom *"><input type="text" value={form.name} required className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></Field>
+          <Field label="Nom *"><input type="text" value={form.name} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></Field>
           <div style={{ marginBottom: 8 }} />
           <Field label="Téléphone *">
             <input
@@ -1631,7 +1586,7 @@ function LivreursTab({ handleAuth, onTasksChanged }: { handleAuth: (s: number) =
               required
               placeholder={CI_PHONE_PLACEHOLDER}
               title={CI_PHONE_INPUT_TITLE}
-              className="mgr-input"
+              style={css.input}
               onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
             />
           </Field>
@@ -1645,75 +1600,34 @@ function LivreursTab({ handleAuth, onTasksChanged }: { handleAuth: (s: number) =
               required
               minLength={4}
               maxLength={8}
-              className="mgr-input"
+              style={css.input}
               onChange={(e) => setForm((p) => ({ ...p, pin: e.target.value }))}
             />
           </Field>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary">{saving ? 'Ajout…' : 'Ajouter le livreur'}</button>
-            <button type="button" onClick={() => setForm({ name: '', phone: '', pin: '' })} className="mgr-btn mgr-btn--ghost">Annuler</button>
+            <button type="submit" disabled={saving} style={css.btnGold}>{saving ? 'Ajout…' : 'Ajouter le livreur'}</button>
+            <button type="button" onClick={() => setForm({ name: '', phone: '', pin: '' })} style={css.btnGhost}>Annuler</button>
           </div>
         </form>
       </section>
 
       <section style={css.section}>
-        <MiniStatRow
-          items={[
-            { value: drivers.length, label: 'Livreurs', accent: true },
-            { value: drivers.filter((d) => d.status === 'active').length, label: 'Actifs' },
-            { value: drivers.filter((d) => d.status !== 'active').length, label: 'Suspendus' },
-          ]}
-        />
-        <ListHeading title="Livreurs enregistrés" count={filteredDrivers.length} suffix="livreur(s)" />
-        <div className="mgr-toolbar">
-          <ListSearchInput
-            value={driverSearch}
-            onChange={setDriverSearch}
-            placeholder="Rechercher un livreur (nom ou téléphone)…"
-          />
-          <FilterSegmented
-            options={[
-              { label: 'Tous', value: 'all' },
-              { label: 'Actifs', value: 'active' },
-              { label: 'Suspendus', value: 'suspended' },
-            ]}
-            value={driverStatusFilter}
-            onChange={setDriverStatusFilter}
-          />
-        </div>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 1rem' }}>Livreurs enregistrés</h3>
         {loading && <LoadingHint>Chargement des livreurs…</LoadingHint>}
-        {!loading && filteredDrivers.length === 0 && (
-          <EmptyHint>
-            {drivers.length === 0
-              ? 'Aucun livreur enregistré. Ajoutez-en un via le formulaire à gauche.'
-              : 'Aucun livreur ne correspond à la recherche ou au filtre.'}
-          </EmptyHint>
+        {!loading && drivers.length === 0 && (
+          <EmptyHint>Aucun livreur enregistré. Ajoutez-en un à gauche.</EmptyHint>
         )}
-        {!loading && filteredDrivers.length > 0 && (
-          <table className="mgr-table-pro">
-            <thead><tr>
-              {['Livreur', 'Téléphone', 'Statut', ''].map((h) => <th key={h}>{h}</th>)}
+        {!loading && drivers.length > 0 && (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead><tr style={{ background: '#f5f0e8' }}>
+              {['Nom', 'Téléphone', 'Statut', ''].map((h) => <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>)}
             </tr></thead>
-            <tbody>{filteredDrivers.map((d) => (
-              <tr key={d.id}>
-                <td>
-                  <div className="mgr-person">
-                    <InitialsAvatar name={d.name} />
-                    <span className="mgr-person-name">{d.name}</span>
-                  </div>
-                </td>
-                <td style={{ whiteSpace: 'nowrap' }}>{d.phone}</td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <StatusBadge active={d.status === 'active'} okLabel="Actif" offLabel="Suspendu" />
-                    <Toggle active={d.status === 'active'} onChange={() => void toggleStatus(d)} />
-                  </div>
-                </td>
-                <td>
-                  <button type="button" onClick={() => setEditId(d.id)} className="mgr-icon-btn" title={`Modifier ${d.name}`} aria-label={`Modifier ${d.name}`}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
-                  </button>
-                </td>
+            <tbody>{drivers.map((d, i) => (
+              <tr key={d.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
+                <td style={css.td}>{d.name}</td>
+                <td style={css.td}>{d.phone}</td>
+                <td style={css.td}><Toggle active={d.status === 'active'} onChange={() => void toggleStatus(d)} /></td>
+                <td style={css.td}><button type="button" onClick={() => setEditId(d.id)} style={css.btnOutline}>Modifier</button></td>
               </tr>
             ))}</tbody>
           </table>
@@ -1824,7 +1738,7 @@ function GestionnairesTab({
         {error && <AlertBox>{error}</AlertBox>}
         <form onSubmit={(e) => void handleInvite(e)}>
           <Field label="Nom *">
-            <input type="text" value={form.name} required className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} data-testid="mgr-invite-name" />
+            <input type="text" value={form.name} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} data-testid="mgr-invite-name" />
           </Field>
           <div style={{ marginBottom: 8 }} />
           <Field label="E-mail *">
@@ -1833,14 +1747,14 @@ function GestionnairesTab({
               value={form.email}
               required
               autoComplete="off"
-              className="mgr-input"
+              style={css.input}
               data-testid="mgr-invite-email"
               onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
             />
           </Field>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary" data-testid="mgr-invite-send">{saving ? 'Envoi…' : 'Envoyer l\'invitation'}</button>
-            <button type="button" onClick={() => setForm({ name: '', email: '' })} className="mgr-btn mgr-btn--ghost">Annuler</button>
+            <button type="submit" disabled={saving} style={css.btnGold} data-testid="mgr-invite-send">{saving ? 'Envoi…' : 'Envoyer l\'invitation'}</button>
+            <button type="button" onClick={() => setForm({ name: '', email: '' })} style={css.btnGhost}>Annuler</button>
           </div>
         </form>
       </section>
@@ -1848,30 +1762,25 @@ function GestionnairesTab({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {invites.length > 0 && (
           <section style={css.section}>
-            <ListHeading title="Invitations en attente" count={invites.length} suffix="invitation(s)" />
-            <table className="mgr-table-pro">
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 1rem' }}>Invitations en attente</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr>
+                <tr style={{ background: '#f5f0e8' }}>
                   {['Nom', 'E-mail', 'Expire', ''].map((h) => (
-                    <th key={h}>{h}</th>
+                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {invites.map((inv) => (
-                  <tr key={inv.id}>
-                    <td>
-                      <div className="mgr-person">
-                        <InitialsAvatar name={inv.name} />
-                        <span className="mgr-person-name">{inv.name}</span>
-                      </div>
-                    </td>
-                    <td>{inv.email}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{new Date(inv.expiresAt).toLocaleString('fr-FR')}</td>
-                    <td>
+                {invites.map((inv, i) => (
+                  <tr key={inv.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
+                    <td style={css.td}>{inv.name}</td>
+                    <td style={css.td}>{inv.email}</td>
+                    <td style={css.td}>{new Date(inv.expiresAt).toLocaleString('fr-FR')}</td>
+                    <td style={css.td}>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button type="button" onClick={() => void resendInvite(inv)} className="mgr-btn mgr-btn--outline">Renvoyer</button>
-                        <button type="button" onClick={() => void cancelInvite(inv)} className="mgr-btn mgr-btn--danger">Annuler</button>
+                        <button type="button" onClick={() => void resendInvite(inv)} style={css.btnOutline}>Renvoyer</button>
+                        <button type="button" onClick={() => void cancelInvite(inv)} style={css.btnDanger}>Annuler</button>
                       </div>
                     </td>
                   </tr>
@@ -1882,49 +1791,35 @@ function GestionnairesTab({
         )}
 
         <section style={css.section}>
-          <ListHeading title="Gestionnaires de l'entreprise" count={managers.length} suffix="gestionnaire(s)" />
-          <table className="mgr-table-pro">
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 1rem' }}>Gestionnaires de l&apos;entreprise</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr>
+              <tr style={{ background: '#f5f0e8' }}>
                 {['Nom', 'E-mail', 'Rôle', ''].map((h) => (
-                  <th key={h}>{h}</th>
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {managers.map((m) => (
-                <tr key={m.id}>
-                  <td>
-                    <div className="mgr-person">
-                      <InitialsAvatar name={m.name} />
-                      <div>
-                        <div className="mgr-person-name">
-                          {m.name}
-                          {m.id === currentManagerId && (
-                            <span className="mgr-count-chip" style={{ marginLeft: 8 }}>vous</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+              {managers.map((m, i) => (
+                <tr key={m.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
+                  <td style={css.td}>
+                    {m.name}
+                    {m.id === currentManagerId && (
+                      <span style={{ marginLeft: 8, fontSize: 11, color: '#0b4a2c', fontWeight: 700 }}>(vous)</span>
+                    )}
                   </td>
-                  <td>{m.email}</td>
-                  <td>
-                    <span
-                      className="mgr-badge"
-                      style={
-                        m.role === 'admin'
-                          ? { color: 'var(--brand)', background: '#e8f2ec' }
-                          : { color: '#4b5563', background: '#f3f4f6' }
-                      }
-                    >
+                  <td style={css.td}>{m.email}</td>
+                  <td style={css.td}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: m.role === 'admin' ? '#0b4a2c' : '#6b7280' }}>
                       {m.role === 'admin' ? 'Admin' : 'Gestionnaire'}
                     </span>
                   </td>
-                  <td>
+                  <td style={css.td}>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button type="button" onClick={() => setEditId(m.id)} className="mgr-btn mgr-btn--outline">Modifier</button>
+                      <button type="button" onClick={() => setEditId(m.id)} style={css.btnOutline}>Modifier</button>
                       {m.id !== currentManagerId && (
-                        <button type="button" onClick={() => void removeManager(m)} className="mgr-btn mgr-btn--danger">Supprimer</button>
+                        <button type="button" onClick={() => void removeManager(m)} style={css.btnDanger}>Supprimer</button>
                       )}
                     </div>
                   </td>
@@ -1957,20 +1852,6 @@ function PointsTab({
 }) {
   const [points, setPoints] = useState<Supermarket[]>([])
   const [loading, setLoading] = useState(true)
-  const [pointSearch, setPointSearch] = useState('')
-  const [pointStatusFilter, setPointStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
-  const filteredPoints = useMemo(() => {
-    const q = pointSearch.trim().toLowerCase()
-    return points.filter((p) => {
-      const active = isSupermarketActive(p.active)
-      if (pointStatusFilter !== 'all' && active !== (pointStatusFilter === 'active')) return false
-      if (!q) return true
-      return (
-        p.name.toLowerCase().includes(q) ||
-        (p.address ?? '').toLowerCase().includes(q)
-      )
-    })
-  }, [points, pointSearch, pointStatusFilter])
   const [form, setForm] = useState({
     name: '',
     address: '',
@@ -2096,12 +1977,12 @@ function PointsTab({
         {error && <AlertBox>{error}</AlertBox>}
         <form onSubmit={(e) => void handleAdd(e)}>
           <h3 style={{ fontSize: 14, margin: '0 0 0.75rem' }}>Nouveau chantier</h3>
-          <Field label="Nom *"><input type="text" value={form.name} required className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></Field>
+          <Field label="Nom *"><input type="text" value={form.name} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></Field>
           <div style={{ marginBottom: 8 }} />
           <Field label="Type">
             <select
               value={form.siteType}
-              className="mgr-input"
+              style={css.input}
               data-testid="mgr-chantier-type-new"
               onChange={(e) => setForm((p) => ({ ...p, siteType: e.target.value }))}
             >
@@ -2111,7 +1992,7 @@ function PointsTab({
             </select>
           </Field>
           <div style={{ marginBottom: 8 }} />
-          <Field label="Adresse *"><input type="text" value={form.address} required className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} /></Field>
+          <Field label="Adresse *"><input type="text" value={form.address} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} /></Field>
           <p style={{ fontSize: 11, color: '#999', margin: '2px 0 8px' }}>Ville et pays recommandés pour un géocodage fiable (ex. « 123 rue Example, Abidjan, Côte d&apos;Ivoire »).</p>
           <Row>
             <Field label="Tél. responsable (OTP) *">
@@ -2121,69 +2002,46 @@ function PointsTab({
                 required
                 placeholder={CI_PHONE_PLACEHOLDER}
                 title={CI_PHONE_INPUT_TITLE}
-                className="mgr-input"
+                style={css.input}
                 onChange={(e) => setForm((p) => ({ ...p, contactPhone: e.target.value }))}
               />
             </Field>
-            <Field label="Nom responsable"><input type="text" value={form.contactName} className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, contactName: e.target.value }))} /></Field>
+            <Field label="Nom responsable"><input type="text" value={form.contactName} style={css.input} onChange={(e) => setForm((p) => ({ ...p, contactName: e.target.value }))} /></Field>
           </Row>
           <div style={{ marginBottom: 8 }} />
-          <Field label="E-mail responsable *"><input type="email" required value={form.contactEmail} className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, contactEmail: e.target.value }))} /></Field>
+          <Field label="E-mail responsable *"><input type="email" required value={form.contactEmail} style={css.input} onChange={(e) => setForm((p) => ({ ...p, contactEmail: e.target.value }))} /></Field>
           <div style={{ marginBottom: 10 }} />
-          <button type="button" disabled className="mgr-btn mgr-btn--outline" style={{ opacity: 0.5, marginBottom: 8 }}>Prévisualiser le GPS depuis l&apos;adresse</button>
+          <button type="button" disabled style={{ ...css.btnOutline, opacity: 0.5, marginBottom: 8 }}>Prévisualiser le GPS depuis l&apos;adresse</button>
           <Row>
-            <Field label="Latitude (optionnel)"><input type="text" value={form.lat} placeholder="auto" className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, lat: e.target.value }))} /></Field>
-            <Field label="Longitude (optionnel)"><input type="text" value={form.lng} placeholder="auto" className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, lng: e.target.value }))} /></Field>
+            <Field label="Latitude (optionnel)"><input type="text" value={form.lat} placeholder="auto" style={css.input} onChange={(e) => setForm((p) => ({ ...p, lat: e.target.value }))} /></Field>
+            <Field label="Longitude (optionnel)"><input type="text" value={form.lng} placeholder="auto" style={css.input} onChange={(e) => setForm((p) => ({ ...p, lng: e.target.value }))} /></Field>
           </Row>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary">{saving ? 'Ajout…' : 'Ajouter le chantier'}</button>
-            <button type="button" onClick={() => setForm(emptyChantierForm)} className="mgr-btn mgr-btn--ghost">Annuler</button>
+            <button type="submit" disabled={saving} style={css.btnGold}>{saving ? 'Ajout…' : 'Ajouter le chantier'}</button>
+            <button type="button" onClick={() => setForm(emptyChantierForm)} style={css.btnGhost}>Annuler</button>
           </div>
         </form>
       </section>
 
       <section style={css.section}>
-        <ListHeading title="Chantiers enregistrés" count={filteredPoints.length} suffix="chantier(s)" />
-        <div className="mgr-toolbar">
-          <ListSearchInput
-            value={pointSearch}
-            onChange={setPointSearch}
-            placeholder="Rechercher un chantier (nom ou adresse)…"
-          />
-          <FilterSegmented
-            options={[
-              { label: 'Tous', value: 'all' },
-              { label: 'Actifs', value: 'active' },
-              { label: 'Inactifs', value: 'inactive' },
-            ]}
-            value={pointStatusFilter}
-            onChange={setPointStatusFilter}
-          />
-        </div>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 1rem' }}>Chantiers enregistrés</h3>
         {loading && <LoadingHint>Chargement des chantiers…</LoadingHint>}
-        {!loading && error && <AlertBox>{error} <button type="button" onClick={() => void fetchPoints()} className="mgr-btn mgr-btn--outline" style={{ marginLeft: 8 }}>Réessayer</button></AlertBox>}
+        {!loading && error && <AlertBox>{error} <button type="button" onClick={() => void fetchPoints()} style={{ ...css.btnOutline, marginLeft: 8 }}>Réessayer</button></AlertBox>}
         {!loading && !error && (
-        <table className="mgr-table-pro" data-testid="mgr-chantier-table">
-          <thead><tr>
-            {['Chantier', 'Type', 'Adresse', 'GPS', 'Statut', ''].map((h) => <th key={h}>{h}</th>)}
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead><tr style={{ background: '#f5f0e8' }}>
+            {['Nom', 'Type', 'Adresse', 'GPS', 'Statut', ''].map((h) => <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>)}
           </tr></thead>
-          <tbody>{filteredPoints.map((p) => {
+          <tbody>{points.map((p, i) => {
             const active = isSupermarketActive(p.active)
             const siteType = isSiteType(p.siteType) ? p.siteType : 'prive'
             return (
-            <tr key={p.id}>
-              <td>
-                <div className="mgr-person">
-                  <span className="mgr-avatar" style={{ background: active ? 'var(--brand)' : '#9ca3af' }} aria-hidden="true">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" /></svg>
-                  </span>
-                  <span className="mgr-person-name">{p.name}</span>
-                </div>
-              </td>
-              <td>
+            <tr key={p.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#faf8f5', opacity: active ? 1 : 0.72 }}>
+              <td style={css.td}>{p.name}</td>
+              <td style={css.td}>
                 <select
                   value={siteType}
-                  className="mgr-input" style={{ minWidth: 110, padding: '4px 8px' }}
+                  style={{ ...css.input, minWidth: 110, padding: '4px 8px' }}
                   data-testid={`mgr-chantier-type-${p.id}`}
                   onChange={(e) => void changeSiteType(p, e.target.value)}
                 >
@@ -2192,27 +2050,20 @@ function PointsTab({
                   ))}
                 </select>
               </td>
-              <td style={{ maxWidth: 200, fontSize: 12 }}>{p.address}</td>
-              <td style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{p.lat && p.lng ? `${p.lat}, ${p.lng}` : '—'}</td>
-              <td>
+              <td style={{ ...css.td, maxWidth: 200, fontSize: 12 }}>{p.address}</td>
+              <td style={css.td}>{p.lat && p.lng ? `${p.lat}, ${p.lng}` : '—'}</td>
+              <td style={css.td}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Toggle active={active} onChange={() => void toggleActive(p)} />
-                  <span data-testid={`mgr-point-status-${p.id}`}>
-                    <StatusBadge active={active} okLabel="Actif" offLabel="Inactif" />
+                  <span data-testid={`mgr-point-status-${p.id}`} style={{ fontSize: 12, fontWeight: 600, color: active ? '#0b4a2c' : '#9ca3af' }}>
+                    {active ? 'Actif' : 'Inactif'}
                   </span>
                 </div>
               </td>
-              <td>
-                <button type="button" onClick={() => setEditId(p.id)} className="mgr-icon-btn" title={`Modifier ${p.name}`} aria-label={`Modifier ${p.name}`}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
-                </button>
-              </td>
+              <td style={css.td}><button type="button" onClick={() => setEditId(p.id)} style={css.btnOutline}>Modifier</button></td>
             </tr>
           )})}</tbody>
         </table>
-        )}
-        {!loading && !error && points.length > 0 && filteredPoints.length === 0 && (
-          <EmptyHint>Aucun chantier ne correspond à la recherche ou au filtre.</EmptyHint>
         )}
         {editId && (
           <EditSupermarketModal
@@ -2244,17 +2095,6 @@ function ProduitsTab({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
-  const [prodSearch, setProdSearch] = useState('')
-  const [prodStatusFilter, setProdStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
-
-  const filteredProds = useMemo(() => {
-    const q = prodSearch.trim().toLowerCase()
-    return prods.filter((p) => {
-      if (prodStatusFilter !== 'all' && p.active !== (prodStatusFilter === 'active')) return false
-      if (!q) return true
-      return p.label.toLowerCase().includes(q) || p.unit.toLowerCase().includes(q)
-    })
-  }, [prods, prodSearch, prodStatusFilter])
 
   const fetchProds = useCallback(async () => {
     const res = await authFetch('/dashboard/products')
@@ -2302,10 +2142,10 @@ function ProduitsTab({
         {error && <AlertBox>{error}</AlertBox>}
         <form onSubmit={(e) => void handleAdd(e)}>
           <h3 style={{ fontSize: 14, margin: '0 0 0.75rem' }}>Nouveau produit</h3>
-          <Field label="Libellé *"><input type="text" value={form.label} required placeholder="ex. Œufs bio calibre L" className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} /></Field>
+          <Field label="Libellé *"><input type="text" value={form.label} required placeholder="ex. Œufs bio calibre L" style={css.input} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} /></Field>
           <div style={{ marginBottom: 8 }} />
           <Field label="Unité *">
-            <select value={form.unit} required disabled={unitsLoading || activeUnits.length === 0} className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))}>
+            <select value={form.unit} required disabled={unitsLoading || activeUnits.length === 0} style={css.input} onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))}>
               {activeUnits.map((u) => <option key={u.id} value={u.code}>{u.label}</option>)}
             </select>
           </Field>
@@ -2313,52 +2153,27 @@ function ProduitsTab({
             <p style={{ fontSize: 12, color: '#b45309', margin: '0 0 8px' }}>Ajoutez d&apos;abord une unité dans l&apos;onglet « Unités de mesure ».</p>
           )}
           <div style={{ marginBottom: 8 }} />
-          <Field label="Ordre d'affichage"><input type="number" value={form.displayOrder} min="0" className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, displayOrder: e.target.value }))} /></Field>
+          <Field label="Ordre d'affichage"><input type="number" value={form.displayOrder} min="0" style={css.input} onChange={(e) => setForm((p) => ({ ...p, displayOrder: e.target.value }))} /></Field>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary">{saving ? 'Ajout…' : 'Ajouter le produit'}</button>
-            <button type="button" onClick={() => setForm({ label: '', unit: 'palette', displayOrder: '0' })} className="mgr-btn mgr-btn--ghost">Annuler</button>
+            <button type="submit" disabled={saving} style={css.btnGold}>{saving ? 'Ajout…' : 'Ajouter le produit'}</button>
+            <button type="button" onClick={() => setForm({ label: '', unit: 'palette', displayOrder: '0' })} style={css.btnGhost}>Annuler</button>
           </div>
         </form>
       </section>
 
       <section style={css.section}>
-        <ListHeading title="Produits enregistrés" count={filteredProds.length} suffix="produit(s)" />
-        <div className="mgr-toolbar">
-          <ListSearchInput
-            value={prodSearch}
-            onChange={setProdSearch}
-            placeholder="Rechercher un produit…"
-          />
-          <FilterSegmented
-            options={[
-              { label: 'Tous', value: 'all' },
-              { label: 'Actifs', value: 'active' },
-              { label: 'Archivés', value: 'inactive' },
-            ]}
-            value={prodStatusFilter}
-            onChange={setProdStatusFilter}
-          />
-        </div>
-        <table className="mgr-table-pro" data-testid="mgr-product-table">
-          <thead><tr>
-            {['Libellé', 'Unité', 'Ordre', 'Statut', ''].map((h) => <th key={h}>{h}</th>)}
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 1rem' }}>Produits enregistrés</h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead><tr style={{ background: '#f5f0e8' }}>
+            {['Libellé', 'Unité', 'Ordre', 'Statut', ''].map((h) => <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>)}
           </tr></thead>
-          <tbody>{filteredProds.map((p) => (
-            <tr key={p.id}>
-              <td><span className="mgr-person-name">{p.label}</span></td>
-              <td>{p.unit}</td>
-              <td>{p.displayOrder}</td>
-              <td>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <StatusBadge active={p.active} okLabel="Actif" offLabel="Archivé" />
-                  <Toggle active={p.active} onChange={() => void toggleActive(p)} />
-                </div>
-              </td>
-              <td>
-                <button type="button" onClick={() => setEditId(p.id)} className="mgr-icon-btn" title={`Modifier ${p.label}`} aria-label={`Modifier ${p.label}`}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
-                </button>
-              </td>
+          <tbody>{prods.map((p, i) => (
+            <tr key={p.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
+              <td style={css.td}>{p.label}</td>
+              <td style={css.td}>{p.unit}</td>
+              <td style={css.td}>{p.displayOrder}</td>
+              <td style={css.td}><Toggle active={p.active} onChange={() => void toggleActive(p)} /></td>
+              <td style={css.td}><button onClick={() => setEditId(p.id)} style={css.btnOutline}>Modifier</button></td>
             </tr>
           ))}</tbody>
         </table>
@@ -2369,9 +2184,6 @@ function ProduitsTab({
             units={activeUnits}
             onClose={() => { setEditId(null); void fetchProds() }}
           />
-        )}
-        {prods.length > 0 && filteredProds.length === 0 && (
-          <EmptyHint>Aucun produit ne correspond à la recherche ou au filtre.</EmptyHint>
         )}
         {prods.length === 0 && <EmptyHint>Aucun produit enregistré.</EmptyHint>}
       </section>
@@ -2393,17 +2205,6 @@ function UnitesTab({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
-  const [unitSearch, setUnitSearch] = useState('')
-  const [unitStatusFilter, setUnitStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
-
-  const filteredUnits = useMemo(() => {
-    const q = unitSearch.trim().toLowerCase()
-    return units.filter((u) => {
-      if (unitStatusFilter !== 'all' && u.active !== (unitStatusFilter === 'active')) return false
-      if (!q) return true
-      return u.label.toLowerCase().includes(q) || u.code.toLowerCase().includes(q)
-    })
-  }, [units, unitSearch, unitStatusFilter])
 
   const fetchUnits = useCallback(async () => {
     const res = await authFetch('/dashboard/units')
@@ -2456,61 +2257,36 @@ function UnitesTab({
         <form onSubmit={(e) => void handleAdd(e)}>
           <h3 style={{ fontSize: 14, margin: '0 0 0.75rem' }}>Nouvelle unité</h3>
           <Field label="Libellé affiché *">
-            <input type="text" value={form.label} required placeholder="ex. Fût" className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} />
+            <input type="text" value={form.label} required placeholder="ex. Fût" style={css.input} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} />
           </Field>
           <div style={{ marginBottom: 8 }} />
           <Field label="Code (optionnel)">
-            <input type="text" value={form.code} placeholder="auto depuis le libellé" className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} />
+            <input type="text" value={form.code} placeholder="auto depuis le libellé" style={css.input} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} />
           </Field>
           <p style={{ fontSize: 11, color: '#999', margin: '2px 0 8px' }}>Le code est technique (ex. <code>fut</code>) et sert dans les exports et l&apos;API.</p>
           <Field label="Ordre d'affichage">
-            <input type="number" value={form.displayOrder} min="0" className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, displayOrder: e.target.value }))} />
+            <input type="number" value={form.displayOrder} min="0" style={css.input} onChange={(e) => setForm((p) => ({ ...p, displayOrder: e.target.value }))} />
           </Field>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary">{saving ? 'Ajout…' : 'Ajouter l\'unité'}</button>
-            <button type="button" onClick={() => setForm({ code: '', label: '', displayOrder: '0' })} className="mgr-btn mgr-btn--ghost">Annuler</button>
+            <button type="submit" disabled={saving} style={css.btnGold}>{saving ? 'Ajout…' : 'Ajouter l\'unité'}</button>
+            <button type="button" onClick={() => setForm({ code: '', label: '', displayOrder: '0' })} style={css.btnGhost}>Annuler</button>
           </div>
         </form>
       </section>
 
       <section style={css.section}>
-        <ListHeading title="Unités enregistrées" count={filteredUnits.length} suffix="unité(s)" />
-        <div className="mgr-toolbar">
-          <ListSearchInput
-            value={unitSearch}
-            onChange={setUnitSearch}
-            placeholder="Rechercher une unité…"
-          />
-          <FilterSegmented
-            options={[
-              { label: 'Toutes', value: 'all' },
-              { label: 'Actives', value: 'active' },
-              { label: 'Archivées', value: 'inactive' },
-            ]}
-            value={unitStatusFilter}
-            onChange={setUnitStatusFilter}
-          />
-        </div>
-        <table className="mgr-table-pro">
-          <thead><tr>
-            {['Libellé', 'Code', 'Ordre', 'Statut', ''].map((h) => <th key={h}>{h}</th>)}
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 1rem' }}>Unités enregistrées</h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead><tr style={{ background: '#f5f0e8' }}>
+            {['Libellé', 'Code', 'Ordre', 'Statut', ''].map((h) => <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>)}
           </tr></thead>
-          <tbody>{filteredUnits.map((u) => (
-            <tr key={u.id}>
-              <td><span className="mgr-person-name">{u.label}</span></td>
-              <td><code>{u.code}</code></td>
-              <td>{u.displayOrder}</td>
-              <td>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <StatusBadge active={u.active} okLabel="Active" offLabel="Archivée" />
-                  <Toggle active={u.active} onChange={() => void toggleActive(u)} />
-                </div>
-              </td>
-              <td>
-                <button type="button" onClick={() => setEditId(u.id)} className="mgr-icon-btn" title={`Modifier ${u.label}`} aria-label={`Modifier ${u.label}`}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
-                </button>
-              </td>
+          <tbody>{units.map((u, i) => (
+            <tr key={u.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
+              <td style={css.td}>{u.label}</td>
+              <td style={css.td}><code>{u.code}</code></td>
+              <td style={css.td}>{u.displayOrder}</td>
+              <td style={css.td}><Toggle active={u.active} onChange={() => void toggleActive(u)} /></td>
+              <td style={css.td}><button onClick={() => setEditId(u.id)} style={css.btnOutline}>Modifier</button></td>
             </tr>
           ))}</tbody>
         </table>
@@ -2520,9 +2296,6 @@ function UnitesTab({
             units={units}
             onClose={() => { setEditId(null); void fetchUnits(); onCatalogChanged?.() }}
           />
-        )}
-        {units.length > 0 && filteredUnits.length === 0 && (
-          <EmptyHint>Aucune unité ne correspond à la recherche ou au filtre.</EmptyHint>
         )}
         {units.length === 0 && <EmptyHint>Aucune unité enregistrée.</EmptyHint>}
       </section>
@@ -2598,7 +2371,7 @@ function TachesTab({
           type="button"
           data-testid="mgr-tasks-pending"
           onClick={() => setView('pending')}
-          className={view === 'pending' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
+          style={view === 'pending' ? css.tabActive : css.tab}
         >
           En attente
         </button>
@@ -2606,7 +2379,7 @@ function TachesTab({
           type="button"
           data-testid="mgr-tasks-resolved"
           onClick={() => setView('resolved')}
-          className={view === 'resolved' ? 'mgr-tab mgr-tab--active' : 'mgr-tab'}
+          style={view === 'resolved' ? css.tabActive : css.tab}
         >
           Traitées
         </button>
@@ -2688,7 +2461,7 @@ function TachesTab({
                 {showDeliveryBtn && (
                   <button
                     type="button"
-                    className="mgr-btn mgr-btn--primary"
+                    style={css.btnGold}
                     onClick={() => onOpenDelivery!(deliveryId!, tourDate)}
                   >
                     Voir la livraison
@@ -2697,7 +2470,7 @@ function TachesTab({
                 {showTourBtn && (
                   <button
                     type="button"
-                    className="mgr-btn mgr-btn--primary"
+                    style={css.btnGold}
                     onClick={() => onOpenTour!(t.relatedTourId!, tourDate)}
                   >
                     Ouvrir la tournée
@@ -2706,7 +2479,7 @@ function TachesTab({
                 {showReplanBtn && (
                   <button
                     type="button"
-                    className="mgr-btn mgr-btn--outline"
+                    style={css.btnOutline}
                     onClick={() => onReplanTour!(
                       t.relatedTourId!,
                       type === 'partial_delivery' ? deliveryId : undefined
@@ -2716,7 +2489,7 @@ function TachesTab({
                   </button>
                 )}
                 {view === 'pending' && (
-                  <button type="button" disabled={loading} onClick={() => void resolve(t.id)} className="mgr-btn mgr-btn--outline">
+                  <button type="button" disabled={loading} onClick={() => void resolve(t.id)} style={css.btnOutline}>
                     Marquer traitée
                   </button>
                 )}

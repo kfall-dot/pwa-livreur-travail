@@ -11,7 +11,7 @@ import {
   ProductQuantityList,
 } from '../productHelpers'
 import { toast } from '../../../lib/toast'
-import { EmptyHint, LoadingHint } from '../managerUi'
+import { css as sharedCss, EmptyHint, LoadingHint } from '../managerUi'
 
 export interface DeliveryDetail {
   deliveryId: string
@@ -56,28 +56,17 @@ interface ManagerPhoto {
   paletteNumber?: string
 }
 
-function DlRow({ dt, dd, style }: { dt: string; dd: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <div style={{ borderBottom: '1px solid #f0ede7', paddingBottom: 8, ...style }}>
-      <dt style={{ fontSize: 10.5, fontWeight: 800, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{dt}</dt>
-      <dd style={{ margin: 0, fontSize: 13.5, color: '#111827', fontWeight: 500 }}>{dd}</dd>
-    </div>
-  )
+const css = {
+  btnGold: sharedCss.btnGold,
+  btnGhost: sharedCss.btnGhost,
 }
 
-/** Titre de section discret (structure visuelle de la modale). */
-function ModalSectionTitle({ children }: { children: React.ReactNode }) {
+function DlRow({ dt, dd, style }: { dt: string; dd: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <p style={{
-      margin: '0 0 0.75rem',
-      fontSize: 11,
-      fontWeight: 800,
-      textTransform: 'uppercase',
-      letterSpacing: '0.06em',
-      color: 'var(--brand)',
-    }}>
-      {children}
-    </p>
+    <div style={style}>
+      <dt style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>{dt}</dt>
+      <dd style={{ margin: 0, fontSize: 13, color: '#111827' }}>{dd}</dd>
+    </div>
   )
 }
 
@@ -347,7 +336,7 @@ function OtpAssistPanel({
           data-testid="mgr-resend-otp"
           disabled={!canAssist || resending}
           onClick={() => void handleResend()}
-          className="mgr-btn mgr-btn--primary" style={{ opacity: !canAssist ? 0.5 : 1 }}
+          style={{ ...css.btnGold, opacity: !canAssist ? 0.5 : 1 }}
         >
           {resending ? 'Envoi…' : 'Renvoyer SMS / afficher code'}
         </button>
@@ -371,7 +360,7 @@ function OtpAssistPanel({
             data-testid="mgr-confirm-manual"
             disabled={confirming || manualReason.trim().length < 15}
             onClick={() => void handleManualConfirm()}
-            className="mgr-btn mgr-btn--ghost" style={{ borderColor: '#f59e0b', color: '#b45309', opacity: manualReason.trim().length < 15 ? 0.5 : 1 }}
+            style={{ ...css.btnGhost, borderColor: '#f59e0b', color: '#b45309', opacity: manualReason.trim().length < 15 ? 0.5 : 1 }}
           >
             {confirming ? 'Validation…' : 'Valider la livraison sans OTP'}
           </button>
@@ -468,31 +457,15 @@ export function DeliveryDetailModal({
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(8,56,33,.5)', backdropFilter: 'blur(2px)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '2rem 1rem', overflowY: 'auto' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '2rem 1rem', overflowY: 'auto' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Détail de la livraison"
     >
-      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 640, boxShadow: '0 24px 64px rgba(8,56,33,.3)', overflow: 'hidden', animation: 'modal-pop .22s cubic-bezier(.2,.9,.3,1.15) both' }}>
-        <div style={{ background: 'linear-gradient(135deg, var(--brand), var(--brand-deep))', color: '#fff', padding: '1.1rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.72 }}>Détail livraison</p>
-            <h2 style={{ margin: '2px 0 0', fontSize: 18, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{loading ? 'Chargement…' : (detail?.deliveryName ?? '—')}</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fermer"
-            style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,.14)', color: '#fff', fontSize: 20, lineHeight: 1, cursor: 'pointer', transition: 'background .15s ease' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.26)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,.14)' }}
-          >
-            ×
-          </button>
+      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 640, padding: '1.75rem', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{loading ? 'Chargement…' : (detail?.deliveryName ?? '—')}</h2>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#9ca3af', lineHeight: 1 }}>×</button>
         </div>
 
-        <div style={{ padding: '1.5rem 1.75rem 1.75rem' }}>
         {loading && <LoadingHint />}
 
         {!loading && !detail && (
@@ -500,7 +473,7 @@ export function DeliveryDetailModal({
             <p style={{ color: '#b91c1c', margin: '0 0 12px' }}>
               {loadError ?? 'Impossible de charger le détail de cette livraison.'}
             </p>
-            <button type="button" onClick={() => void loadDetail()} className="mgr-btn mgr-btn--ghost">
+            <button type="button" onClick={() => void loadDetail()} style={css.btnGhost}>
               Réessayer
             </button>
           </div>
@@ -508,7 +481,6 @@ export function DeliveryDetailModal({
 
         {!loading && detail && (
           <>
-            <ModalSectionTitle>Informations</ModalSectionTitle>
             <dl style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 32px', margin: 0, marginBottom: '1.5rem' }}>
               <DlRow dt="ID" dd={<span style={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>{detail.deliveryId}</span>} />
               <DlRow dt="Commande" dd={detail.orderRef} />
@@ -630,12 +602,11 @@ export function DeliveryDetailModal({
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => onEditTour(detail.tourId, detail.tourDate)} className="mgr-btn mgr-btn--primary">Modifier la tournée</button>
-              <button type="button" onClick={onClose} className="mgr-btn mgr-btn--ghost">Fermer</button>
+              <button type="button" onClick={() => onEditTour(detail.tourId, detail.tourDate)} style={css.btnGold}>Modifier la tournée</button>
+              <button type="button" onClick={onClose} style={css.btnGhost}>Fermer</button>
             </div>
           </>
         )}
-        </div>
       </div>
     </div>
   )

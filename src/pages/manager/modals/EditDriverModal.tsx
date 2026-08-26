@@ -8,7 +8,7 @@ import {
   normalizeDriverPhone,
   PHONE_FORMAT_HINT,
 } from '../../../lib/phone'
-import { Field } from '../managerUi'
+import { css, Field } from '../managerUi'
 import type { DriverRow } from '../managerTypes'
 
 export function EditDriverModal({ id, drivers, onClose }: { id: string; drivers: DriverRow[]; onClose: () => void }) {
@@ -70,7 +70,7 @@ export function EditDriverModal({ id, drivers, onClose }: { id: string; drivers:
       <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', width: 340 }}>
         <h3 style={{ margin: '0 0 1rem' }}>Modifier {driver?.name}</h3>
         <form onSubmit={(e) => void handleSave(e)}>
-          <Field label="Nom"><input value={form.name} className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></Field>
+          <Field label="Nom"><input value={form.name} style={css.input} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></Field>
           <div style={{ marginBottom: 8 }} />
           <Field label="Téléphone">
             <input
@@ -78,7 +78,7 @@ export function EditDriverModal({ id, drivers, onClose }: { id: string; drivers:
               value={form.phone}
               placeholder={CI_PHONE_PLACEHOLDER}
               title={CI_PHONE_INPUT_TITLE}
-              className="mgr-input"
+              style={css.input}
               onChange={(e) => setForm((p) => ({ ...p, phone: formatPhoneInput(e.target.value) }))}
             />
           </Field>
@@ -89,7 +89,7 @@ export function EditDriverModal({ id, drivers, onClose }: { id: string; drivers:
               name="edit-driver-pin"
               autoComplete="new-password"
               value={form.pin}
-              className="mgr-input"
+              style={css.input}
               onChange={(e) => setForm((p) => ({ ...p, pin: e.target.value }))}
             />
           </Field>
@@ -110,14 +110,14 @@ export function EditDriverModal({ id, drivers, onClose }: { id: string; drivers:
               data-testid="mgr-clear-login-lock"
               disabled={unlocking}
               onClick={() => void handleUnlockLogin()}
-              className="mgr-btn mgr-btn--ghost"
+              style={css.btnGhost}
             >
               {unlocking ? 'Déverrouillage…' : 'Réinitialiser verrouillage login'}
             </button>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary">{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
-            <button type="button" onClick={onClose} className="mgr-btn mgr-btn--ghost">Annuler</button>
+            <button type="submit" disabled={saving} style={css.btnGold}>{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
+            <button type="button" onClick={onClose} style={css.btnGhost}>Annuler</button>
           </div>
         </form>
       </div>

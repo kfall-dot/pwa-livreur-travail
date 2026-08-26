@@ -44,7 +44,7 @@ function FilterSelect({
       data-testid={testId}
       value={selected}
       onChange={(e) => onChange(e.target.value)}
-      className="mgr-input" style={{ fontSize: 11, padding: '2px 4px', fontWeight: 400, maxWidth: 140 }}
+      style={{ ...css.input, fontSize: 11, padding: '2px 4px', fontWeight: 400, maxWidth: 140 }}
     >
       <option value="">Tous</option>
       {values.map((v) => (
@@ -161,7 +161,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
             Feuille mois filtrable + récap par fournisseur (POINTS FOURNISSEURS DES BC).
           </p>
         </div>
-        <button type="button" onClick={() => void load(month)} className="mgr-btn mgr-btn--outline" data-testid="mgr-suivi-bc-refresh">
+        <button type="button" onClick={() => void load(month)} style={css.btnOutline} data-testid="mgr-suivi-bc-refresh">
           Actualiser
         </button>
       </div>
@@ -174,7 +174,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
               type="button"
               data-testid={`mgr-suivi-bc-month-${m.key}`}
               onClick={() => void load(m.key)}
-              className={m.key === month ? 'mgr-btn mgr-btn--primary' : 'mgr-btn mgr-btn--outline'}
+              style={m.key === month ? css.btnGold : css.btnOutline}
             >
               {m.label}
             </button>
@@ -187,7 +187,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
             type="button"
             data-testid="mgr-suivi-bc-sheet-mois"
             onClick={() => setSheet('mois')}
-            className={sheet === 'mois' ? 'mgr-btn mgr-btn--primary' : 'mgr-btn mgr-btn--outline'}
+            style={sheet === 'mois' ? css.btnGold : css.btnOutline}
           >
             {monthLabel || 'Mois'}
           </button>
@@ -195,7 +195,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
             type="button"
             data-testid="mgr-suivi-bc-sheet-recap"
             onClick={() => setSheet('recap')}
-            className={sheet === 'recap' ? 'mgr-btn mgr-btn--primary' : 'mgr-btn mgr-btn--outline'}
+            style={sheet === 'recap' ? css.btnGold : css.btnOutline}
           >
             RECAP {monthLabel}
           </button>
@@ -293,7 +293,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                     <input
                       defaultValue={row.invoice}
                       onBlur={(e) => void saveFollowup(row, 'invoice', e.target.value)}
-                      className="mgr-input"
+                      style={css.input}
                       data-testid={`mgr-suivi-bc-invoice-${row.purchaseOrderId}`}
                     />
                   </td>
@@ -301,7 +301,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                     <input
                       defaultValue={row.justifs}
                       onBlur={(e) => void saveFollowup(row, 'justifs', e.target.value)}
-                      className="mgr-input"
+                      style={css.input}
                       data-testid={`mgr-suivi-bc-justifs-${row.purchaseOrderId}`}
                     />
                   </td>
@@ -309,7 +309,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                     <input
                       defaultValue={row.observation}
                       onBlur={(e) => void saveFollowup(row, 'observation', e.target.value)}
-                      className="mgr-input"
+                      style={css.input}
                       data-testid={`mgr-suivi-bc-observation-${row.purchaseOrderId}`}
                     />
                   </td>
@@ -317,7 +317,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                     <input
                       defaultValue={row.verification}
                       onBlur={(e) => void saveFollowup(row, 'verification', e.target.value)}
-                      className="mgr-input"
+                      style={css.input}
                       data-testid={`mgr-suivi-bc-verification-${row.purchaseOrderId}`}
                     />
                   </td>
@@ -331,7 +331,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                           type="button"
                           data-testid={`mgr-suivi-bc-attach-${row.purchaseOrderId}`}
                           onClick={() => void openAttachment(row, att.lineId, att.fileName)}
-                          className="mgr-btn mgr-btn--ghost" style={{ padding: '2px 6px', fontSize: 12 }}
+                          style={{ ...css.btnGhost, padding: '2px 6px', fontSize: 12 }}
                         >
                           {att.fileName}
                         </button>
@@ -369,7 +369,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
               <strong>{preview.fileName}</strong>
-              <button type="button" className="mgr-btn mgr-btn--ghost" onClick={() => {
+              <button type="button" style={css.btnGhost} onClick={() => {
                 if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
                 previewUrlRef.current = null
                 setPreview(null)

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { authFetch } from '../managerApi'
-import { Field } from '../managerUi'
+import { css, Field } from '../managerUi'
 import type { ManagerRow } from '../managerTypes'
 
 export function EditManagerModal({
@@ -55,7 +55,7 @@ export function EditManagerModal({
         <h3 style={{ margin: '0 0 1rem' }}>Modifier {row?.name}</h3>
         <form onSubmit={(e) => void handleSave(e)}>
           <Field label="Nom">
-            <input value={form.name} required className="mgr-input" onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+            <input value={form.name} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
           </Field>
           <div style={{ marginBottom: 8 }} />
           <Field label="E-mail">
@@ -64,7 +64,7 @@ export function EditManagerModal({
               value={form.email}
               required
               autoComplete="off"
-              className="mgr-input"
+              style={css.input}
               onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
             />
           </Field>
@@ -72,7 +72,7 @@ export function EditManagerModal({
           <Field label="Rôle">
             <select
               value={form.role}
-              className="mgr-input"
+              style={css.input}
               onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as 'admin' | 'manager' }))}
             >
               <option value="manager">Gestionnaire</option>
@@ -87,7 +87,7 @@ export function EditManagerModal({
               autoComplete="new-password"
               minLength={8}
               value={form.password}
-              className="mgr-input"
+              style={css.input}
               onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
             />
           </Field>
@@ -97,8 +97,8 @@ export function EditManagerModal({
             </p>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary">{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
-            <button type="button" onClick={onClose} className="mgr-btn mgr-btn--ghost">Annuler</button>
+            <button type="submit" disabled={saving} style={css.btnGold}>{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
+            <button type="button" onClick={onClose} style={css.btnGhost}>Annuler</button>
           </div>
         </form>
       </div>

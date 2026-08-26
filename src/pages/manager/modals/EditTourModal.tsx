@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { confirmDeletion } from '../../../lib/confirmDeletion'
 import { authFetch } from '../managerApi'
 import { toast } from '../../../lib/toast'
-import { AlertBox, DashboardStatusBadge, Field, LoadingHint, Row } from '../managerUi'
+import { AlertBox, css, DashboardStatusBadge, Field, LoadingHint, Row } from '../managerUi'
 import { isStopClosedForEdit, StopProductsSummary, expectedProductsDisplay, stopClosedEditHint } from '../productHelpers'
 import { buildStopApiPayload, matchSupermarketId, validateStopProducts } from '../stopFormHelpers'
 import { StopsValidationHint, TourStopFormCard } from '../TourStopFormCard'
@@ -190,31 +190,31 @@ export function EditTourModal({
           <form onSubmit={(e) => void handleSave(e)}>
             <Row>
               <Field label="Livreur *" style={{ flex: 2 }}>
-                <select value={tour.driverId} required className="mgr-input" onChange={(e) => setTour((p) => p ? { ...p, driverId: e.target.value } : p)}>
+                <select value={tour.driverId} required style={css.input} onChange={(e) => setTour((p) => p ? { ...p, driverId: e.target.value } : p)}>
                   {drivers.filter((d) => d.status === 'active').map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
               </Field>
               <Field label="Date *">
-                <input type="date" value={tour.date} required className="mgr-input" onChange={(e) => setTour((p) => p ? { ...p, date: e.target.value } : p)} />
+                <input type="date" value={tour.date} required style={css.input} onChange={(e) => setTour((p) => p ? { ...p, date: e.target.value } : p)} />
               </Field>
             </Row>
             <Row>
               <Field label="Nom du dépôt *" style={{ flex: 2 }}>
-                <input type="text" data-testid="mgr-edit-tour-depot" value={tour.depotName} required className="mgr-input" onChange={(e) => setTour((p) => p ? { ...p, depotName: e.target.value } : p)} />
+                <input type="text" data-testid="mgr-edit-tour-depot" value={tour.depotName} required style={css.input} onChange={(e) => setTour((p) => p ? { ...p, depotName: e.target.value } : p)} />
               </Field>
             </Row>
             <Row>
               <Field label="Adresse du dépôt *" style={{ flex: 1 }}>
-                <input type="text" value={tour.depotAddress} required className="mgr-input" onChange={(e) => setTour((p) => p ? { ...p, depotAddress: e.target.value } : p)} />
+                <input type="text" value={tour.depotAddress} required style={css.input} onChange={(e) => setTour((p) => p ? { ...p, depotAddress: e.target.value } : p)} />
               </Field>
             </Row>
 
             <div style={{ borderTop: '1px solid var(--border)', margin: '1.25rem 0 1rem', paddingTop: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Arrêts ({stops.length})</h3>
-                <button type="button" onClick={addStop} className="mgr-btn mgr-btn--outline">+ Ajouter un arrêt</button>
+                <button type="button" onClick={addStop} style={css.btnOutline}>+ Ajouter un arrêt</button>
               </div>
               <StopsValidationHint stops={stops.filter((s) => !isStopClosedForEdit(s.status, s.declarationOutcome))} />
 
@@ -261,8 +261,8 @@ export function EditTourModal({
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button type="button" onClick={onClose} className="mgr-btn mgr-btn--ghost">Annuler</button>
-              <button type="submit" disabled={saving} className="mgr-btn mgr-btn--primary">
+              <button type="button" onClick={onClose} style={css.btnGhost}>Annuler</button>
+              <button type="submit" disabled={saving} style={css.btnGold}>
                 {saving ? 'Sauvegarde…' : 'Enregistrer les modifications'}
               </button>
             </div>

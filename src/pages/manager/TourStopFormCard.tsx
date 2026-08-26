@@ -1,5 +1,5 @@
 import { applySupermarketToStop, validateStopProducts } from './stopFormHelpers'
-import { AlertBox, Field, Row } from './managerUi'
+import { AlertBox, css, Field, Row } from './managerUi'
 import { isSupermarketActive, type StopDraft, type Supermarket } from './managerTypes'
 import { ProductLinesEditor } from './ProductLinesEditor'
 
@@ -52,13 +52,13 @@ export function TourStopFormCard({
       <Row>
         <Field label="Magasin / lieu *" style={{ flex: 2 }}>
           {locked ? (
-            <input type="text" value={stop.name} disabled className="mgr-input" />
+            <input type="text" value={stop.name} disabled style={css.input} />
           ) : (
             <select
               data-testid={`mgr-stop-supermarket-${index}`}
               value={selected?.id ?? stop.supermarketId ?? ''}
               required
-              className="mgr-input"
+              style={css.input}
               onChange={(e) => pickSupermarket(e.target.value)}
             >
               <option value="">{activePoints.length === 0 ? 'Aucun point — onglet Catalogue → Points' : 'Choisir un point de livraison'}</option>
@@ -76,7 +76,7 @@ export function TourStopFormCard({
             readOnly
             disabled={locked}
             title="Générée automatiquement"
-            className="mgr-input" style={{ background: '#f3f4f6', color: '#374151' }}
+            style={{ ...css.input, background: '#f3f4f6', color: '#374151' }}
           />
         </Field>
       </Row>
@@ -96,18 +96,18 @@ export function TourStopFormCard({
 
       <Row>
         <Field label="Heure début">
-          <input type="time" value={stop.timeWindowStart} disabled={locked} className="mgr-input" onChange={(e) => updateField('timeWindowStart', e.target.value)} />
+          <input type="time" value={stop.timeWindowStart} disabled={locked} style={css.input} onChange={(e) => updateField('timeWindowStart', e.target.value)} />
         </Field>
         <Field label="Heure fin">
-          <input type="time" value={stop.timeWindowEnd} disabled={locked} className="mgr-input" onChange={(e) => updateField('timeWindowEnd', e.target.value)} />
+          <input type="time" value={stop.timeWindowEnd} disabled={locked} style={css.input} onChange={(e) => updateField('timeWindowEnd', e.target.value)} />
         </Field>
         <Field label="Photos requises">
-          <input type="number" min="1" max="5" value={stop.requiredPhotos} disabled={locked} className="mgr-input" onChange={(e) => updateField('requiredPhotos', e.target.value)} />
+          <input type="number" min="1" max="5" value={stop.requiredPhotos} disabled={locked} style={css.input} onChange={(e) => updateField('requiredPhotos', e.target.value)} />
         </Field>
       </Row>
       <Row>
         <Field label="Instructions">
-          <input type="text" value={stop.instructions} placeholder="Accès quai arrière…" disabled={locked} className="mgr-input" onChange={(e) => updateField('instructions', e.target.value)} />
+          <input type="text" value={stop.instructions} placeholder="Accès quai arrière…" disabled={locked} style={css.input} onChange={(e) => updateField('instructions', e.target.value)} />
         </Field>
       </Row>
 
@@ -179,7 +179,7 @@ export function ReplanBanner({
             </>
           ) : message}
         </span>
-        <button type="button" onClick={onDismiss} className="mgr-btn mgr-btn--ghost">Effacer</button>
+        <button type="button" onClick={onDismiss} style={css.btnGhost}>Effacer</button>
       </div>
     </>
   )

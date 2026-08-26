@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { expectedProductLabelKey } from '../../../shared/expectedProducts'
 import { confirmDeletion } from '../../lib/confirmDeletion'
 import { authFetch } from './managerApi'
-import { EmptyHint, LoadingHint } from './managerUi'
+import { css, EmptyHint, LoadingHint } from './managerUi'
 import { emptyProduct, type ProductLine, type ProductRow, type UnitRow } from './managerTypes'
 
 function isLabelUsedOnOtherLine(lines: ProductLine[], lineIndex: number, label: string): boolean {
@@ -136,7 +136,7 @@ export function ProductLinesEditor({
             data-testid={`mgr-product-select-${i}`}
             value={productSelectValue(line)}
             disabled={readOnly || catalogLoading}
-            className="mgr-input" style={{ fontSize: 12 }}
+            style={{ ...css.input, fontSize: 12 }}
             onChange={(e) => pickProduct(i, e.target.value)}
           >
             <option value="">Choisir un produit</option>
@@ -154,8 +154,8 @@ export function ProductLinesEditor({
               </option>
             ))}
           </select>
-          <input type="number" min="1" value={line.qty} placeholder="Qté" disabled={readOnly} className="mgr-input" style={{ fontSize: 12 }} onChange={(e) => update(i, 'qty', e.target.value)} />
-          <select value={line.unit} disabled={readOnly} className="mgr-input" style={{ fontSize: 12 }} onChange={(e) => update(i, 'unit', e.target.value)}>
+          <input type="number" min="1" value={line.qty} placeholder="Qté" disabled={readOnly} style={{ ...css.input, fontSize: 12 }} onChange={(e) => update(i, 'qty', e.target.value)} />
+          <select value={line.unit} disabled={readOnly} style={{ ...css.input, fontSize: 12 }} onChange={(e) => update(i, 'unit', e.target.value)}>
             {units.map((u) => <option key={u.id} value={u.code}>{u.label}</option>)}
             {line.unit && !units.some((u) => u.code === line.unit) && (
               <option value={line.unit}>{line.unit}</option>
