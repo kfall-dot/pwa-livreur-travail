@@ -8,16 +8,11 @@
     "command": "npm run build:server && test -f dist-server/server/worker.js"
   },
 
-  "routes": [
-    { "pattern": "livreur.cf-ops.net/api/*",          "zone_name": "cf-ops.net" },
-    { "pattern": "livreur.cf-ops.net/.well-known/*", "zone_name": "cf-ops.net" }
-  ],
-
   "triggers": { "crons": ["*/5 * * * *"] },
 
   "vars": {
     "MAX_EXECUTION_MS": 30000,
-    "PUBLIC_BASE_URL": "https://livreur.cf-ops.net",
+    "PUBLIC_BASE_URL": "https://pwa-livreur-api.kfallou8502.workers.dev",
     "GEOFENCE_BYPASS": "false",
     "SMS_OTP_FAIL_OPEN": "false",
     "VITE_API_URL": "/api/v1"
