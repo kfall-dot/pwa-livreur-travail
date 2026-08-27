@@ -1,7 +1,6 @@
 node_modules
-dist
-dist-server
 .git
 e2e
 playwright-report
 test-results
+.gitignore
