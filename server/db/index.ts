@@ -27,16 +27,23 @@ function isRemoteNeonUrl(url: string): boolean {
 }
 
 function createDb() {
+  // Typage public de drizzle-orm/netlify-db (1.0-beta) : DrizzlePgConfig fait
+  // `Omit<DrizzleConfig<…>, 'schema'>`, donc `schema` n'existe plus côté types
+  // alors que le runtime le lit toujours (validé en prod). On caste donc
+  // l'objet littéral vers le membre « objet » de l'union des paramètres.
+  // ⚠️ L'union ENTIÈRE ([string] | [string, cfg] | [cfg]) ne satisfait aucune
+  // overload (TS2345) — seul ce membre extrait passe.
+  type DrizzleConfigArg = Exclude<Parameters<typeof drizzle>[0], string>
   const netlifyUrl = process.env.NETLIFY_DB_URL?.trim()
   if (netlifyUrl && isRemoteNeonUrl(netlifyUrl)) {
-    return drizzle({ connection: netlifyUrl, schema })
+    return drizzle({ connection: { connectionString: netlifyUrl }, schema } as unknown as DrizzleConfigArg)
   }
   // netlify:dev injecte souvent un Postgres local (sans tables) à la place de NETLIFY_DB_URL.
   const e2eUrl = process.env.E2E_DATABASE_URL?.trim()
   if (e2eUrl && isRemoteNeonUrl(e2eUrl)) {
-    return drizzle({ connection: e2eUrl, schema })
+    return drizzle({ connection: { connectionString: e2eUrl }, schema } as unknown as DrizzleConfigArg)
   }
-  return drizzle({ schema })
+  return drizzle({ schema } as unknown as DrizzleConfigArg)
 }
 
 /**
@@ -50,7 +57,7 @@ function createDb() {
  * utilisation (une requête), quand les variables d'environnement sont
  * réellement disponibles.
  */
-export const db = new Proxy({ } as any, {
+export const db = new Proxy({} as ReturnType<typeof createDb>, {
   get(_target, prop, receiver) {
     cachedDb ??= createDb()
     const value = Reflect.get(cachedDb as object, prop, receiver)

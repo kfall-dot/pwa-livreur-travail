@@ -205,7 +205,7 @@ async function nextAmendmentReference(companyId: string): Promise<string> {
     .from(siteBudgetAmendments)
     .where(eq(siteBudgetAmendments.companyId, companyId))
   const seq =
-    existing.reduce((max, row) => {
+    existing.reduce((max: number, row: { reference: string }) => {
       if (!row.reference.startsWith(prefix)) return max
       const n = Number.parseInt(row.reference.slice(prefix.length), 10)
       return Number.isFinite(n) && n > max ? n : max
