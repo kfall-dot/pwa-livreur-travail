@@ -29,7 +29,7 @@
     "regression": "bash scripts/regression.sh",
     "check": "npm run build:server && npm run lint && npm run test:e2e",
     "verify": "bash scripts/verify.sh",
-    "prepare": "bash scripts/install-githooks.sh",
+    "prepare": "if command -v bash >/dev/null 2>&1 && [ -d .git ]; then bash scripts/install-githooks.sh; fi",
     "db:generate": "drizzle-kit generate",
     "db:fingerprint": "bash scripts/db-fingerprint.sh",
     "netlify": "netlify",
