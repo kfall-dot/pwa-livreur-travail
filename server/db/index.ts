@@ -50,7 +50,7 @@ function createDb() {
  * utilisation (une requête), quand les variables d'environnement sont
  * réellement disponibles.
  */
-export const db = new Proxy({} as ReturnType<typeof createDb>, {
+export const db = new Proxy({ } as any, {
   get(_target, prop, receiver) {
     cachedDb ??= createDb()
     const value = Reflect.get(cachedDb as object, prop, receiver)

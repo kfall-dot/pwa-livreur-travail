@@ -83,12 +83,12 @@ export async function getDriversByPhone(phone: string): Promise<Driver[]> {
 /** Dev local : lève l’unicité globale du téléphone pour pouvoir recréer un livreur de test. */
 export async function relaxDriversPhoneUniqueForDev(): Promise<void> {
   try {
-    await db.execute(sql`ALTER TABLE drivers DROP CONSTRAINT IF EXISTS drivers_phone_key`)
+    await (db as any).execute(sql`ALTER TABLE drivers DROP CONSTRAINT IF EXISTS drivers_phone_key`)
   } catch {
     /* contrainte déjà absente */
   }
   try {
-    await db.execute(sql`DROP INDEX IF EXISTS drivers_phone_key`)
+    await (db as any).execute(sql`DROP INDEX IF EXISTS drivers_phone_key`)
   } catch {
     /* index déjà absent */
   }
@@ -2428,7 +2428,7 @@ export async function resetAllData(): Promise<void> {
   // En pilote, un reset ne doit plus vider Produits / Points / Livreurs.
   if (process.env.ALLOW_WIPE_USERS === 'true' || process.env.ALLOW_WIPE_USERS === '1') {
     try {
-      await db.execute(sql`
+      await (db as any).execute(sql`
         TRUNCATE TABLE
           eb_parse_runs,
           whatsapp_messages,
@@ -2459,7 +2459,7 @@ export async function resetAllData(): Promise<void> {
       `)
     } catch (err) {
       if (!isPgMissingRelation(err)) throw err
-      await db.execute(sql`
+      await (db as any).execute(sql`
         TRUNCATE TABLE
           certificates,
           otps,
