@@ -1,5 +1,5 @@
-import { neonConfig } from '@neondatabase/serverless'
-import { drizzle } from 'drizzle-orm/netlify-db'
+import { neonConfig, Pool } from '@neondatabase/serverless'
+import { drizzle } from 'drizzle-orm/neon-serverless'
 import ws from 'ws'
 import * as schema from './schema.js'
 
@@ -11,8 +11,8 @@ if (typeof (globalThis as { WebSocket?: unknown }).WebSocket === 'undefined') {
 /**
  * URL utilisable par le driver Neon (prod / override manuel).
  * Ignore les proxies locaux netlify:dev (`postgres://localhost:…`) — sans user/password
- * ils font planter `neon()` ; on retombe alors sur E2E_DATABASE_URL (branche e2e)
- * si elle est distante, sinon sur la résolution Netlify Database.
+ * ils font planter `new Pool()` ; on retombe alors sur E2E_DATABASE_URL (branche e2e)
+ * si elle est distante.
  */
 function isRemoteNeonUrl(url: string): boolean {
   try {
@@ -27,35 +27,37 @@ function isRemoteNeonUrl(url: string): boolean {
 }
 
 function createDb() {
-  // Typage public de drizzle-orm/netlify-db (1.0-beta) : DrizzlePgConfig fait
+  // Typage public de drizzle-orm/neon-serverless (1.0-beta) : DrizzlePgConfig fait
   // `Omit<DrizzleConfig<…>, 'schema'>`, donc `schema` n'existe plus côté types
   // alors que le runtime le lit toujours (validé en prod). On caste donc
   // l'objet littéral vers le membre « objet » de l'union des paramètres.
   // ⚠️ L'union ENTIÈRE ([string] | [string, cfg] | [cfg]) ne satisfait aucune
   // overload (TS2345) — seul ce membre extrait passe.
   type DrizzleConfigArg = Exclude<Parameters<typeof drizzle>[0], string>
+
   const netlifyUrl = process.env.NETLIFY_DB_URL?.trim()
   if (netlifyUrl && isRemoteNeonUrl(netlifyUrl)) {
-    return drizzle({ connection: { connectionString: netlifyUrl }, schema } as unknown as DrizzleConfigArg)
+    const pool = new Pool({ connectionString: netlifyUrl })
+    return drizzle({ client: pool, schema } as unknown as DrizzleConfigArg)
   }
+
   // netlify:dev injecte souvent un Postgres local (sans tables) à la place de NETLIFY_DB_URL.
   const e2eUrl = process.env.E2E_DATABASE_URL?.trim()
   if (e2eUrl && isRemoteNeonUrl(e2eUrl)) {
-    return drizzle({ connection: { connectionString: e2eUrl }, schema } as unknown as DrizzleConfigArg)
+    const pool = new Pool({ connectionString: e2eUrl })
+    return drizzle({ client: pool, schema } as unknown as DrizzleConfigArg)
   }
-  return drizzle({ schema } as unknown as DrizzleConfigArg)
+
+  throw new Error('NETLIFY_DB_URL (ou E2E_DATABASE_URL) doit être définie avec une URL Neon distante.')
 }
 
 /**
  * Client applicatif — NE PAS créer au chargement du module.
  *
- * Netlify évalue le bundle des fonctions lors du déploiement (upload de la
- * version Cloudflare Worker interne « pwa-livreur-api ») SANS injecter
- * NETLIFY_DB_URL : un `drizzle()` exécuté au top-level y lève
- * « NETLIFY_DB_URL environment variable is not set » et fait échouer tout le
- * déploiement. Le client est donc construit paresseusement à la première
- * utilisation (une requête), quand les variables d'environnement sont
- * réellement disponibles.
+ * L'évaluation du bundle (Netlify, Railway build, etc.) se fait sans variables
+ * d'environnement DB : un `new Pool()` exécuté au top-level lèverait une erreur.
+ * Le client est donc construit paresseusement à la première utilisation
+ * (une requête), quand les variables d'environnement sont réellement disponibles.
  */
 export const db = new Proxy({} as ReturnType<typeof createDb>, {
   get(_target, prop, receiver) {
