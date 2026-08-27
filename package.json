@@ -10,7 +10,7 @@
     "dev:local": "bash scripts/dev-local.sh",
     "build": "tsc -b && vite build",
     "build:server": "tsc -p tsconfig.server.json",
-    "start": "node dist-server/index.js",
+    "start": "node dist-server/server/index.js",
     "lint": "eslint .",
     "test": "npm run test:unit",
     "test:unit": "tsx --test src/lib/deliveredQuantity.test.ts src/lib/deliveryAccess.test.ts src/lib/deliveryUnits.test.ts src/lib/livraisonAdapter.test.ts src/lib/phone.test.ts shared/declarationValidation.test.ts shared/expectedProducts.test.ts shared/orderRef.test.ts shared/sentryFilters.test.ts shared/email.test.ts shared/saFinanceGate.test.ts shared/ebCatalog.test.ts server/db/stopPayloadCompare.test.ts server/services/smsMessages.test.ts server/services/sms.test.ts server/services/deliveryNotificationBody.test.ts server/services/certificateHtml.test.ts server/services/deliveryOtpAssist.test.ts server/services/ebParser.test.ts server/services/ebFiche.test.ts server/services/ebSignature.test.ts server/services/pdfDocuments.test.ts server/services/bcRegister.test.ts server/services/siteBudget.test.ts server/services/siteIndicators.test.ts server/lib/driverDayStops.test.ts server/middleware/rateLimit.test.ts server/lib/resolveOtpContact.test.ts server/config/production.test.ts server/config/productionAudit.test.ts server/config/databaseProtection.test.ts server/lib/totp.test.ts server/lib/driverLoginLockout.test.ts server/lib/securitySpikeMonitor.test.ts server/lib/tenant.test.ts server/lib/pgErrors.test.ts server/lib/deliveryPhotoResponse.test.ts server/lib/validation.test.ts server/lib/uploadMime.test.ts server/lib/lineAttachmentStore.test.ts",
