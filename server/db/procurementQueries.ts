@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from './index.js'
 import {
@@ -788,7 +788,7 @@ export async function listDrafts(companyId: string) {
   return db
     .select()
     .from(purchaseRequestDrafts)
-    .where(eq(purchaseRequestDrafts.companyId, companyId))
+    .where(and(eq(purchaseRequestDrafts.companyId, companyId), ne(purchaseRequestDrafts.status, 'deleted')))
     .orderBy(desc(purchaseRequestDrafts.createdAt))
 }
 
