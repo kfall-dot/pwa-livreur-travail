@@ -16,6 +16,7 @@ import {
   fetchSuppliers,
   pasteWhatsappDraft,
   createBlankEbFiche,
+  deleteDraft,
   rejectRequest,
   submitDraft,
   submitRequestFinance,
@@ -391,6 +392,24 @@ export function AchatsTab({
   const refreshInbox = () => {
     onInboxCountChanged?.()
     void loadLists()
+  }
+
+  const handleDeleteDraft = async (draftId: string) => {
+    if (!window.confirm('Supprimer ce brouillon d’EB ? Cette action est irréversible.')) return
+    setActionLoading(true)
+    try {
+      await deleteDraft(draftId)
+      toast.success('Brouillon supprimé.')
+      if (selectedDraftId === draftId) {
+        setSelectedDraftId(null)
+        setDraftDetail(null)
+      }
+      refreshInbox()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Suppression échouée')
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const handleValidateDraft = async () => {
@@ -1009,25 +1028,54 @@ export function AchatsTab({
           {!loading && view === 'inbox' && drafts.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {drafts.map((d) => (
-                <button
+                <div
                   key={d.id}
-                  type="button"
-                  data-testid="btp-draft-row"
-                  onClick={() => setSelectedDraftId(d.id)}
-                  style={{ ...css.cardClickable, textAlign: 'left', width: '100%' }}
+                  style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: 700, marginBottom: 4 }}>
-                        {d.siteName ?? 'Chantier à confirmer'}
+                  <button
+                    type="button"
+                    data-testid="btp-draft-row"
+                    onClick={() => setSelectedDraftId(d.id)}
+                    style={{ ...css.cardClickable, textAlign: 'left', flex: 1, minWidth: 0 }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                          {d.siteName ?? 'Chantier à confirmer'}
+                        </div>
+                        <div style={css.meta}>
+                          {d.parsedLines?.length ?? 0} ligne(s) · confiance {formatConfidence(d.confidenceScore)}
+                        </div>
                       </div>
-                      <div style={css.meta}>
-                        {d.parsedLines?.length ?? 0} ligne(s) · confiance {formatConfidence(d.confidenceScore)}
-                      </div>
+                      <ProcurementStatusBadge status={d.status} />
                     </div>
-                    <ProcurementStatusBadge status={d.status} />
-                  </div>
-                </button>
+                  </button>
+                  {procurementRole === 'technical_director' && (
+                    <button
+                      type="button"
+                      data-testid="btp-draft-delete"
+                      aria-label={`Supprimer le brouillon ${d.id}`}
+                      title="Supprimer le brouillon"
+                      disabled={actionLoading}
+                      onClick={(ev) => {
+                        ev.stopPropagation()
+                        void handleDeleteDraft(d.id)
+                      }}
+                      style={{
+                        alignSelf: 'center',
+                        border: '1px solid var(--border, #e5e7eb)',
+                        background: 'var(--bg, #fff)',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                        color: '#b91c1c',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Supprimer
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}

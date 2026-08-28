@@ -317,6 +317,10 @@ export function SuiviChantierTab({
   handleAuth: (status: number) => boolean
   procurementRole: ProcurementRole | null
 }) {
+  const today = new Date()
+  const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  const [month, setMonth] = useState(defaultMonth)
+
   const [rows, setRows] = useState<SiteStockRow[]>([])
   const [budgets, setBudgets] = useState<SiteBudget[]>([])
   const [indicatorsBySite, setIndicatorsBySite] = useState<Record<string, SiteIndicators>>({})
@@ -405,9 +409,24 @@ export function SuiviChantierTab({
             Enveloppe CdG : budget, % d’engagement, écart, feux 2 % / 5 %, avenant manquant. Puis stock livré.
           </p>
         </div>
-        <button type="button" onClick={() => void load()} style={css.btnOutline} data-testid="mgr-suivi-chantier-refresh">
-          Actualiser
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
+          <label style={css.meta}>
+            Mois
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              style={{ ...css.input, display: 'block', marginTop: 4, width: 180 }}
+              data-testid="mgr-suivi-chantier-month"
+            />
+          </label>
+          <button type="button" onClick={() => setMonth(defaultMonth)} style={css.btnOutline} data-testid="mgr-suivi-chantier-reset-month">
+            Réinitialiser
+          </button>
+          <button type="button" onClick={() => void load()} style={css.btnOutline} data-testid="mgr-suivi-chantier-refresh">
+            Actualiser
+          </button>
+        </div>
       </div>
       {error && <AlertBox>{error}</AlertBox>}
       {budgets.length > 0 && (
@@ -424,7 +443,7 @@ export function SuiviChantierTab({
               </tr>
             </thead>
             <tbody>
-              {budgets.map((b) => {
+              {budgets.filter((b) => b.engagedFcfa > 0).map((b) => {
                 const light = (b.trafficLight ?? 'none') as BudgetTrafficLight
                 return (
                   <tr

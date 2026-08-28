@@ -33,6 +33,7 @@ import {
   recordApprovalStep,
   setRequestLineAttachment,
   updateDraft,
+  deleteDraft,
   updatePurchaseRequestStatus,
   updateRequestLinePrices,
 } from '../db/procurementQueries.js'
@@ -665,6 +666,25 @@ procurementRouter.patch(
       await mergeDraftParseHints(draftId, hints)
     }
     res.json({ draft })
+  },
+)
+
+procurementRouter.delete(
+  '/drafts/:id',
+  requireProcurementRole('technical_director'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    try {
+      const ok = await deleteDraft(manager.companyId, String(req.params.id))
+      if (!ok) {
+        res.status(404).json({ message: 'Brouillon introuvable' })
+        return
+      }
+      res.status(204).end()
+    } catch (err) {
+      console.error('[procurement] delete draft error', err)
+      res.status(500).json({ message: 'Suppression du brouillon impossible' })
+    }
   },
 )
 

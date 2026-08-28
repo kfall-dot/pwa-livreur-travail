@@ -851,6 +851,29 @@ export async function updateDraft(
   return row ?? null
 }
 
+/**
+ * Supprime un brouillon d'EB (rôle DT) et ses artefacts de parsing associés.
+ * Retourne true si un brouillon a bien été supprimé.
+ */
+export async function deleteDraft(companyId: string, draftId: string): Promise<boolean> {
+  const [draft] = await db
+    .select({ id: purchaseRequestDrafts.id })
+    .from(purchaseRequestDrafts)
+    .where(and(eq(purchaseRequestDrafts.id, draftId), eq(purchaseRequestDrafts.companyId, companyId)))
+    .limit(1)
+  if (!draft) return false
+
+  await db
+    .delete(ebParseRuns)
+    .where(eq(ebParseRuns.draftId, draftId))
+
+  await db
+    .delete(purchaseRequestDrafts)
+    .where(and(eq(purchaseRequestDrafts.id, draftId), eq(purchaseRequestDrafts.companyId, companyId)))
+
+  return true
+}
+
 export async function linkDraftToRequest(draftId: string, purchaseRequestId: string) {
   await db
     .update(purchaseRequestDrafts)
