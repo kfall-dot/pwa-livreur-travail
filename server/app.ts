@@ -3,6 +3,7 @@ import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { getDeliveryPhotosStore, isBlobsEnabled } from './lib/blobs.js'
+import { isLocalPhotoStorageEnabled, readPhotoLocal } from './lib/deliveryPhotoLocal.js'
 import { resolvePhotoKey } from './lib/deliveryPhotoResponse.js'
 import { corsOptions } from './config/cors.js'
 
@@ -84,7 +85,7 @@ export function createApp() {
 
   // ─── Photo retrieval (driver) ───────────────────────────────────────────────
   const serveDriverPhoto = async (req: express.Request, res: express.Response) => {
-    if (!isBlobsEnabled()) {
+    if (!isBlobsEnabled() && !isLocalPhotoStorageEnabled()) {
       res.status(503).json({ message: 'Stockage photo non disponible en mode dev local.' })
       return
     }
@@ -103,15 +104,32 @@ export function createApp() {
       const owned = await assertDriverOwnsDelivery(user.sub, deliveryId, res)
       if (!owned) return
 
-      const store = getDeliveryPhotosStore()
-      const result = await store.get(photoId, { type: 'arrayBuffer' })
-      if (!result) {
-        res.status(404).json({ message: 'Photo introuvable' })
+      if (isBlobsEnabled()) {
+        const store = getDeliveryPhotosStore()
+        const result = await store.get(photoId, { type: 'arrayBuffer' })
+        if (!result) {
+          res.status(404).json({ message: 'Photo introuvable' })
+          return
+        }
+        res.set('Content-Type', 'image/jpeg')
+        res.set('Cache-Control', 'private, max-age=86400')
+        res.send(Buffer.from(result))
         return
       }
-      res.set('Content-Type', 'image/jpeg')
-      res.set('Cache-Control', 'private, max-age=86400')
-      res.send(Buffer.from(result))
+
+      if (isLocalPhotoStorageEnabled()) {
+        const local = readPhotoLocal(photoId)
+        if (!local) {
+          res.status(404).json({ message: 'Photo introuvable' })
+          return
+        }
+        res.set('Content-Type', 'image/jpeg')
+        res.set('Cache-Control', 'private, max-age=86400')
+        res.send(local.buffer)
+        return
+      }
+
+      res.status(503).json({ message: 'Stockage photo non disponible.' })
     } catch (err) {
       console.error('[photos] get error', err)
       res.status(500).json({ message: 'Erreur lecture photo' })

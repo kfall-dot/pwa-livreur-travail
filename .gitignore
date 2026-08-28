@@ -34,3 +34,6 @@ dev-dist
 # Local Netlify folder
 .netlify
 .wrangler/
+
+# Photos de livraison en stockage local (dev / fallback Railway)
+.data/

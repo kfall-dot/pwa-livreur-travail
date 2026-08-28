@@ -3,6 +3,11 @@ import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 import { validateStopProducts } from '../../shared/expectedProducts.js'
 import { getDeliveryPhotosStore, isBlobsEnabled } from '../lib/blobs.js'
+import {
+  isLocalPhotoStorageEnabled,
+  listPhotosLocal,
+  readPhotoLocal,
+} from '../lib/deliveryPhotoLocal.js'
 import { buildPhotoListItem, resolvePhotoKey } from '../lib/deliveryPhotoResponse.js'
 import {
   createDriver,
@@ -2073,6 +2078,17 @@ dashboardRouter.get('/dashboard/deliveries/:id/photos', requireManager, async (r
     }
 
     if (!isBlobsEnabled()) {
+      if (isLocalPhotoStorageEnabled()) {
+        const photos = listPhotosLocal(deliveryId).map((p) => {
+          const data = p.buffer.buffer.slice(
+            p.buffer.byteOffset,
+            p.buffer.byteOffset + p.buffer.byteLength
+          ) as ArrayBuffer
+          return buildPhotoListItem(p.photoId, p.meta, data, '/dashboard/photos')
+        })
+        res.json({ deliveryId, blobsEnabled: false, photoStorage: 'local', photos })
+        return
+      }
       const count = await getPhotoCount(deliveryId)
       res.json({
         deliveryId,
@@ -2105,7 +2121,7 @@ dashboardRouter.get('/dashboard/deliveries/:id/photos', requireManager, async (r
 })
 
 dashboardRouter.get('/dashboard/photos', requireManager, async (req, res) => {
-  if (!isBlobsEnabled()) {
+  if (!isBlobsEnabled() && !isLocalPhotoStorageEnabled()) {
     res.status(503).json({ message: 'Stockage photo non disponible.' })
     return
   }
@@ -2120,15 +2136,26 @@ dashboardRouter.get('/dashboard/photos', requireManager, async (req, res) => {
     return
   }
   try {
-    const store = getDeliveryPhotosStore()
-    const result = await store.get(key, { type: 'arrayBuffer' })
-    if (!result) {
+    if (isBlobsEnabled()) {
+      const store = getDeliveryPhotosStore()
+      const result = await store.get(key, { type: 'arrayBuffer' })
+      if (!result) {
+        res.status(404).json({ message: 'Photo introuvable' })
+        return
+      }
+      res.set('Content-Type', 'image/jpeg')
+      res.set('Cache-Control', 'private, max-age=86400')
+      res.send(Buffer.from(result))
+      return
+    }
+    const local = readPhotoLocal(key)
+    if (!local) {
       res.status(404).json({ message: 'Photo introuvable' })
       return
     }
     res.set('Content-Type', 'image/jpeg')
     res.set('Cache-Control', 'private, max-age=86400')
-    res.send(Buffer.from(result))
+    res.send(local.buffer)
   } catch (err) {
     console.error('[dashboard] photo get error', err)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -2136,7 +2163,7 @@ dashboardRouter.get('/dashboard/photos', requireManager, async (req, res) => {
 })
 
 dashboardRouter.get('/dashboard/photos/{*photoId}', requireManager, async (req, res) => {
-  if (!isBlobsEnabled()) {
+  if (!isBlobsEnabled() && !isLocalPhotoStorageEnabled()) {
     res.status(503).json({ message: 'Stockage photo non disponible.' })
     return
   }
@@ -2147,15 +2174,26 @@ dashboardRouter.get('/dashboard/photos/{*photoId}', requireManager, async (req, 
       res.status(404).json({ message: 'Photo introuvable' })
       return
     }
-    const store = getDeliveryPhotosStore()
-    const result = await store.get(photoId, { type: 'arrayBuffer' })
-    if (!result) {
+    if (isBlobsEnabled()) {
+      const store = getDeliveryPhotosStore()
+      const result = await store.get(photoId, { type: 'arrayBuffer' })
+      if (!result) {
+        res.status(404).json({ message: 'Photo introuvable' })
+        return
+      }
+      res.set('Content-Type', 'image/jpeg')
+      res.set('Cache-Control', 'private, max-age=86400')
+      res.send(Buffer.from(result))
+      return
+    }
+    const local = readPhotoLocal(photoId)
+    if (!local) {
       res.status(404).json({ message: 'Photo introuvable' })
       return
     }
     res.set('Content-Type', 'image/jpeg')
     res.set('Cache-Control', 'private, max-age=86400')
-    res.send(Buffer.from(result))
+    res.send(local.buffer)
   } catch (err) {
     console.error('[dashboard] photo get error', err)
     res.status(500).json({ message: 'Erreur serveur' })

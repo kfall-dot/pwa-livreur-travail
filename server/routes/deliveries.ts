@@ -9,6 +9,11 @@ import { resolveOtpCode, allowTestBypass } from '../config/production.js'
 import { haversineDistanceM } from '../utils/geo.js'
 import { testBypass } from '../testBypass.js'
 import { getDeliveryPhotosStore, isBlobsEnabled } from '../lib/blobs.js'
+import {
+  isLocalPhotoStorageEnabled,
+  listPhotosLocal,
+  savePhotoLocal,
+} from '../lib/deliveryPhotoLocal.js'
 import { buildPhotoListItem } from '../lib/deliveryPhotoResponse.js'
 import {
   checkAndAddPhotoHash,
@@ -201,6 +206,21 @@ deliveriesRouter.post('/:id/photo', upload.single('photo'), async (req, res) => 
         res.status(503).json({ message: 'Stockage photo indisponible, réessayez.' })
         return
       }
+    } else if (isLocalPhotoStorageEnabled()) {
+      savePhotoLocal(photoId, req.file.buffer, {
+        deliveryId: stop.id,
+        paletteNumber: (req.body.paletteNumber as string) ?? '',
+        lat: String(req.body.lat ?? ''),
+        lng: String(req.body.lng ?? ''),
+        hash,
+        uploadedAt: new Date().toISOString(),
+      })
+    } else {
+      if (hashRecorded) {
+        await removePhotoHash(stop.id, hash)
+      }
+      res.status(503).json({ message: 'Stockage photo indisponible, réessayez.' })
+      return
     }
 
     const photosCount = await getPhotoCount(stop.id)
@@ -219,6 +239,19 @@ deliveriesRouter.get('/:id/photos', async (req, res) => {
     if (!stop) return
 
     if (!isBlobsEnabled()) {
+      if (isLocalPhotoStorageEnabled()) {
+        const photos: PhotoMeta[] = listPhotosLocal(stop.id).map((p) => ({
+          photoId: p.photoId,
+          url: '',
+          paletteNumber: String(p.meta.paletteNumber ?? `PRODUIT-?`),
+          lat: String(p.meta.lat ?? ''),
+          lng: String(p.meta.lng ?? ''),
+          hash: String(p.meta.hash ?? ''),
+          uploadedAt: String(p.meta.uploadedAt ?? ''),
+        }))
+        res.json({ deliveryId: stop.id, photos, blobsEnabled: false, photoStorage: 'local' })
+        return
+      }
       const count = await getPhotoCount(stop.id)
       const photos: PhotoMeta[] = Array.from({ length: count }, (_, i) => ({
         photoId: `${stop.id}/photo-${i}`,
