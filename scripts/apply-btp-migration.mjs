@@ -21,7 +21,7 @@ if (!url) {
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../netlify/database/migrations')
 const dirs = readdirSync(migrationsDir, { withFileTypes: true })
-  .filter((d) => d.isDirectory() && /btp_procurement|eb_fiche|eb_line_price|catalog_chantiers|site_budget|cdg_review|eb_line_spend|bc_register/.test(d.name))
+  .filter((d) => d.isDirectory() && /btp_procurement|eb_fiche|eb_line_price|catalog_chantiers|site_budget|cdg_review|eb_line_spend|bc_register|draft_soft_delete/.test(d.name))
   .map((d) => d.name)
   .sort()
 
