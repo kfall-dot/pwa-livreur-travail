@@ -158,12 +158,15 @@ export async function updateDraft(id: string, payload: DraftUpdatePayload): Prom
   return data.draft
 }
 
-export async function deleteDraft(id: string): Promise<void> {
+/**
+ * Suppression logique d’un brouillon d’EB (statut "deleted" + ebParseRuns "archived").
+ */
+export async function archiveDraft(id: string): Promise<void> {
   const res = await authFetch(`${BASE}/drafts/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
+    const err = (await res.json().catch(() => ({}))) as { message?: string }
     throw new Error(err.message ?? 'Suppression du brouillon impossible')
   }
 }

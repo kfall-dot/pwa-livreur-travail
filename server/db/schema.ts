@@ -55,6 +55,7 @@ export const purchaseRequestStatusEnum = pgEnum('purchase_request_status', [
   'delivery_scheduled',
   'delivered',
   'rejected',
+  'deleted',
 ])
 
 export const whatsappMessageTypeEnum = pgEnum('whatsapp_message_type', [
@@ -645,6 +646,8 @@ export const purchaseRequestDrafts = pgTable('purchase_request_drafts', {
   confidenceScore: numeric('confidence_score', { precision: 5, scale: 2 }),
   needsReview: boolean('needs_review').notNull().default(true),
   purchaseRequestId: text('purchase_request_id').references(() => purchaseRequests.id),
+  deletedAt: timestamp('deleted_at'),
+  deletedById: text('deleted_by_id').references(() => managers.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

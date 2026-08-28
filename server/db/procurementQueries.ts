@@ -852,10 +852,14 @@ export async function updateDraft(
 }
 
 /**
- * Supprime un brouillon d'EB (rôle DT) et ses artefacts de parsing associés.
- * Retourne true si un brouillon a bien été supprimé.
+ * Supprime LOGIQUEMENT un brouillon d'EB (statut "deleted") — traçabilité conservée.
+ * Retourne true si un brouillon a bien été mis à jour.
  */
-export async function deleteDraft(companyId: string, draftId: string): Promise<boolean> {
+export async function softDeleteDraft(
+  companyId: string,
+  draftId: string,
+  deletedById?: string,
+): Promise<boolean> {
   const [draft] = await db
     .select({ id: purchaseRequestDrafts.id })
     .from(purchaseRequestDrafts)
@@ -864,11 +868,12 @@ export async function deleteDraft(companyId: string, draftId: string): Promise<b
   if (!draft) return false
 
   await db
-    .delete(ebParseRuns)
-    .where(eq(ebParseRuns.draftId, draftId))
-
-  await db
-    .delete(purchaseRequestDrafts)
+    .update(purchaseRequestDrafts)
+    .set({
+      status: 'deleted',
+      deletedAt: new Date(),
+      deletedById: deletedById ?? null,
+    })
     .where(and(eq(purchaseRequestDrafts.id, draftId), eq(purchaseRequestDrafts.companyId, companyId)))
 
   return true

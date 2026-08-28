@@ -16,7 +16,7 @@ import {
   fetchSuppliers,
   pasteWhatsappDraft,
   createBlankEbFiche,
-  deleteDraft,
+    archiveDraft,
   rejectRequest,
   submitDraft,
   submitRequestFinance,
@@ -398,7 +398,7 @@ export function AchatsTab({
     if (!window.confirm('Supprimer ce brouillon d’EB ? Cette action est irréversible.')) return
     setActionLoading(true)
     try {
-      await deleteDraft(draftId)
+            await archiveDraft(draftId)
       toast.success('Brouillon supprimé.')
       if (selectedDraftId === draftId) {
         setSelectedDraftId(null)
