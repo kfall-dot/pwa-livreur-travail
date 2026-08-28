@@ -6,6 +6,9 @@ import {
   mergeDriverStopsForDay as mergeDayStops,
 } from '../lib/driverDayStops.js'
 import { db } from './index.js'
+
+/** Exécution SQL brute — client drizzle typé volontairement large pour le DDL ad hoc. */
+const rawDb = db as unknown as { execute: (query: unknown) => Promise<unknown> }
 import {
   certificates,
   companies,
@@ -83,12 +86,12 @@ export async function getDriversByPhone(phone: string): Promise<Driver[]> {
 /** Dev local : lève l’unicité globale du téléphone pour pouvoir recréer un livreur de test. */
 export async function relaxDriversPhoneUniqueForDev(): Promise<void> {
   try {
-    await (db as any).execute(sql`ALTER TABLE drivers DROP CONSTRAINT IF EXISTS drivers_phone_key`)
+    await rawDb.execute(sql`ALTER TABLE drivers DROP CONSTRAINT IF EXISTS drivers_phone_key`)
   } catch {
     /* contrainte déjà absente */
   }
   try {
-    await (db as any).execute(sql`DROP INDEX IF EXISTS drivers_phone_key`)
+    await rawDb.execute(sql`DROP INDEX IF EXISTS drivers_phone_key`)
   } catch {
     /* index déjà absent */
   }
@@ -2428,7 +2431,7 @@ export async function resetAllData(): Promise<void> {
   // En pilote, un reset ne doit plus vider Produits / Points / Livreurs.
   if (process.env.ALLOW_WIPE_USERS === 'true' || process.env.ALLOW_WIPE_USERS === '1') {
     try {
-      await (db as any).execute(sql`
+      await rawDb.execute(sql`
         TRUNCATE TABLE
           eb_parse_runs,
           whatsapp_messages,
@@ -2459,7 +2462,7 @@ export async function resetAllData(): Promise<void> {
       `)
     } catch (err) {
       if (!isPgMissingRelation(err)) throw err
-      await (db as any).execute(sql`
+      await rawDb.execute(sql`
         TRUNCATE TABLE
           certificates,
           otps,
