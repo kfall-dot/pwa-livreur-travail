@@ -42,6 +42,22 @@ if [[ "$(ulimit -n)" -lt 10240 ]]; then
   echo "    ulimit -n $(ulimit -n)"
 fi
 
+# ── Warm-up bloquant de la branche DB e2e (Neon) ──────────────────────────────
+# En CI, Neon peut être endormi (5 min d'inactivité, build Vite = ~4 min). Le
+# script keep-alive (lancé par e2e-server.sh) ne retry pas → sans ce warmup
+# bloquant, le webServer boot sur un pool WebSocket mort → reset/seed → 500
+# intermittent → tous les tests d'auth échouent en cascade (URL '/' attendue
+# mais reste sur '/login').
+# 5 tentatives espacées de 10s = 50s max → garantit une connexion avant le build.
+if [[ -n "${E2E_DATABASE_URL:-}" ]]; then
+  echo "==> Warm-up branche DB e2e (Neon)"
+  if ! node scripts/warmup-db.mjs; then
+    echo "ERREUR: branche DB e2e inaccessible après 5 essais — la CI s'arrête."
+    echo "Vérifiez E2E_DATABASE_URL / état de la branche Neon."
+    exit 1
+  fi
+fi
+
 # Aligné sur scripts/netlify-dev.sh — CI=1 exige E2E_DATABASE_URL (voir playwright.config.ts).
 load_env_file() {
   local file="$1"
