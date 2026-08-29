@@ -1,1 +1,0 @@
-ALTER TABLE "delivery_points" ADD COLUMN "products" jsonb;
