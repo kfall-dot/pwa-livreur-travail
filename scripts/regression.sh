@@ -36,7 +36,7 @@ echo "==> 3/4 Tests unitaires (quantités livrées)"
 npm run test:unit
 
 echo ""
-echo "==> 4/4 Tests E2E (netlify dev :8888)"
+echo "==> 4/4 Tests E2E (Express :8888, build dist — scripts/e2e-server.sh)"
 if [[ "$(ulimit -n)" -lt 10240 ]]; then
   ulimit -n 10240 2>/dev/null || ulimit -n 4096 2>/dev/null || true
   echo "    ulimit -n $(ulimit -n)"
@@ -63,7 +63,7 @@ load_env_file ".env.e2e.local"
 if [[ -n "${E2E_DATABASE_URL:-}" ]]; then
   export NETLIFY_DB_URL="$E2E_DATABASE_URL"
   echo "    DB E2E : .env.e2e.local"
-  echo "    Migrations BTP / schéma..."
+  echo "    Migrations BTP / schéma... (aussi rejouées par scripts/e2e-server.sh)"
   if [[ -n "${NETLIFY_DB_URL:-}" ]]; then
     node scripts/apply-btp-migration.mjs || echo "    (migration BTP — déjà appliquée ou DB indisponible)"
   fi
@@ -80,7 +80,7 @@ fi
 echo "    ($TEST_COUNT tests Playwright)"
 bash scripts/kill-e2e-ports.sh
 # GitHub Actions pose déjà CI=true. En local, ne pas forcer CI=1 :
-# ça relance 3× chaque test après un crash netlify (EMFILE) et triple l’attente.
+# ça relance chaque test échoué et triple l'attente sur machine lente.
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
   npm run test:e2e
 else

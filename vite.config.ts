@@ -24,6 +24,10 @@ export default defineConfig({
         ]
       : []),
     VitePWA({
+      // E2E (build de prod servi par Express) : SW désactivé pour garder la
+      // parité avec l'ancien netlify dev (devOptions.enabled=false) — sans ça,
+      // le precache Workbox fige les assets entre les specs Playwright.
+      disable: process.env.VITE_E2E === 'true',
       registerType: 'autoUpdate',
       includeAssets: [
         'favicon.svg',

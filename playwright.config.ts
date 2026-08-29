@@ -2,13 +2,14 @@ import { defineConfig, devices } from '@playwright/test'
 import { isProtectedProductionDatabase } from './server/config/databaseProtection.js'
 
 /**
- * E2E test setup uses `netlify dev` as the single web server.
- * This provides Netlify DB, Blobs, and Functions in one proxy on port 8888.
+ * E2E : serveur autonome `scripts/e2e-server.sh` — un seul process Express
+ * qui sert le frontend compilé (dist/) et l'API sur la même origine :8888,
+ * comme en production Railway. Plus de netlify dev (CLI instable, photos
+ * Blobs ≠ Railway, timeout functions 30s).
  *
  * Requirements:
- *   - Project linked:  netlify link   (or NETLIFY_SITE_ID + NETLIFY_AUTH_TOKEN in CI)
  *   - DB branche E2E : E2E_DATABASE_URL (pas la prod pilote — voir docs/SECURITY-OPS.md §4)
- *   - Migrations:      npm run db:migrate (avec E2E_DATABASE_URL exportée)
+ *   - Migrations:      appliquées automatiquement par scripts/e2e-server.sh
  *
  * Run tests:  npm run test:e2e
  */
@@ -26,8 +27,7 @@ if (e2eDatabaseUrl && isProtectedProductionDatabase(e2eDatabaseUrl)) {
 }
 if (!e2eDatabaseUrl && !process.env.CI) {
   console.warn(
-    '[e2e] E2E_DATABASE_URL non défini — netlify dev utilisera la DB du site lié. ' +
-      'Si c’est la prod pilote, resetAndSeed sera refusé (protection active).',
+    '[e2e] E2E_DATABASE_URL non défini — créez .env.e2e.local (scripts/e2e-server.sh la requiert).',
   )
 }
 
@@ -35,10 +35,11 @@ if (!e2eDatabaseUrl && !process.env.CI) {
 const PORT = 8888
 const BASE = `http://localhost:${PORT}`
 
-// netlify dev + Vite cold start (Neon, port 5199) — /api/health seul peut répondre avant le front
-const SERVER_TIMEOUT = process.env.CI ? 180_000 : 120_000
+// Build Vite (~1-2 min machine lente) + boot Express — le /api/health
+// ne répond qu'une fois le serveur réellement prêt (build inclus).
+const SERVER_TIMEOUT = 420_000
 
-/** Env serveur + Vite pour netlify dev (CI et local). Voir config/validations-tests.env */
+/** Env serveur + build Vite pour scripts/e2e-server.sh (CI et local). Voir config/validations-tests.env */
 const E2E_SERVER_ENV: Record<string, string> = {
   GEOFENCE_BYPASS: 'true',
   OTP_CODE: '123456',
@@ -49,15 +50,13 @@ const E2E_SERVER_ENV: Record<string, string> = {
   EMAIL_PROVIDER: 'mock',
   SMS_PROVIDER: 'mock',
   SMS_OTP_FAIL_OPEN: 'true',
+  // Pas de Netlify Blobs en e2e : photos sur disque local, comme en prod Railway.
+  PHOTO_STORAGE: 'local',
   PUBLIC_BASE_URL: `http://localhost:${PORT}`,
   VITE_E2E: 'true',
-  CHOKIDAR_USEPOLLING: '1',
-  CHOKIDAR_INTERVAL: '2000',
   VITE_GEOFENCE_BYPASS: 'true',
   VITE_PHOTOS_BYPASS: 'true',
   PUBLIC_DEMO_ENABLED: 'true',
-  NETLIFY_AUTH_TOKEN: process.env.NETLIFY_AUTH_TOKEN ?? '',
-  NETLIFY_SITE_ID: process.env.NETLIFY_SITE_ID ?? '',
   ...(process.env.CI ? { CI: process.env.CI } : {}),
   ...(e2eDatabaseUrl ? { NETLIFY_DB_URL: e2eDatabaseUrl, E2E_DATABASE_URL: e2eDatabaseUrl } : {}),
 }
@@ -79,10 +78,11 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run netlify:dev',
-    // /login passe par Vite — plus fiable que /api/health seul au cold start
-    url: `${BASE}/login`,
-    stdout: /framework dev server ready/i,
+    // Express + dist — même origine que la prod Railway (plus de netlify dev).
+    command: 'bash scripts/e2e-server.sh',
+    // Le serveur ne répond qu'après le build Vite : /api/health suffit.
+    url: `${BASE}/api/health`,
+    stdout: /API Livreur/,
     reuseExistingServer: !process.env.CI,
     timeout: SERVER_TIMEOUT,
     env: E2E_SERVER_ENV,

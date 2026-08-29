@@ -678,7 +678,10 @@ export function DeliveryPage() {
       }
       updateStop(delivery.id, { status: 'otp_sent' })
       setDeclared(true)
-      setStep('otp')
+      // Course resend→confirmation : ne JAMAIS reculer l'étape si l'utilisateur a
+      // déjà avancé pendant que la réponse du renvoi était en vol (le test e2e
+      // « parcours complet » figeait le bouton Validation… à cause de ça).
+      setStep((prev) => (prev === 'otp' || prev === 'confirm' ? prev : 'otp'))
       setOtpStatus(notice)
       setResendCooldown(import.meta.env.VITE_E2E === 'true' ? 1 : 30)
     } catch (e) {

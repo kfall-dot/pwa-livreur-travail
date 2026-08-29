@@ -35,16 +35,26 @@ function createDb() {
   // overload (TS2345) — seul ce membre extrait passe.
   type DrizzleConfigArg = Exclude<Parameters<typeof drizzle>[0], string>
 
+  // Ne JAMAIS réutiliser une connexion idle : Neon suspend les branches (~5 min
+  // d'inactivité) et le routeur/NAT peut tuer les TCP idle SANS FIN — la
+  // connexion morte hang alors toutes les queries suivantes (sans timeout
+  // par requête, cf. hang « Validation… » en e2e). On ferme les connexions
+  // idle après 30s et on fail-fast si l'établissement dépasse 10s.
+  const poolOptions = {
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+  }
+
   const netlifyUrl = process.env.NETLIFY_DB_URL?.trim()
   if (netlifyUrl && isRemoteNeonUrl(netlifyUrl)) {
-    const pool = new Pool({ connectionString: netlifyUrl })
+    const pool = new Pool({ connectionString: netlifyUrl, ...poolOptions })
     return drizzle({ client: pool, schema } as unknown as DrizzleConfigArg)
   }
 
   // netlify:dev injecte souvent un Postgres local (sans tables) à la place de NETLIFY_DB_URL.
   const e2eUrl = process.env.E2E_DATABASE_URL?.trim()
   if (e2eUrl && isRemoteNeonUrl(e2eUrl)) {
-    const pool = new Pool({ connectionString: e2eUrl })
+    const pool = new Pool({ connectionString: e2eUrl, ...poolOptions })
     return drizzle({ client: pool, schema } as unknown as DrizzleConfigArg)
   }
 

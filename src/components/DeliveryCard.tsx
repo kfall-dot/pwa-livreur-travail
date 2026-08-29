@@ -59,7 +59,10 @@ export function DeliveryCard({ delivery, tourDate, isNext = false, stopNumber }:
             </svg>
             {delivery.address}
           </p>
-          <p className="delivery-card__status-line">
+          <p
+            className="delivery-card__status-line"
+            {...(terminal ? { 'aria-label': lockLabel ?? 'Livrée' } : {})}
+          >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <circle cx="12" cy="12" r="9" />
               <polyline points="12 7 12 12 15 14" />
@@ -99,7 +102,7 @@ export function DeliveryCard({ delivery, tourDate, isNext = false, stopNumber }:
       <div
         className="delivery-card-wrap delivery-card-wrap--static"
         data-testid={`delivery-card-${delivery.id}`}
-        aria-label={`${delivery.name} — livrée`}
+        aria-label={`${delivery.name} — ${lockLabel ?? 'Livrée'}`}
       >
         {content}
       </div>

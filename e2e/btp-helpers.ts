@@ -252,6 +252,42 @@ export async function saPriceSubmitCdgApprove(
   return { ...quoted, request: cdg.request }
 }
 
+/**
+ * Après validation CdG (statut `daf_review`) : le DAF approuve puis le SA émet
+ * le bon de commande → `po_ready`. C'est CE moment qui crée l'engagement
+ * budgétaire (feature #4 : le board Suivi n'affiche que les chantiers engagés).
+ */
+export async function completePoAfterCdg(
+  request: APIRequestContext,
+  requestId: string,
+): Promise<{ id: string; status: string }> {
+  const daf = await approveBtpRequest(request, requestId, 'daf')
+  expect(daf.request.status).toBe('sa_review')
+  await loginBtpApi(request, 'sa')
+  const po = await request.post(`${API_BASE}/api/v1/procurement/requests/${requestId}/create-po`, {
+    data: {},
+  })
+  expect(po.ok(), await po.text()).toBeTruthy()
+  const body = (await po.json()) as { request: { id: string; status: string } }
+  expect(body.request.status).toBe('po_ready')
+  return { id: body.request.id, status: body.request.status }
+}
+
+/** EB WhatsApp simulée jusqu'au bon de commande (`po_ready`, site engagé au budget). */
+export async function simulateEbToPo(
+  request: APIRequestContext,
+  unitPriceFcfa: number,
+  options: SaPriceOptions = {},
+): Promise<{ id: string; status: string }> {
+  const simulated = await simulateWhatsappEb(request)
+  const submitted = await dtSubmitDraft(request, simulated.draftId)
+  const quoted = await saPriceAndSubmitFinance(request, submitted.id, unitPriceFcfa, options)
+  expect(quoted.request.status).toBe('cdg_review')
+  const cdg = await approveBtpRequest(request, submitted.id, 'cdg')
+  expect(cdg.request.status).toBe('daf_review')
+  return completePoAfterCdg(request, submitted.id)
+}
+
 export async function loginBtpManager(page: Page, role: 'dt' | 'daf' | 'sa' | 'pdg' | 'cdg'): Promise<void> {
   const email =
     role === 'dt'

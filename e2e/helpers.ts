@@ -1,9 +1,7 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test'
 
-/** Port netlify dev — unique point d'entrée recommandé (DB + Functions). */
+/** Port du serveur e2e (scripts/e2e-server.sh) — unique point d'entrée. */
 export const NETLIFY_DEV_PORT = 8888
-/** Port Vite interne sous netlify dev — ne pas utiliser seul dans le navigateur. */
-export const VITE_DEV_PORT = 5199
 export const API_BASE = `http://localhost:${NETLIFY_DEV_PORT}`
 
 const API = API_BASE

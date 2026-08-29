@@ -1,7 +1,6 @@
 import { test, expect, type APIResponse } from '@playwright/test'
 import {
   API_BASE,
-  VITE_DEV_PORT,
   DEMO_DRIVER,
   DEMO_MANAGER,
   ADMIN_API_TOKEN,
@@ -23,7 +22,7 @@ async function expectJsonBody(res: APIResponse): Promise<Record<string, unknown>
   return body
 }
 
-test.describe('Environnement dev (netlify dev)', () => {
+test.describe('Environnement e2e (Express :8888, build dist)', () => {
   test.describe.configure({ mode: 'serial' })
 
   test.beforeAll(async ({ request }) => {
@@ -245,13 +244,11 @@ test.describe('Environnement dev (netlify dev)', () => {
     expect(patchSm.ok(), await patchSm.text()).toBeTruthy()
 
     // Cas réel : numéro renseigné au catalogue, copie arrêt encore vide
+    // (SQL direct sur la branche e2e — plus de CLI Netlify)
     execFileSync(
-      'npx',
+      'node',
       [
-        'netlify',
-        'database',
-        'connect',
-        '--query',
+        'scripts/e2e-sql.mjs',
         "UPDATE delivery_points SET contact_phone = NULL WHERE id = 'del-1';",
       ],
       { cwd: process.cwd(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
@@ -288,21 +285,27 @@ test.describe('Environnement dev (netlify dev)', () => {
     expect(otp.ok(), await otp.text()).toBeTruthy()
   })
 
-  test('proxy Vite :5199 — /api/v1/health renvoie JSON (régression proxy mort)', async ({
+  test('build servi par Express — / renvoie le HTML de l’app (assets compilés)', async ({
     request,
   }) => {
-    const res = await request.get(`http://localhost:${VITE_DEV_PORT}/api/v1/health`)
-    expect(res.ok(), 'Vite doit proxy /api vers netlify dev (:8888), pas :3001').toBeTruthy()
-    const body = await expectJsonBody(res)
-    expect(body.ok).toBe(true)
+    const res = await request.get(`${API_BASE}/`)
+    expect(res.ok(), 'GET / doit servir dist/index.html (même origine, pas de proxy)').toBeTruthy()
+    const html = await res.text()
+    expect(html).toContain('id="root"')
+    expect(html, 'index.html doit référencer les assets compilés (build Vite)').toMatch(
+      /\/assets\/[\w.-]+\.js/,
+    )
   })
 
-  test('proxy Vite :5199 — login-driver POST renvoie JSON', async ({ request }) => {
-    const res = await request.post(`http://localhost:${VITE_DEV_PORT}/api/v1/auth/login-driver`, {
-      data: { phone: '+2250701234567', pin: '0000' },
-    })
-    expect(res.status()).toBe(401)
-    await expectJsonBody(res)
+  test('asset compilé servi par Express — statique même origine', async ({ request }) => {
+    const index = await request.get(`${API_BASE}/`)
+    expect(index.ok()).toBeTruthy()
+    const asset = (await index.text()).match(/\/assets\/[\w.-]+\.js/)?.[0]
+    expect(asset, 'asset JS introuvable dans index.html').toBeTruthy()
+    const res = await request.get(`${API_BASE}${asset}`)
+    expect(res.ok(), `GET ${asset} doit être servi par Express (statique)`).toBeTruthy()
+    const body = await res.text()
+    expect(body.length).toBeGreaterThan(1000)
   })
 
   test('register-company — espace isolé (I23)', async ({ request }) => {

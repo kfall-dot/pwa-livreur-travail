@@ -8,6 +8,7 @@ import {
   BTP_PILOT,
   BTP_PINS,
   binaryPdfFixture,
+  completePoAfterCdg,
   confirmScheduledBtpDelivery,
   dtSubmitDraft,
   freezeBtpBudget,
@@ -21,6 +22,7 @@ import {
   saPriceAndSubmitFinance,
   saPriceSubmitCdgApprove,
   saPriceLines,
+  simulateEbToPo,
   simulateWhatsappEb,
 } from './btp-helpers'
 
@@ -1456,6 +1458,14 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByTestId('mgr-cdg-file-pipeline')).toContainText(/EB/)
     await page.getByTestId('mgr-cdg-file-validate').click()
     await expect(page.getByTestId(`mgr-achats-request-${submitted.id}`)).toBeVisible({ timeout: UI_READY_TIMEOUT })
+
+    // Feature #4 : le board Suivi n'affiche que les chantiers ENGAGÉS — on termine
+    // le pipeline (CdG + DAF puis BC par le SA) pour que le chantier apparaisse
+    // avec son engagement. Le clic « file du jour » ci-dessus ne fait que naviguer.
+    const cdgApproved = await approveBtpRequest(request, submitted.id, 'cdg')
+    expect(cdgApproved.request.status).toBe('daf_review')
+    await completePoAfterCdg(request, submitted.id)
+
     await page.getByTestId('mgr-cdg-file-unfrozen').click()
     await expect(page.getByTestId('mgr-suivi-chantier')).toBeVisible({ timeout: UI_READY_TIMEOUT })
     await expect(page.getByTestId('mgr-suivi-board')).toBeVisible({ timeout: UI_READY_TIMEOUT })
@@ -1465,6 +1475,9 @@ test.describe('Achats chantier BTP (procurement)', () => {
 
   test('CdG gèle via Suivi chantier ; DT propose ; DAF approuve (UI F01)', async ({ page, request }) => {
     test.setTimeout(180_000)
+    // Feature #4 : le board Suivi n'affiche que les chantiers engagés — on pousse
+    // une EB jusqu'au bon de commande pour rendre le chantier pilotable depuis le Suivi.
+    await simulateEbToPo(request, 1000)
     await loginBtpManager(page, 'cdg')
     await expect(page.getByTestId('mgr-tab-suivi-chantier')).toBeVisible({ timeout: UI_READY_TIMEOUT })
     await page.getByTestId('mgr-tab-suivi-chantier').click()

@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
-# Optionnel : git config core.hooksPath .githooks
-# Bloque le push si la non-régression locale échoue (nécessite Netlify lié + secrets locaux).
+# Garde pre-push : rapide en local (build serveur + lint + unit), E2E complète en CI.
+# La suite e2e complète reste disponible localement : FULL_E2E=1 git push …
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-echo "pre-push: npm run regression"
-npm run regression
+
+if [[ -n "${FULL_E2E:-}" ]]; then
+  echo "pre-push: FULL_E2E=1 → non-régression e2e complète (~40 min)"
+  npm run regression
+else
+  echo "pre-push: garde rapide (build:server + lint + tests unitaires)"
+  npm run build:server
+  npm run lint
+  npm run test:unit
+  echo "pre-push: OK — suite e2e complète → GitHub Actions (.github/workflows/e2e.yml)"
+  echo "          (ou FULL_E2E=1 git push pour la jouer localement)"
+fi
