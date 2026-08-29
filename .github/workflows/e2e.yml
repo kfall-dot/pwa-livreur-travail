@@ -32,9 +32,15 @@ jobs:
       - name: Navigateurs Playwright (chromium)
         run: npx playwright install chromium --with-deps
 
-      # build:server + lint + 167 tests unit + migrations BTP + suite e2e
-      # (serveur autonome Express :8888 — scripts      # (serveur autonome Express :8888 — scripts      # (serveur autonome Express :nv:
-          E2E_DATABASE_URL:  {{      ts          E2E_DATABAS        run: bash           E2E_DATABsh
+      # build:server + lint + 167 tests unit + migrations BTP + suite e2e.
+      # scripts/regression.sh enchaîne le tout ; le webServer Playwright boot
+      # le serveur autonome Express :8888 via scripts/e2e-server.sh (build dist
+      # + migrations). E2E_DATABASE_URL = branche DB dev dédiée (secret GitHub).
+      - name: Non-régression (build + lint + unit + e2e — 99 tests)
+        env:
+          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          CI: 'true'
+        run: bash scripts/regression.sh
 
       - name: Rapport Playwright
         if: ${{ !cancelled() }}
