@@ -18,4 +18,5 @@ RUN npm run build && npm run build:server
 
 ENV NODE_ENV=production
 EXPOSE 3000
-CMD ["node", "dist-server/server/index.js"]
+# Au boot : appliquer les migrations DB (idempotent, erreurs tolérées) puis démarrer.
+CMD ["sh", "-c", "node scripts/apply-btp-migration.mjs || true; exec node dist-server/server/index.js"]
