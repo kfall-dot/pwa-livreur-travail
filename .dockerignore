@@ -4,3 +4,7 @@ e2e
 playwright-report
 test-results
 .gitignore
+# Secrets / env locaux — ne jamais embarquer dans l'image (ex. E2E_DATABASE_URL pilote)
+.env
+.env.*
+!.env.example

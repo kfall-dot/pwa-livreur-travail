@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import path from 'path'
+import { existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { getDeliveryPhotosStore, isBlobsEnabled } from './lib/blobs.js'
 import { isLocalPhotoStorageEnabled, readPhotoLocal } from './lib/deliveryPhotoLocal.js'
@@ -285,7 +286,15 @@ export function createApp() {
 
   setupExpressSentryErrorHandler(app)
 
-  const distPath = path.join(__dirname, '..', 'dist')
+  // Résout le dossier `dist` (frontend) selon le mode d'exécution :
+  //   • dev / e2e (tsx) : __dirname = <root>/server  → <root>/dist
+  //   • prod compilé    : __dirname = <root>/dist-server/server → <root>/dist
+  // Avant la bascule « tout sur Railway », le path pointait sur
+  // dist-server/dist en prod compilé — inutilisable pour servir le front.
+  const distPath =
+    [path.join(__dirname, '..', 'dist'), path.join(__dirname, '..', '..', 'dist')].find((p) =>
+      existsSync(path.join(p, 'index.html')),
+    ) ?? path.join(__dirname, '..', '..', 'dist')
   app.use(express.static(distPath))
   app.get(/^(?!\/api).*/, (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'), (err) => {
