@@ -150,9 +150,12 @@ test.describe('Replanification gestionnaire', () => {
     await expect(page.getByTestId('mgr-suivi-date')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText('Dépôt à supprimer')).toBeVisible()
 
+        // Le sélecteur ci-dessous matche plusieurs "Supprimer" (strict mode violation)
+    // dans le seed complet : on .first().first() pour cibler uniquement celui
+    // attaché au depot "Dépôt à supprimer" créé juste au-dessus.
     const tourCard = page.locator('div').filter({ hasText: 'Dépôt à supprimer' }).filter({ has: page.getByRole('button', { name: 'Supprimer' }) }).first()
     page.once('dialog', (d) => void d.accept())
-    await tourCard.getByRole('button', { name: 'Supprimer' }).click()
+    await tourCard.getByRole('button', { name: 'Supprimer' }).first().click()
 
     await expect(page.getByText('Dépôt à supprimer')).toHaveCount(0, { timeout: 10_000 })
 
