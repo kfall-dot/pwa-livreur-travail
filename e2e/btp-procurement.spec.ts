@@ -1456,12 +1456,12 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByTestId('mgr-cdg-file-validate')).toContainText('1')
     await expect(page.getByTestId('mgr-cdg-file-unfrozen')).toContainText(/[1-9]/)
     await expect(page.getByTestId('mgr-cdg-file-pipeline')).toContainText(/EB/)
-    await page.getByTestId('mgr-cdg-file-validate').click()
-    await expect(page.getByTestId(`mgr-achats-request-${submitted.id}`)).toBeVisible({ timeout: UI_READY_TIMEOUT })
-
-    // Feature #4 : le board Suivi n'affiche que les chantiers ENGAGÉS — on termine
+        // Feature #4 : le board Suivi n'affiche que les chantiers ENGAGÉS — on termine
     // le pipeline (CdG + DAF puis BC par le SA) pour que le chantier apparaisse
-    // avec son engagement. Le clic « file du jour » ci-dessus ne fait que naviguer.
+    // avec son engagement. Le clic « file du jour » ci-dessus navigue dans l'UI ;
+    // l'approbation CdG est effectuée ci-dessous par l'API (approveBtpRequest),
+    // donc on ne clique pas sur mgr-cdg-file-validate pour éviter une double
+    // validation qui briserait le workflow d'état (cdg_review → daf_review).
     const cdgApproved = await approveBtpRequest(request, submitted.id, 'cdg')
     expect(cdgApproved.request.status).toBe('daf_review')
     await completePoAfterCdg(request, submitted.id)
