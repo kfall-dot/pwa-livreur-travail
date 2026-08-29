@@ -54,6 +54,15 @@ export SMS_PROVIDER="mock"
 export SMS_OTP_FAIL_OPEN="true"
 export PUBLIC_BASE_URL="http://localhost:${E2E_PORT:-8888}"
 
+# Force le WIPE COMPLET en e2e (TRUNCATE ... CASCADE sur TOUTES les tables
+# incluant drivers/managers/companies). Sans ça, un hash `pinHash` corrompu
+# laissé par un run/migration précédent persiste → le seed `upsert` ne le
+# répare pas → bcrypt.compare('1234', hashCorrompu) → 401 « login » → tous les
+# tests d'auth échouent en cascade (URL '/' attendue mais reste sur '/login').
+export ALLOW_WIPE_USERS=true
+export ALLOW_RESET=true
+export ALLOW_SEED=true
+
 # ── Keep-alive de la branche Neon e2e ────────────────────────────────────────
 # Les branches Neon se suspendent après ~5 min d'inactivité. Le build Vite
 # (~4 min) ne touche jamais la DB → branche endormie au boot du serveur →
