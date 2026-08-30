@@ -378,6 +378,7 @@ export const managerInvites = pgTable('manager_invites', {
   tokenHash: text('token_hash').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
   acceptedAt: timestamp('accepted_at'),
+  procurementRole: text('procurement_role'),
   invitedBy: text('invited_by')
     .notNull()
     .references(() => managers.id),

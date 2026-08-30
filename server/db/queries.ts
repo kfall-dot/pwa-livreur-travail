@@ -48,6 +48,7 @@ import {
   type ManagerInvite,
   type ManagerRole,
   type ManagerTask,
+  type ProcurementRole,
   type Product,
   type CompanyUnit,
   type Session,
@@ -693,6 +694,7 @@ export async function createManager(
   name: string,
   companyId: string,
   role: ManagerRole = 'manager',
+  procurementRole: ProcurementRole | null = null,
 ): Promise<Manager> {
   const [row] = await db
     .insert(managers)
@@ -703,6 +705,7 @@ export async function createManager(
       name: name.trim(),
       companyId,
       role,
+      procurementRole,
     })
     .returning()
   return row!
@@ -752,6 +755,7 @@ export async function createManagerInvite(input: {
   tokenHash: string
   expiresAt: Date
   invitedBy: string
+  procurementRole?: string | null
 }): Promise<ManagerInvite> {
   const [row] = await db
     .insert(managerInvites)
@@ -763,6 +767,7 @@ export async function createManagerInvite(input: {
       tokenHash: input.tokenHash,
       expiresAt: input.expiresAt,
       invitedBy: input.invitedBy,
+      procurementRole: input.procurementRole ?? null,
     })
     .returning()
   return row!

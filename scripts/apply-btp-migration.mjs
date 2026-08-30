@@ -24,7 +24,7 @@ if (!url) {
 // plus de dépendance au runner Netlify.
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../server/db/migrations')
 const dirs = readdirSync(migrationsDir, { withFileTypes: true })
-  .filter((d) => d.isDirectory() && /btp_procurement|eb_fiche|eb_line_price|catalog_chantiers|site_budget|cdg_review|eb_line_spend|bc_register|draft_soft_delete|daily_reports/.test(d.name))
+  .filter((d) => d.isDirectory() && /btp_procurement|eb_fiche|eb_line_price|catalog_chantiers|site_budget|cdg_review|eb_line_spend|bc_register|draft_soft_delete|daily_reports|invite_procurement_role/.test(d.name))
   .map((d) => d.name)
   .sort()
 

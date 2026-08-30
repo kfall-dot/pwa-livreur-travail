@@ -1264,6 +1264,16 @@ dashboardRouter.post(
   async (req, res) => {
     const { manager } = req as ManagerRequest
     const { name, email } = req.body as { name?: string; email?: string }
+    const procurementRoleRaw = typeof (req.body as { procurementRole?: string })?.procurementRole === 'string'
+      ? (req.body as { procurementRole: string }).procurementRole
+      : null
+    const procurementRole =
+      procurementRoleRaw &&
+      ['site_controller', 'technical_director', 'daf', 'purchasing', 'pdg', 'controle_gestion', 'site_manager'].includes(
+        procurementRoleRaw,
+      )
+        ? procurementRoleRaw
+        : null
     if (!name?.trim() || !email?.trim()) {
       res.status(400).json({ message: 'Nom et e-mail sont requis' })
       return
@@ -1288,6 +1298,7 @@ dashboardRouter.post(
         tokenHash,
         expiresAt,
         invitedBy: manager.sub,
+        procurementRole,
       })
       const inviter = await getManagerById(manager.sub)
       const company = await getCompanyById(manager.companyId)
@@ -1406,6 +1417,7 @@ dashboardRouter.post(
         invite.name,
         invite.companyId,
         'manager',
+        (invite.procurementRole as import('../db/schema.js').ProcurementRole | null) ?? null,
       )
       await markManagerInviteAccepted(invite.id)
       logSecurityEvent({
@@ -1416,7 +1428,13 @@ dashboardRouter.post(
         metadata: { email: created.email },
         req,
       })
-      const accessToken = signManagerToken(created.id, created.email, created.companyId, created.role)
+      const accessToken = signManagerToken(
+        created.id,
+        created.email,
+        created.companyId,
+        created.role,
+        created.procurementRole,
+      )
       setManagerAuthCookie(res, accessToken)
       res.status(201).json({
         ok: true,

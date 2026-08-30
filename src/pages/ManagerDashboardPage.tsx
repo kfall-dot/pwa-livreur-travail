@@ -1676,7 +1676,7 @@ function GestionnairesTab({
 }) {
   const [managers, setManagers] = useState<ManagerRow[]>([])
   const [invites, setInvites] = useState<ManagerInviteRow[]>([])
-  const [form, setForm] = useState({ name: '', email: '' })
+  const [form, setForm] = useState({ name: '', email: '', procurementRole: '' })
   const [lastInviteLink, setLastInviteLink] = useState<{ url: string; email: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1710,7 +1710,7 @@ function GestionnairesTab({
       const res = await authFetch('/dashboard/managers/invite', { method: 'POST', body: JSON.stringify(form) })
       const data = await res.json() as { ok?: boolean; message?: string; inviteUrl?: string }
       if (!res.ok) throw new Error(data.message ?? 'Erreur')
-      setForm({ name: '', email: '' })
+      setForm({ name: '', email: '', procurementRole: '' })
       if (data.inviteUrl) setLastInviteLink({ url: data.inviteUrl, email: form.email })
       toast.success('Invitation créée. Si l’e-mail n’arrive pas, copiez le lien affiché ci-dessous.')
       await refreshAll()
@@ -1782,9 +1782,27 @@ function GestionnairesTab({
               onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
             />
           </Field>
+          <div style={{ marginBottom: 8 }} />
+          <Field label="Rôle (optionnel)">
+            <select
+              value={form.procurementRole}
+              style={css.input}
+              data-testid="mgr-invite-role"
+              onChange={(e) => setForm((p) => ({ ...p, procurementRole: e.target.value }))}
+            >
+              <option value="">— Gestionnaire général —</option>
+              <option value="site_manager">Chef de chantier</option>
+              <option value="technical_director">Directeur technique (DT)</option>
+              <option value="site_controller">Conducteur de travaux</option>
+              <option value="purchasing">Service achats</option>
+              <option value="controle_gestion">Contrôle de gestion</option>
+              <option value="daf">DAF</option>
+              <option value="pdg">PDG</option>
+            </select>
+          </Field>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <button type="submit" disabled={saving} style={css.btnGold} data-testid="mgr-invite-send">{saving ? 'Envoi…' : 'Envoyer l\'invitation'}</button>
-            <button type="button" onClick={() => setForm({ name: '', email: '' })} style={css.btnGhost}>Annuler</button>
+            <button type="button" onClick={() => setForm({ name: '', email: '', procurementRole: '' })} style={css.btnGhost}>Annuler</button>
           </div>
         </form>
         {lastInviteLink && (
