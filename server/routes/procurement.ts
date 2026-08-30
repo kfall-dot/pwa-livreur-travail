@@ -832,7 +832,14 @@ procurementRouter.get('/requests', async (req, res) => {
   const requests = (await listPurchaseRequests(manager.companyId)).filter((r) =>
     requestVisibleToRole(procurementRole, r.status, r.totalAmountFcfa != null ? Number(r.totalAmountFcfa) : null, threshold),
   )
-  res.json({ requests })
+  // numeric Postgres → string via le driver : normaliser en nombre, sinon le front
+  // concatène les totaux au lieu de les additionner (bug du montant pipeline hors BC).
+  res.json({
+    requests: requests.map((r) => ({
+      ...r,
+      totalAmountFcfa: r.totalAmountFcfa != null ? Number(r.totalAmountFcfa) : null,
+    })),
+  })
 })
 
 procurementRouter.get('/requests/:id', async (req, res) => {

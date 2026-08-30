@@ -488,8 +488,15 @@ export function SuiviChantierTab({
         <p style={css.meta} data-testid="mgr-suivi-chantier-empty">
           Aucun stock livré.
         </p>
+      ) : !selectedSiteId ? (
+        <p style={css.meta} data-testid="mgr-suivi-chantier-no-site">
+          Sélectionnez un chantier dans le tableau ci-dessus pour consulter son stock.
+        </p>
       ) : (
-        bySite.map((group) => (
+        // Stock limité au chantier sélectionné — un chantier à la fois (demande métier CdG).
+        bySite
+          .filter((group) => group.rows.some((row) => row.siteId === selectedSiteId))
+          .map((group) => (
           <div key={group.siteName} style={{ marginBottom: 20 }}>
             <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 8px' }}>{group.siteName}</h3>
             <div style={{ overflowX: 'auto' }}>

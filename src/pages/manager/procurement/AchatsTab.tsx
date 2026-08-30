@@ -197,13 +197,17 @@ export function AchatsTab({
   onInboxCountChanged,
   onOpenPlanifier,
   onOpenSuiviChantier,
+  focusRequestId,
+  onFocusConsumed,
 }: {
   handleAuth: (status: number) => boolean
   procurementRole: ProcurementRole | null
   managerName?: string
   onInboxCountChanged?: () => void
-  onOpenPlanifier?: (prefill: ProcurementTourPrefill) => void
+  onOpenPlanifier?: (prefill: ProcurementTourPrefill, remainingToursAfter: number) => void
   onOpenSuiviChantier?: () => void
+  focusRequestId?: string | null
+  onFocusConsumed?: () => void
 }) {
   const [view, setView] = useState<AchatsView>('inbox')
   const [drafts, setDrafts] = useState<PurchaseRequestDraftRow[]>([])
@@ -241,7 +245,7 @@ export function AchatsTab({
   const pipeline = requests.filter((r) => PRE_BC_STATUSES.has(r.status))
   const unfrozen = cdgBudgets.filter((b) => !b.budgetFrozenAt)
   const missingAmendment = cdgBudgets.filter((b) => b.missingAmendment)
-  const pipelineAmount = pipeline.reduce((sum, r) => sum + (r.totalAmountFcfa ?? 0), 0)
+  const pipelineAmount = pipeline.reduce((sum, r) => sum + Number(r.totalAmountFcfa ?? 0), 0)
   const oldestPipeline = pipeline.reduce<string | null>((oldest, r) => {
     const at = r.submittedAt ?? r.createdAt
     if (!at) return oldest
@@ -388,6 +392,16 @@ export function AchatsTab({
       setRequestDetail(null)
     }
   }, [selectedRequestId, loadRequestDetail, loadDrivers])
+
+  // Retour depuis Planifier (demande multi-livraisons) : rouvrir la demande
+  // pour planifier les tournées suivantes (un BC = une tournée).
+  useEffect(() => {
+    if (!focusRequestId) return
+    setView('inbox')
+    setSelectedRequestId(focusRequestId)
+    onFocusConsumed?.()
+    // onFocusConsumed volontairement omis : callback stable du parent
+  }, [focusRequestId])
 
   const refreshInbox = () => {
     onInboxCountChanged?.()
@@ -707,7 +721,11 @@ export function AchatsTab({
     )
     const unassigned = requestDetail.lines.filter((l) => !(l.supplierName ?? '').trim())
     const poLines = matching.length > 0 ? matching : unassigned.length > 0 ? unassigned : requestDetail.lines
-    onOpenPlanifier?.({
+    // Tournées restantes après celle-ci (autres BC sans tournée) — permet au parent
+    // de ramener le SA dans Achats au lieu du Suivi si la demande a plusieurs livraisons.
+    const remainingToursAfter = orders.filter((p) => p.id !== target?.id && !p.tourId).length
+    onOpenPlanifier?.(
+      {
       purchaseRequestId: selectedRequestId,
       purchaseOrderId: target?.id,
       date: scheduleDate,
@@ -722,7 +740,9 @@ export function AchatsTab({
         qty: Number(l.quantity),
         unit: catalogUnitFromEb(l.unit),
       })),
-    })
+      },
+      remainingToursAfter,
+    )
   }
 
   const updateLine = (index: number, patch: Partial<ParsedEbLine>) => {

@@ -21,7 +21,10 @@ import {
   updateMockStop,
 } from './mockData'
 
-const BASE = normalizeApiBase(import.meta.env.VITE_API_URL ?? '')
+// Défaut '/api/v1' en build de prod uniquement (Docker/Railway ne définit pas VITE_API_URL) :
+// sans ce défaut, les appels partaient sans préfixe /api → 404 HTML → « Démo indisponible ».
+// En dev, on garde '' pour préserver le mode mock (USE_MOCK) si aucun .env n'est présent.
+const BASE = normalizeApiBase(import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '/api/v1' : ''))
 /** Jamais de mock en build production — sinon tout login affiche le livreur démo. */
 const USE_MOCK = !BASE && !import.meta.env.PROD
 const LIVRAISON = !USE_MOCK && isLivraisonBackend(BASE)

@@ -326,8 +326,10 @@ export function generateBtHtml(
 
 function paymentFlags(lines: PurchaseRequestLine[]): { payeAvance: boolean; paiementLivraison: boolean } {
   const modes = lines.map((l) => (l.paymentMode ?? '').toUpperCase()).filter(Boolean)
-  const payeAvance = modes.some((m) => m === 'COMPTANT' || m === 'ESPECE' || m === 'ESPÈCE')
-  const paiementLivraison = modes.some((m) => m === 'CREDIT' || m === 'CRÉDIT') || (!payeAvance && modes.length === 0)
+  // Paiement à la livraison : uniquement COMPTANT ou CHEQUE (demande métier).
+  // VIREMENT = payé d'avance ; CREDIT = ni l'un ni l'autre.
+  const payeAvance = modes.some((m) => m === 'VIREMENT')
+  const paiementLivraison = modes.some((m) => m === 'COMPTANT' || m === 'CHEQUE' || m === 'CHÈQUE')
   return { payeAvance, paiementLivraison }
 }
 

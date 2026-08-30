@@ -129,6 +129,10 @@ export function ManagerDashboardPage() {
   const [pendingSuiviDate, setPendingSuiviDate] = useState<string | null>(null)
   const [pendingPlanifierDate, setPendingPlanifierDate] = useState<string | null>(null)
   const [pendingProcurementPrefill, setPendingProcurementPrefill] = useState<ProcurementTourPrefill | null>(null)
+  // Demande multi-livraisons : après enregistrement d'une tournée, si d'autres BC
+  // restent à planifier, on ramène le SA dans Achats (demande rouverte) au lieu du Suivi.
+  const [pendingProcurementRemainingTours, setPendingProcurementRemainingTours] = useState(0)
+  const [pendingProcurementFocusRequest, setPendingProcurementFocusRequest] = useState<string | null>(null)
   const [suiviRefreshKey, setSuiviRefreshKey] = useState(0)
   const [pendingTaskCount, setPendingTaskCount] = useState(0)
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0)
@@ -523,7 +527,15 @@ export function ManagerDashboardPage() {
             onTourSaved={(savedDate) => {
               setSuiviRefreshKey((k) => k + 1)
               setPendingSuiviDate(savedDate)
-              setTab('suivi')
+              if (pendingProcurementRemainingTours > 0) {
+                // Demande multi-livraisons : d'autres BC restent à planifier →
+                // retour dans Achats avec la demande rouverte (via focusRequestId).
+                setPendingProcurementRemainingTours(0)
+                setTab('achats')
+              } else {
+                setPendingProcurementFocusRequest(null)
+                setTab('suivi')
+              }
             }}
             initialReplanTourId={pendingReplanTourId}
             initialReplanDeliveryId={pendingReplanDeliveryId}
@@ -567,8 +579,12 @@ export function ManagerDashboardPage() {
             procurementRole={procurementRole}
             managerName={managerName}
             onInboxCountChanged={loadProcurementInboxCount}
-            onOpenPlanifier={(prefill) => {
+            focusRequestId={pendingProcurementFocusRequest}
+            onFocusConsumed={() => setPendingProcurementFocusRequest(null)}
+            onOpenPlanifier={(prefill, remainingToursAfter) => {
               setPendingProcurementPrefill(prefill)
+              setPendingProcurementRemainingTours(remainingToursAfter)
+              setPendingProcurementFocusRequest(prefill.purchaseRequestId ?? null)
               setTab('planifier')
             }}
             onOpenSuiviChantier={() => setTab('suiviChantier')}
