@@ -85,9 +85,15 @@ test.describe('Déverrouillage login livreur', () => {
     await loginManager(page)
     await page.getByRole('button', { name: /Équipe/i }).click()
     await page.getByRole('button', { name: /^Livreurs$/ }).click()
-    await page.getByRole('button', { name: /Modifier/i }).first().click()
+    // Cibler la ligne du livreur démo par son téléphone (le seed en crée 2 —
+    // .first() peut ouvrir le modal de l'autre livreur et déverrouiller le mauvais).
+    const demoRow = page.locator('tr', { hasText: DEMO_DRIVER.phone })
+    await demoRow.getByRole('button', { name: /Modifier/i }).click()
+    // Le bouton déverrouillage passe par window.confirm — Playwright rejette
+    // les dialogs par défaut : il faut l'accepter explicitement.
+    page.once('dialog', (d) => d.accept())
     await page.getByTestId('mgr-clear-login-lock').click()
-    await expect(page.getByText(/Verrouillage réinitialisé/i)).toBeVisible()
+    await expect(page.getByText(/Verrouillage.*réinitialisé/i)).toBeVisible()
 
     await page.context().clearCookies()
     await prepareDriverLogin(page)

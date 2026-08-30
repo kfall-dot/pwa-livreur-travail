@@ -124,6 +124,7 @@ import { resendOtpForManager, readOtpStatusForManager } from '../services/delive
 import { finalizeDeliveryConfirmation } from '../services/deliveryConfirmation.js'
 import { markDeliveryScheduled, ProcurementWorkflowError } from '../services/procurementWorkflow.js'
 import { clearDriverLoginFailures } from '../lib/driverLoginLockout.js'
+import { clearRateLimitKey } from '../middleware/rateLimit.js'
 import { z } from 'zod'
 import { parseBody } from '../lib/validation.js'
 
@@ -1171,6 +1172,9 @@ dashboardRouter.post('/dashboard/drivers/:id/clear-login-lock', requireManager, 
       return
     }
     await clearDriverLoginFailures(driver.phone)
+    // Purge aussi le compteur rate-limit login (sinon le livreur reste en 429
+    // pendant 15 min même après déverrouillage du verrouillage PIN).
+    await clearRateLimitKey(`login-driver:${driver.phone.trim().toLowerCase()}`)
     logSecurityEvent({
       action: 'manager.driver.unlock',
       actorType: 'manager',
