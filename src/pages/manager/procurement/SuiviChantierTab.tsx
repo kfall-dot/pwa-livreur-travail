@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
+import { DossiersPanel } from './DossiersPanel'
 import { AlertBox, css, formatFcfa, formatPct, TRAFFIC_LIGHT_LABEL, TRAFFIC_LIGHT_STYLE } from './procurementUi'
 import {
   createSiteBudgetAmendment,
@@ -402,6 +403,7 @@ export function SuiviChantierTab({
 
   return (
     <div data-testid="mgr-suivi-chantier">
+      <DossiersPanel handleAuth={handleAuth} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
         <div>
           <h2 style={{ ...css.sectionTitle, margin: 0 }}>Suivi chantier</h2>

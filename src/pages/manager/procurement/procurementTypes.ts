@@ -7,6 +7,7 @@ export type ProcurementRole =
   | 'purchasing'
   | 'pdg'
   | 'controle_gestion'
+  | 'site_manager'
 
 export type PurchaseRequestStatus =
   | 'whatsapp_ingested'

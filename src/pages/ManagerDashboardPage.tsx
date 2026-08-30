@@ -53,11 +53,12 @@ import { EditTourModal } from './manager/modals/EditTourModal'
 import { AchatsTab } from './manager/procurement/AchatsTab'
 import { SuiviBcTab } from './manager/procurement/SuiviBcTab'
 import { SuiviChantierTab } from './manager/procurement/SuiviChantierTab'
+import { MaJourneeTab } from './manager/procurement/MaJourneeTab'
 import { fetchDraftInboxCount } from './manager/procurement/procurementApi'
 import type { ProcurementRole, ProcurementTourPrefill } from './manager/procurement/procurementTypes'
-import { PROCUREMENT_ROLE_LABELS, canSeeSuiviChantier, isProcurementWorkspaceRole } from './manager/procurement/procurementUi'
+import { PROCUREMENT_ROLE_LABELS, canSeeSuiviChantier, isProcurementWorkspaceRole, isSiteManagerRole } from './manager/procurement/procurementUi'
 
-type Tab = 'suivi' | 'suiviBc' | 'suiviChantier' | 'planifier' | 'livreurs' | 'gestionnaires' | 'points' | 'produits' | 'unites' | 'fournisseurs' | 'taches' | 'achats'
+type Tab = 'suivi' | 'suiviBc' | 'suiviChantier' | 'planifier' | 'livreurs' | 'gestionnaires' | 'points' | 'produits' | 'unites' | 'fournisseurs' | 'taches' | 'achats' | 'maJournee'
 
 const TAB_FROM_QUERY = new Set<Tab>([
   'suivi',
@@ -205,12 +206,19 @@ export function ManagerDashboardPage() {
     if (!procurementRole) return
     appliedProcurementHome.current = true
     if (searchParams.get('tab')) return
+    if (isSiteManagerRole(procurementRole)) {
+      setTab('maJournee')
+    }
     if (isProcurementWorkspaceRole(procurementRole)) {
       setTab('achats')
     }
   }, [procurementRole, searchParams])
 
   useEffect(() => {
+    if (isSiteManagerRole(procurementRole) && tab !== 'maJournee') {
+      setTab('maJournee')
+      return
+    }
     if (!isProcurementWorkspaceRole(procurementRole)) return
     if (procurementRole === 'purchasing' && SA_MANAGER_TABS.has(tab)) return
     if (tab === 'suiviChantier') {
@@ -243,7 +251,9 @@ export function ManagerDashboardPage() {
   const procurementWorkspace = isProcurementWorkspaceRole(procurementRole)
   const sidebarRoleLabel = procurementRole ? PROCUREMENT_ROLE_LABELS[procurementRole] : 'Manager'
 
-  const sidebarItems: { id: Tab | 'catalogue'; label: string; tab?: Tab; badge?: number }[] = procurementWorkspace
+  const sidebarItems: { id: Tab | 'catalogue'; label: string; tab?: Tab; badge?: number }[] = isSiteManagerRole(procurementRole)
+    ? [{ id: 'maJournee', label: 'Ma journée', tab: 'maJournee' }]
+    : procurementWorkspace
     ? [
         { id: 'achats', label: 'Achats chantier', tab: 'achats', badge: procurementInboxCount },
         ...(canSeeSuiviChantier(procurementRole)
@@ -594,6 +604,7 @@ export function ManagerDashboardPage() {
         {tab === 'suiviChantier' && (
           <SuiviChantierTab handleAuth={handleAuth} procurementRole={procurementRole} />
         )}
+        {tab === 'maJournee' && <MaJourneeTab handleAuth={handleAuth} />}
         </div>
       </div>
     </div>

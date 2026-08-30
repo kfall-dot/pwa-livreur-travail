@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   integer,
   pgEnum,
   pgTable,
@@ -32,6 +33,7 @@ export const procurementRoleEnum = pgEnum('procurement_role', [
   'purchasing',
   'pdg',
   'controle_gestion',
+  'site_manager',
 ])
 
 export const siteBudgetAmendmentStatusEnum = pgEnum('site_budget_amendment_status', [
@@ -423,6 +425,7 @@ export const sites = pgTable('sites', {
   lat: numeric('lat', { precision: 10, scale: 7 }),
   lng: numeric('lng', { precision: 10, scale: 7 }),
   managerId: text('manager_id').references(() => managers.id),
+  supervisorManagerId: text('supervisor_manager_id').references(() => managers.id),
   whatsappGroupId: text('whatsapp_group_id'),
   supermarketId: text('supermarket_id').references(() => supermarkets.id),
   budgetInitialFcfa: numeric('budget_initial_fcfa', { precision: 14, scale: 0 }),
@@ -669,6 +672,97 @@ export const ebParseRuns = pgTable('eb_parse_runs', {
 })
 
 export type EbParseRun = typeof ebParseRuns.$inferSelect
+// ─── Dossier du jour (RJC — rapport quotidien de chantier) ────────────────────
+
+export const siteReportStatusEnum = pgEnum('site_report_status', ['draft', 'submitted'])
+
+export const siteDailyReports = pgTable(
+  'site_daily_reports',
+  {
+    id: text('id').primaryKey(),
+    companyId: text('company_id')
+      .notNull()
+      .references(() => companies.id),
+    siteId: text('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    reportDate: date('report_date').notNull(),
+    authorManagerId: text('author_manager_id').references(() => managers.id),
+    status: siteReportStatusEnum('status').notNull().default('draft'),
+    globalProgressPct: numeric('global_progress_pct', { precision: 5, scale: 2 }),
+    comment: text('comment'),
+    submittedAt: timestamp('submitted_at'),
+    /** Historique horodaté des soumissions : [{ at, byManagerId, note? }] */
+    submissions: jsonb('submissions').notNull().default([]),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('site_daily_reports_site_date_uidx').on(t.siteId, t.reportDate)],
+)
+
+export type SiteDailyReport = typeof siteDailyReports.$inferSelect
+export type NewSiteDailyReport = typeof siteDailyReports.$inferInsert
+
+export const siteDailyTasks = pgTable('site_daily_tasks', {
+  id: text('id').primaryKey(),
+  reportId: text('report_id')
+    .notNull()
+    .references(() => siteDailyReports.id, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  done: boolean('done').notNull().default(false),
+  doneNote: text('done_note'),
+  /** Réserve pour des types prédéfinis (phase 2) : 'coulage', 'maconnerie', … */
+  taskType: text('task_type'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export type SiteDailyTask = typeof siteDailyTasks.$inferSelect
+export type NewSiteDailyTask = typeof siteDailyTasks.$inferInsert
+
+export const siteMaterialUsages = pgTable('site_material_usages', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id')
+    .notNull()
+    .references(() => companies.id),
+  siteId: text('site_id')
+    .notNull()
+    .references(() => sites.id, { onDelete: 'cascade' }),
+  reportId: text('report_id').references(() => siteDailyReports.id, { onDelete: 'cascade' }),
+  /** Lien forcé : toute consommation est rattachée à une tâche du jour. */
+  taskId: text('task_id')
+    .notNull()
+    .references(() => siteDailyTasks.id, { onDelete: 'cascade' }),
+  usageDate: date('usage_date').notNull(),
+  productLabel: text('product_label').notNull(),
+  unit: text('unit').notNull(),
+  quantity: numeric('quantity', { precision: 12, scale: 3 }).notNull(),
+  /** Provenance : si le matériau vient d'un autre chantier (traçabilité). */
+  sourceSiteId: text('source_site_id').references(() => sites.id),
+  authorManagerId: text('author_manager_id').references(() => managers.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export type SiteMaterialUsage = typeof siteMaterialUsages.$inferSelect
+export type NewSiteMaterialUsage = typeof siteMaterialUsages.$inferInsert
+
+export const siteReportPhotos = pgTable('site_report_photos', {
+  id: text('id').primaryKey(),
+  reportId: text('report_id')
+    .notNull()
+    .references(() => siteDailyReports.id, { onDelete: 'cascade' }),
+  taskId: text('task_id').references(() => siteDailyTasks.id, { onDelete: 'set null' }),
+  /** Clé de stockage (store Blobs ou disque local, même mécanique que les livraisons). */
+  photoId: text('photo_id').notNull(),
+  size: integer('size'),
+  takenAt: timestamp('taken_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export type SiteReportPhoto = typeof siteReportPhotos.$inferSelect
+export type NewSiteReportPhoto = typeof siteReportPhotos.$inferInsert
+
+export type ProcurementRole = (typeof procurementRoleEnum.enumValues)[number]
 export type NewEbParseRun = typeof ebParseRuns.$inferInsert
 
 export type ProcurementRole = (typeof procurementRoleEnum.enumValues)[number]

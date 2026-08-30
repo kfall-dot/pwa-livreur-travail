@@ -13,6 +13,7 @@ import { corsOptions } from './config/cors.js'
 import { authRouter } from './routes/auth.js'
 import { demoRouter } from './routes/demo.js'
 import { procurementRouter } from './routes/procurement.js'
+import { dailyReportsRouter } from './routes/dailyReports.js'
 import { whatsappWebhookRouter } from './routes/whatsappWebhook.js'
 import { toursRouter } from './routes/tours.js'
 import { deliveriesRouter } from './routes/deliveries.js'
@@ -275,6 +276,7 @@ export function createApp() {
     app.use(`${prefix}/webhooks/whatsapp`, whatsappWebhookRouter)
     app.use(`${prefix}/whatsapp`, whatsappWebhookRouter)
     app.use(`${prefix}/procurement`, procurementRouter)
+    app.use(`${prefix}/daily-reports`, dailyReportsRouter)
     app.use(`${prefix}/tours`, toursRouter)
     app.use(`${prefix}/deliveries`, deliveriesRouter)
     app.use(`${prefix}/certificates`, certificatesRouter)

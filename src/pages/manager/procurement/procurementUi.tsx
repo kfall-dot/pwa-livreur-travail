@@ -116,6 +116,7 @@ export const PROCUREMENT_ROLE_LABELS: Record<ProcurementRole, string> = {
   purchasing: 'Service achats',
   pdg: 'PDG',
   controle_gestion: 'Contrôle de gestion',
+  site_manager: 'Chef de chantier',
 }
 
 export function approvalDecisionLabel(role: ProcurementRole, decision: string): string {
@@ -147,6 +148,16 @@ export function isProcurementWorkspaceRole(role: string | null | undefined): boo
 
 export function canSeeSuiviChantier(role: string | null | undefined): boolean {
   return role === 'technical_director' || role === 'controle_gestion' || role === 'daf'
+}
+
+/** Chef de chantier : page « Ma journée » (dossier quotidien). */
+export function isSiteManagerRole(role: string | null | undefined): boolean {
+  return role === 'site_manager'
+}
+
+/** Superviseur de dossiers de chantier : DT + CdG + DAF. */
+export function canSeeDossiers(role: string | null | undefined): boolean {
+  return canSeeSuiviChantier(role)
 }
 
 export const STATUS_LABELS: Record<PurchaseRequestStatus, string> = {
