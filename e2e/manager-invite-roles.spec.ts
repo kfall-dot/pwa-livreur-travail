@@ -36,7 +36,7 @@ test.describe('Manager invite & roles', () => {
     await page.getByTestId('mgr-invite-name').fill('Collègue Test')
     await page.getByTestId('mgr-invite-email').fill('collegue@test.fr')
     await page.getByTestId('mgr-invite-send').click()
-    await expect(page.getByText(/Invitation envoyée/i)).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await expect(page.getByText(/Invitation créée/i)).toBeVisible({ timeout: UI_READY_TIMEOUT })
 
     const token = await getMockEmailToken(request, 'collegue@test.fr')
     await page.context().clearCookies()
