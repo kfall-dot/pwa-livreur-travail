@@ -127,6 +127,7 @@ import { clearDriverLoginFailures } from '../lib/driverLoginLockout.js'
 import { clearRateLimitKey } from '../middleware/rateLimit.js'
 import { z } from 'zod'
 import { parseBody } from '../lib/validation.js'
+import { publicBaseUrl } from '../config/public.js'
 
 export const dashboardRouter = Router()
 
@@ -1300,6 +1301,8 @@ dashboardRouter.post(
       res.status(201).json({
         ok: true,
         invite: { id: invite.id, email: invite.email, name: invite.name, expiresAt: invite.expiresAt },
+        // Lien renvoyé à l'admin : permet l'onboarding manuel (WhatsApp/SMS) si l'e-mail n'est pas configuré.
+        inviteUrl: `${publicBaseUrl()}/manager/invite?token=${encodeURIComponent(token)}`,
       })
     } catch (err: unknown) {
       if (isPgUniqueViolation(err)) {
@@ -1348,6 +1351,7 @@ dashboardRouter.post(
       res.json({
         ok: true,
         invite: { id: newInvite.id, email: newInvite.email, name: newInvite.name, expiresAt: newInvite.expiresAt },
+        inviteUrl: `${publicBaseUrl()}/manager/invite?token=${encodeURIComponent(token)}`,
       })
     } catch (err) {
       console.error('[dashboard] resend invite error', err)

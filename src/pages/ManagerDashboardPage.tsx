@@ -1677,6 +1677,7 @@ function GestionnairesTab({
   const [managers, setManagers] = useState<ManagerRow[]>([])
   const [invites, setInvites] = useState<ManagerInviteRow[]>([])
   const [form, setForm] = useState({ name: '', email: '' })
+  const [lastInviteLink, setLastInviteLink] = useState<{ url: string; email: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
@@ -1707,10 +1708,11 @@ function GestionnairesTab({
     setSaving(true)
     try {
       const res = await authFetch('/dashboard/managers/invite', { method: 'POST', body: JSON.stringify(form) })
-      const data = await res.json() as { ok?: boolean; message?: string }
+      const data = await res.json() as { ok?: boolean; message?: string; inviteUrl?: string }
       if (!res.ok) throw new Error(data.message ?? 'Erreur')
       setForm({ name: '', email: '' })
-      toast.success('Invitation envoyée avec succès.')
+      if (data.inviteUrl) setLastInviteLink({ url: data.inviteUrl, email: form.email })
+      toast.success('Invitation créée. Si l’e-mail n’arrive pas, copiez le lien affiché ci-dessous.')
       await refreshAll()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
@@ -1729,12 +1731,13 @@ function GestionnairesTab({
   const resendInvite = async (invite: ManagerInviteRow) => {
     const res = await authFetch(`/dashboard/managers/invites/${encodeURIComponent(invite.id)}/resend`, { method: 'POST' })
     if (handleAuth(res.status)) return
-    const data = (await res.json()) as { message?: string }
+    const data = (await res.json()) as { message?: string; inviteUrl?: string }
     if (!res.ok) {
       toast.error(data.message ?? 'Renvoi impossible')
       return
     }
-    toast.success('Invitation renvoyée.')
+    if (data.inviteUrl) setLastInviteLink({ url: data.inviteUrl, email: invite.email })
+    toast.success('Invitation renvoyée. Lien affiché ci-dessous si besoin.')
     await refreshAll()
   }
 
@@ -1784,6 +1787,28 @@ function GestionnairesTab({
             <button type="button" onClick={() => setForm({ name: '', email: '' })} style={css.btnGhost}>Annuler</button>
           </div>
         </form>
+        {lastInviteLink && (
+          <div style={{ marginTop: 16, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.75rem', fontSize: 13 }}>
+            <strong>Lien d'invitation pour {lastInviteLink.email}</strong>
+            <p style={{ margin: '0.5rem 0', wordBreak: 'break-all' }}>
+              Si l'e-mail n'arrive pas (configuration e-mail incomplète), copiez ce lien et envoyez-le à la personne (WhatsApp, SMS…) :
+            </p>
+            <code style={{ display: 'block', fontSize: 12, wordBreak: 'break-all', background: '#fff', padding: 6, borderRadius: 4 }}>{lastInviteLink.url}</code>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button
+                type="button"
+                style={css.btnGhost}
+                onClick={() => {
+                  void navigator.clipboard.writeText(lastInviteLink.url)
+                  toast.success('Lien copié')
+                }}
+              >
+                Copier le lien
+              </button>
+              <button type="button" style={css.btnGhost} onClick={() => setLastInviteLink(null)}>Masquer</button>
+            </div>
+          </div>
+        )}
       </section>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
