@@ -367,7 +367,12 @@ export function SuiviChantierTab({
   }, [load])
 
   // Dépenses engagées du mois sélectionné — ventilées par chantier.
+  // month === '' → vue « Tous les mois » : pas de filtre mensuel.
   useEffect(() => {
+    if (month === '') {
+      setMonthExpenses({})
+      return
+    }
     let cancelled = false
     void fetchSiteMonthlyExpenses(month)
       .then((rows2) => {
@@ -444,7 +449,10 @@ export function SuiviChantierTab({
             />
           </label>
           <button type="button" onClick={() => setMonth(defaultMonth)} style={css.btnOutline} data-testid="mgr-suivi-chantier-reset-month">
-            Réinitialiser
+            Mois courant
+          </button>
+          <button type="button" onClick={() => setMonth('')} style={css.btnOutline} data-testid="mgr-suivi-chantier-all-months">
+            Tous les mois
           </button>
           <button type="button" onClick={() => void load()} style={css.btnOutline} data-testid="mgr-suivi-chantier-refresh">
             Actualiser
@@ -453,12 +461,18 @@ export function SuiviChantierTab({
       </div>
       {error && <AlertBox>{error}</AlertBox>}
       {(() => {
-        const visible = budgets.filter((b) => (monthExpenses[b.siteId] ?? 0) > 0)
+        const allMonths = month === ''
+        const visible = allMonths
+          ? budgets.filter((b) => b.engagedFcfa > 0)
+          : budgets.filter((b) => (monthExpenses[b.siteId] ?? 0) > 0)
         if (budgets.length > 0 && visible.length === 0) {
           return (
             <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-suivi-empty-month">
               <p style={{ ...css.meta, margin: 0 }}>
-                Aucune dépense engagée en {month} sur les chantiers. Changez de mois ou réinitialisez.
+                Aucune dépense engagée en {month} sur les chantiers.{' '}
+                <button type="button" onClick={() => setMonth('')} style={{ padding: '0 6px' }}>
+                  Voir tous les mois
+                </button>
               </p>
             </div>
           )
@@ -470,7 +484,7 @@ export function SuiviChantierTab({
               <thead>
                 <tr>
                   <th style={css.lineTh}>Chantier</th>
-                  <th style={css.lineTh}>Dépenses du mois</th>
+                  {!allMonths && <th style={css.lineTh}>Dépenses du mois</th>}
                   <th style={css.lineTh}>Budget</th>
                   <th style={css.lineTh}>Engagé (total)</th>
                   <th style={css.lineTh}>Engagement</th>
@@ -492,7 +506,7 @@ export function SuiviChantierTab({
                       }}
                     >
                       <td style={css.lineTd}>{b.siteName}</td>
-                      <td style={css.lineTd}>{formatFcfa(monthExpenses[b.siteId] ?? 0)}</td>
+                      {!allMonths && <td style={css.lineTd}>{formatFcfa(monthExpenses[b.siteId] ?? 0)}</td>}
                       <td style={css.lineTd}>{formatFcfa(b.budgetTotalFcfa)}</td>
                       <td style={css.lineTd}>{formatFcfa(b.engagedFcfa)}</td>
                       <td style={css.lineTd}>{formatPct(b.engagementPct)}</td>
