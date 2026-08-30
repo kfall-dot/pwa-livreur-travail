@@ -318,8 +318,9 @@ const siteAssignSchema = z.object({
 })
 
 // PATCH /sites/:id/assignments — affecte chef de chantier / DT superviseur
-// L'affectation promeut automatiquement le rôle achats du gestionnaire
-// (managerId → site_manager, supervisorManagerId → technical_director).
+// Le chef de chantier doit DÉJÀ posséder le profil « chef de chantier »
+// (procurement_role = site_manager) : aucune promotion automatique pour ce poste.
+// Le DT superviseur conserve la promotion automatique (technical_director).
 procurementRouter.patch(
   '/sites/:id/assignments',
   requireProcurementRole('technical_director', 'daf'),
@@ -330,14 +331,36 @@ procurementRouter.patch(
     const clean: { managerId?: string | null; supervisorManagerId?: string | null } = {}
     if ('managerId' in body) clean.managerId = body.managerId || null
     if ('supervisorManagerId' in body) clean.supervisorManagerId = body.supervisorManagerId || null
+
+    // Contrôle métier : seuls les employés avec le profil « chef de chantier »
+    // peuvent être affectés comme chef de chantier d'un site.
+    if (clean.managerId) {
+      const [chef] = await db
+        .select({ id: managers.id, procurementRole: managers.procurementRole })
+        .from(managers)
+        .where(and(eq(managers.companyId, manager.companyId), eq(managers.id, clean.managerId)))
+        .limit(1)
+      if (!chef) {
+        res.status(404).json({ message: 'Gestionnaire introuvable' })
+        return
+      }
+      if (chef.procurementRole !== 'site_manager') {
+        res.status(400).json({
+          message:
+            "Seuls les employés avec le profil « chef de chantier » peuvent être affectés à un chantier.",
+        })
+        return
+      }
+    }
+
     const site = await updateSiteAssignments(manager.companyId, String(req.params.id), clean)
     if (!site) {
       res.status(404).json({ message: 'Chantier introuvable' })
       return
     }
-    // Promotion implicite du rôle pour que la page « Ma journée » / supervision fonctionne.
+    // Promotion implicite réservée au DT superviseur pour que la page
+    // « Ma journée » / supervision fonctionne.
     const promotions: { id: string; role: ProcurementRole }[] = []
-    if (clean.managerId) promotions.push({ id: clean.managerId, role: 'site_manager' })
     if (clean.supervisorManagerId) promotions.push({ id: clean.supervisorManagerId, role: 'technical_director' })
     for (const p of promotions) {
       const [row] = await db

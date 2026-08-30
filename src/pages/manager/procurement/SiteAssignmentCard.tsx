@@ -38,12 +38,14 @@ export function SiteAssignmentCard({ siteId, siteName }: { siteId: string; siteN
       window.setTimeout(() => setMessage(null), 3000)
       await load()
     } else {
-      setMessage("Échec de l'affectation")
+      const detail = (await res.json().catch(() => null)) as { message?: string } | null
+      setMessage(detail?.message ?? "Échec de l'affectation")
     }
   }
 
-  // Toutes les gestionnaires sont proposés : l'affectation promeut automatiquement
-  // le rôle côté serveur (chef → site_manager, DT superviseur → technical_director).
+  // Le chef de chantier ne peut être choisi que parmi les employés
+  // ayant déjà le profil « chef de chantier » (site_manager).
+  const chefs = managers.filter((m) => m.procurementRole === 'site_manager')
   const roleLabel = (r: string | null): string =>
     r === 'site_manager'
       ? ' — chef de chantier'
@@ -65,7 +67,7 @@ export function SiteAssignmentCard({ siteId, siteName }: { siteId: string; siteN
             <span style={{ minWidth: 140 }}>Chef de chantier :</span>
             <select value={site.managerId ?? ''} onChange={(e) => void assign('managerId', e.target.value)} style={selectStyle}>
               <option value="">— Non affecté —</option>
-              {managers.map((m) => (
+              {chefs.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}{roleLabel(m.procurementRole)}</option>
               ))}
             </select>
@@ -79,13 +81,14 @@ export function SiteAssignmentCard({ siteId, siteName }: { siteId: string; siteN
               ))}
             </select>
           </label>
-          {managers.length === 0 && (
+          {chefs.length === 0 && (
             <p style={{ ...css.meta, margin: 0 }}>
-              Aucun gestionnaire — invitez d'abord la personne (Équipe → Inviter).
+              Aucun employé avec le profil « chef de chantier » — attribuez d'abord ce profil (Équipe → Profil).
             </p>
           )}
           <p style={{ ...css.meta, margin: 0 }}>
-            Astuce : affecter quelqu'un comme chef ou DT lui donne automatiquement le rôle correspondant.
+            Le chef de chantier est choisi parmi les employés avec le profil « chef de chantier ».
+            Affecter un DT superviseur lui donne automatiquement le rôle correspondant.
           </p>
           {message && <p style={{ ...css.meta, margin: 0 }}>{message}</p>}
         </div>
