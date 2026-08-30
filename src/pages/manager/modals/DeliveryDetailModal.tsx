@@ -536,6 +536,7 @@ export function DeliveryDetailModal({
                 <button
                   type="button"
                   className="manager-proof-panel__cert"
+                  aria-label={`Ouvrir le certificat ${detail.receiptId}`}
                   onClick={() =>
                     void openCertificateJson(detail.receiptId!).catch((e) =>
                       alert(e instanceof Error ? e.message : 'Erreur'),

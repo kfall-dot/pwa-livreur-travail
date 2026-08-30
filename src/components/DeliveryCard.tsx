@@ -98,14 +98,17 @@ export function DeliveryCard({ delivery, tourDate, isNext = false, stopNumber }:
   }
 
   if (terminal) {
+    // Consultation d'une livraison livrée : la carte est un lien vers le
+    // DeliveryPage, qui affiche TerminalDeliveryView (delivery-terminal-view).
     return (
-      <div
-        className="delivery-card-wrap delivery-card-wrap--static"
+      <Link
+        to={`/delivery/${delivery.id}`}
+        className="delivery-card-wrap delivery-card-wrap--terminal"
         data-testid={`delivery-card-${delivery.id}`}
         aria-label={`${delivery.name} — ${lockLabel ?? 'Livrée'}`}
       >
         {content}
-      </div>
+      </Link>
     )
   }
 

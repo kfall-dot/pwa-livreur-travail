@@ -2416,8 +2416,12 @@ export async function resetAllData(): Promise<void> {
     '../config/databaseProtection.js'
   )
   const { isPgMissingRelation } = await import('../lib/pgErrors.js')
+  const { clearRateLimitStore } = await import('../middleware/rateLimit.js')
   assertDatabaseResetAllowed()
   assertDatabaseWipeAllowed()
+  // Un reset complet doit repartir de compteurs de verrouillage vierges
+  // (le test e2e du déverrouillage PIN n'exigerait plus de 429 sinon).
+  clearRateLimitStore()
 
   const safeDelete = async (fn: () => Promise<unknown>) => {
     try {

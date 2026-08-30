@@ -108,6 +108,14 @@ export async function seedBtpPilotData(): Promise<{
       },
     })
 
+  if (process.env.E2E_TRACE === '1') {
+    const probe = await db.execute(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (await import('drizzle-orm')).sql`select count(*)::int as n from companies where id = ${BTP_DEMO.COMPANY_ID}`,
+    )
+    console.log(`[seed-trace] après upsert company: ${JSON.stringify(probe.rows ?? probe)}`)
+  }
+
   await seedDefaultCompanyUnits(BTP_DEMO.COMPANY_ID)
 
   const managerRows = [
@@ -149,6 +157,15 @@ export async function seedBtpPilotData(): Promise<{
   ]
 
   for (const m of managerRows) {
+    if (process.env.E2E_TRACE === '1') {
+      const probe = await db.execute(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (await import('drizzle-orm')).sql`select count(*)::int as n from companies where id = ${BTP_DEMO.COMPANY_ID}`,
+      )
+      console.log(
+        `[seed-trace] avant insert manager ${m.id}: ${JSON.stringify(probe.rows ?? probe)}`,
+      )
+    }
     await db
       .insert(managers)
       .values({

@@ -150,12 +150,20 @@ test.describe('Replanification gestionnaire', () => {
     await expect(page.getByTestId('mgr-suivi-date')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText('Dépôt à supprimer')).toBeVisible()
 
-        // Le sélecteur ci-dessous matche plusieurs "Supprimer" (strict mode violation)
-    // dans le seed complet : on .first().first() pour cibler uniquement celui
-    // attaché au depot "Dépôt à supprimer" créé juste au-dessus.
-    const tourCard = page.locator('div').filter({ hasText: 'Dépôt à supprimer' }).filter({ has: page.getByRole('button', { name: 'Supprimer' }) }).first()
+        // Le sélecteur ci-dessous matche plusieurs divs contenant "Dépôt à
+    // supprimer" et un bouton "Supprimer" (ancêtres + ligne de la tournée).
+    // .last() = le div le plus interne = la ligne de la tournée créée juste
+    // au-dessus (celle qui contient les boutons Supprimer/Modifier de cette
+    // tournée). .first() ciblerait le conteneur externe et supprimerait une
+    // autre tournée du seed. exact: true pour exclure le bouton d'expansion
+    // de la ligne (son nom accessible contient aussi "Supprimer").
+    const tourCard = page
+      .locator('div')
+      .filter({ hasText: 'Dépôt à supprimer' })
+      .filter({ has: page.getByRole('button', { name: 'Supprimer', exact: true }) })
+      .last()
     page.once('dialog', (d) => void d.accept())
-    await tourCard.getByRole('button', { name: 'Supprimer' }).first().click()
+    await tourCard.getByRole('button', { name: 'Supprimer', exact: true }).click()
 
     await expect(page.getByText('Dépôt à supprimer')).toHaveCount(0, { timeout: 10_000 })
 

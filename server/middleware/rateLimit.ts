@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { getStore } from '@netlify/blobs'
 import { isBlobsEnabled } from '../lib/blobs.js'
-import { allowTestBypass } from '../config/production.js'
 
 type Window = { count: number; resetAt: number }
 
@@ -9,7 +8,10 @@ const memoryStore = new Map<string, Window>()
 const BLOBS_STORE = 'rate-limits'
 
 function rateLimitDisabled(): boolean {
-  return allowTestBypass() && process.env.VITE_E2E === 'true'
+  // Le rate-limit est ACTIF par défaut — y compris en e2e (le test du
+  // verrouillage PIN de manager-otp-assist dépend d'un vrai 429).
+  // Désactivation explicite uniquement via RATE_LIMIT_DISABLED=true.
+  return process.env.RATE_LIMIT_DISABLED === 'true'
 }
 
 async function readWindow(key: string): Promise<Window | undefined> {
@@ -65,6 +67,11 @@ export async function checkRateLimit(
 
 /** Reset mémoire (tests unitaires uniquement). */
 export function resetRateLimitMemoryForTests(): void {
+  memoryStore.clear()
+}
+
+/** Vide TOUS les compteurs de rate-limit (reset e2e / reset DB). */
+export function clearRateLimitStore(): void {
   memoryStore.clear()
 }
 

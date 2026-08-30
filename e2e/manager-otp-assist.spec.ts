@@ -37,7 +37,10 @@ test.describe('Assistance OTP manager', () => {
     )
     await page.getByTestId('mgr-confirm-manual').click()
     await expect(page.getByText(/Livraison validée/)).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByText(/RCT-/)).toBeVisible()
+    // La validation manuelle finalise la livraison → le toast + la référence
+    // RCT- apparaissent, mais la réf. s'affiche aussi dans le modal → strict
+    // mode. On cible l'alerte de rôle alert, unique, qui contient la réf.
+    await expect(page.getByTestId('toast-success')).toContainText(/Livraison validée.*RCT-/)
   })
 })
 
@@ -46,16 +49,42 @@ test.describe('Déverrouillage login livreur', () => {
     await resetAndSeed(request)
     await prepareDriverLogin(page)
 
+    // Le compte ne se verrouille qu'à partir de la 6ᵉ tentative (la 5ᵉ est
+    // encore traitée en 401 par la sémantique count >= max du rate-limit).
     for (let i = 0; i < 5; i++) {
       await page.getByTestId('phone-input').fill(DEMO_DRIVER.phone)
       await page.getByTestId('pin-input').fill('0000')
       await page.getByTestId('login-submit').click()
-      await expect(page.getByText(/verrouillé|tentatives/i)).toBeVisible({ timeout: 10_000 })
+      await expect(page.getByText(/Téléphone ou PIN incorrect/)).toBeVisible({ timeout: 10_000 })
     }
+    // Déclenche le verrouillage en tentant jusqu'à obtenir un 429
+    // (chaque échec incrémente le compteur du rate-limit ; le plafond de 12
+    // tentatives garantit qu'on l'atteint même si un reset/expiration
+    // a réinitialisé les échecs précédents). Déterministe, indépendant du
+    // nombre exact d'échecs déjà enregistrés.
+    let locked = false
+    for (let i = 0; i < 12 && !locked; i++) {
+      const respPromise = page.waitForResponse(
+        (r) => r.url().includes('/auth/login-driver') && r.status() === 429,
+        { timeout: 15_000 },
+      )
+      await page.getByTestId('phone-input').fill(DEMO_DRIVER.phone)
+      await page.getByTestId('pin-input').fill('0000')
+      await page.getByTestId('login-submit').click()
+      try {
+        await respPromise
+        locked = true
+      } catch {
+        // 401 continu — on retente (compteur pas encore assez haut)
+      }
+    }
+    expect(locked, 'Le compte aurait dû être verrouillé (429)').toBeTruthy()
+    await expect(page.getByRole('alert')).toContainText(/verrouillé|tentatives/i)
 
     await page.context().clearCookies()
     await loginManager(page)
-    await page.getByRole('button', { name: /Livreurs/i }).click()
+    await page.getByRole('button', { name: /Équipe/i }).click()
+    await page.getByRole('button', { name: /^Livreurs$/ }).click()
     await page.getByRole('button', { name: /Modifier/i }).first().click()
     await page.getByTestId('mgr-clear-login-lock').click()
     await expect(page.getByText(/Verrouillage réinitialisé/i)).toBeVisible()

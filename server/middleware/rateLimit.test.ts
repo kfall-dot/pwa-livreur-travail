@@ -9,6 +9,7 @@ describe('rateLimit — mémoire (fallback sans Blobs)', () => {
   beforeEach(() => {
     resetRateLimitMemoryForTests()
     delete process.env.VITE_E2E
+    delete process.env.RATE_LIMIT_DISABLED
   })
 
   it('autorise jusqu’à max puis refuse', async () => {
@@ -27,9 +28,17 @@ describe('rateLimit — mémoire (fallback sans Blobs)', () => {
     }
   })
 
-  it('désactivé en E2E (VITE_E2E)', async () => {
+  it('reste ACTIF en E2E (VITE_E2E ne désactive plus — le test du verrouillage PIN a besoin d’un vrai 429)', async () => {
     process.env.VITE_E2E = 'true'
-    const key = 'test:e2e:bypass'
+    const key = 'test:e2e:active'
+    assert.equal((await checkRateLimit(key, 2, 60_000)).allowed, true)
+    assert.equal((await checkRateLimit(key, 2, 60_000)).allowed, true)
+    assert.equal((await checkRateLimit(key, 2, 60_000)).allowed, false)
+  })
+
+  it('désactivé uniquement via RATE_LIMIT_DISABLED=true', async () => {
+    process.env.RATE_LIMIT_DISABLED = 'true'
+    const key = 'test:disabled:bypass'
     for (let i = 0; i < 20; i += 1) {
       assert.equal((await checkRateLimit(key, 2, 60_000)).allowed, true)
     }

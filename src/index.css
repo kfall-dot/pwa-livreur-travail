@@ -1867,6 +1867,10 @@ body:has(.driver-nav) .demo-autoplay {
   cursor: default;
 }
 
+.delivery-card-wrap--terminal {
+  cursor: pointer;
+}
+
 .delivery-card--locked:not(.delivery-card--done) {
   opacity: 0.72;
 }
