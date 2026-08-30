@@ -671,13 +671,14 @@ export async function setManagerTotp(
 
 export async function getAllManagers(
   companyId: string,
-): Promise<Array<Pick<Manager, 'id' | 'email' | 'name' | 'role' | 'createdAt'>>> {
+): Promise<Array<Pick<Manager, 'id' | 'email' | 'name' | 'role' | 'procurementRole' | 'createdAt'>>> {
   return db
     .select({
       id: managers.id,
       email: managers.email,
       name: managers.name,
       role: managers.role,
+      procurementRole: managers.procurementRole,
       createdAt: managers.createdAt,
     })
     .from(managers)
