@@ -21,6 +21,7 @@ import {
   getSiteBudget,
   getSiteIndicators,
   listSiteBudgets,
+  listSiteMonthlyExpenses,
   SiteBudgetError,
   linkDraftToRequest,
   listDrafts,
@@ -393,6 +394,18 @@ procurementRouter.get('/site-budgets', async (req, res) => {
   const { manager } = req as unknown as ManagerRequest
   const budgets = await listSiteBudgets(manager.companyId)
   res.json({ budgets })
+})
+
+// GET /site-budgets/monthly?month=YYYY-MM — dépenses engagées du mois par chantier
+procurementRouter.get('/site-budgets/monthly', async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month ?? '')) ? String(req.query.month) : null
+  if (!month) {
+    res.status(400).json({ message: 'Paramètre month (YYYY-MM) requis' })
+    return
+  }
+  const expenses = await listSiteMonthlyExpenses(manager.companyId, month)
+  res.json({ month, expenses })
 })
 
 procurementRouter.get('/sites/:id/budget', async (req, res) => {

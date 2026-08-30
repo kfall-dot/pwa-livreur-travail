@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lt, ne, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from './index.js'
 import {
@@ -229,6 +229,37 @@ async function nextAmendmentReference(companyId: string): Promise<string> {
       return Number.isFinite(n) && n > max ? n : max
     }, 0) + 1
   return `${prefix}${String(seq).padStart(4, '0')}`
+}
+
+/** Dépenses (BC engagés) d'un mois donné, ventilées par chantier — suivi mensuel. */
+export async function listSiteMonthlyExpenses(
+  companyId: string,
+  month: string,
+): Promise<{ siteId: string; amountFcfa: number }[]> {
+  const startDate = new Date(`${month}-01T00:00:00`)
+  if (Number.isNaN(startDate.getTime())) return []
+  const endDate = new Date(startDate)
+  endDate.setMonth(endDate.getMonth() + 1)
+  const rows = await db
+    .select({
+      siteId: purchaseRequests.siteId,
+      total: sql<string>`coalesce(sum(${purchaseOrders.amountFcfa}), 0)`,
+    })
+    .from(purchaseOrders)
+    .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
+    .where(
+      and(
+        eq(purchaseRequests.companyId, companyId),
+        eq(purchaseOrders.docType, 'bc'),
+        inArray(purchaseRequests.status, [...ENGAGED_BC_STATUSES]),
+        gte(purchaseOrders.createdAt, startDate),
+        lt(purchaseOrders.createdAt, endDate),
+      ),
+    )
+    .groupBy(purchaseRequests.siteId)
+  return rows
+    .filter((r): r is { siteId: string; total: string } => typeof r.siteId === 'string')
+    .map((r) => ({ siteId: r.siteId, amountFcfa: toFcfaInt(r.total) }))
 }
 
 export async function getSiteBudget(companyId: string, siteId: string): Promise<SiteBudgetDto | null> {

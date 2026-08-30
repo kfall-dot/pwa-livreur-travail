@@ -56,6 +56,20 @@ dailyReportsRouter.get('/my-sites', async (req, res) => {
   res.json({ sites, mode })
 })
 
+// ─── Calendrier : rapports journaliers du mois (chef + superviseur) ───────────
+dailyReportsRouter.get('/my-reports', async (req, res) => {
+  const mode = chefMode(req)
+  if (!mode) return unauthorized(res)
+  const { id, companyId } = manager(req)
+  const sites = await listSitesForManager(companyId, id, mode)
+  const siteIds = sites.map((s) => s.id)
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month ?? '')) ? String(req.query.month) : null
+  const since = month ? `${month}-01` : undefined
+  const reports = await listReportsForSites(companyId, siteIds, since)
+  const filtered = month ? reports.filter((r) => r.reportDate.startsWith(month)) : reports
+  res.json({ reports: filtered, sites, mode })
+})
+
 // ─── Dossier du jour (chef) ───────────────────────────────────────────────────
 
 dailyReportsRouter.post('/today', async (req, res) => {

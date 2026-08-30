@@ -3,12 +3,13 @@ import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
 import { DossiersPanel } from './DossiersPanel'
 import { SiteAssignmentCard } from './SiteAssignmentCard'
-import { AlertBox, css, formatFcfa, formatPct, TRAFFIC_LIGHT_LABEL, TRAFFIC_LIGHT_STYLE } from './procurementUi'
+import { AlertBox, css, formatFcfa, formatPct, PROCUREMENT_ROLE_LABELS, TRAFFIC_LIGHT_LABEL, TRAFFIC_LIGHT_STYLE } from './procurementUi'
 import {
   createSiteBudgetAmendment,
   decideSiteBudgetAmendment,
   fetchSiteBudgets,
   fetchSiteIndicators,
+  fetchSiteMonthlyExpenses,
   freezeSiteBudget,
 } from './procurementApi'
 import type { BudgetTrafficLight } from './procurementUi'
@@ -325,6 +326,7 @@ export function SuiviChantierTab({
 
   const [rows, setRows] = useState<SiteStockRow[]>([])
   const [budgets, setBudgets] = useState<SiteBudget[]>([])
+  const [monthExpenses, setMonthExpenses] = useState<Record<string, number>>({})
   const [indicatorsBySite, setIndicatorsBySite] = useState<Record<string, SiteIndicators>>({})
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
   const [openIndicator, setOpenIndicator] = useState<{ siteId: string; id: CdgIndicatorId } | null>(null)
@@ -363,6 +365,22 @@ export function SuiviChantierTab({
   useEffect(() => {
     void load()
   }, [load])
+
+  // Dépenses engagées du mois sélectionné — ventilées par chantier.
+  useEffect(() => {
+    let cancelled = false
+    void fetchSiteMonthlyExpenses(month)
+      .then((rows2) => {
+        if (cancelled) return
+        const map: Record<string, number> = {}
+        for (const r of rows2) map[r.siteId] = r.amountFcfa
+        setMonthExpenses(map)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [month])
 
   useEffect(() => {
     if (!selectedSiteId) return
@@ -407,9 +425,11 @@ export function SuiviChantierTab({
       <DossiersPanel handleAuth={handleAuth} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
         <div>
-          <h2 style={{ ...css.sectionTitle, margin: 0 }}>Suivi chantier</h2>
+          <h2 style={{ ...css.sectionTitle, margin: 0 }}>
+            Suivi chantier{procurementRole ? ` — vue ${PROCUREMENT_ROLE_LABELS[procurementRole] ?? procurementRole}` : ''}
+          </h2>
           <p style={css.meta}>
-            Enveloppe CdG : budget, % d’engagement, écart, feux 2 % / 5 %, avenant manquant. Puis stock livré.
+            Enveloppe CdG : budget, % d’engagement, écart, feux 2 % / 5 %, avenant manquant. Dépenses filtrées par mois.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
@@ -432,49 +452,64 @@ export function SuiviChantierTab({
         </div>
       </div>
       {error && <AlertBox>{error}</AlertBox>}
-      {budgets.length > 0 && (
-        <div style={{ overflowX: 'auto', marginBottom: 16 }} data-testid="mgr-suivi-board">
-          <table style={css.lineTable}>
-            <thead>
-              <tr>
-                <th style={css.lineTh}>Chantier</th>
-                <th style={css.lineTh}>Budget</th>
-                <th style={css.lineTh}>Engagé</th>
-                <th style={css.lineTh}>Engagement</th>
-                <th style={css.lineTh}>Feu</th>
-                <th style={css.lineTh}>Avenant</th>
-              </tr>
-            </thead>
-            <tbody>
-              {budgets.filter((b) => b.engagedFcfa > 0).map((b) => {
-                const light = (b.trafficLight ?? 'none') as BudgetTrafficLight
-                return (
-                  <tr
-                    key={b.siteId}
-                    data-testid={`mgr-suivi-board-row-${b.siteId}`}
-                    onClick={() => setSelectedSiteId(b.siteId)}
-                    style={{
-                      cursor: 'pointer',
-                      background: b.siteId === selectedSiteId ? 'var(--bg-muted, #f8fafc)' : undefined,
-                    }}
-                  >
-                    <td style={css.lineTd}>{b.siteName}</td>
-                    <td style={css.lineTd}>{formatFcfa(b.budgetTotalFcfa)}</td>
-                    <td style={css.lineTd}>{formatFcfa(b.engagedFcfa)}</td>
-                    <td style={css.lineTd}>{formatPct(b.engagementPct)}</td>
-                    <td style={{ ...css.lineTd, color: TRAFFIC_LIGHT_STYLE[light].color }}>
-                      {b.budgetFrozenAt ? TRAFFIC_LIGHT_LABEL[light] : 'Non gelée'}
-                    </td>
-                    <td style={css.lineTd}>
-                      {b.missingAmendment ? 'Manquant' : b.overBudget ? 'À surveiller' : '—'}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {(() => {
+        const visible = budgets.filter((b) => (monthExpenses[b.siteId] ?? 0) > 0)
+        if (budgets.length > 0 && visible.length === 0) {
+          return (
+            <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-suivi-empty-month">
+              <p style={{ ...css.meta, margin: 0 }}>
+                Aucune dépense engagée en {month} sur les chantiers. Changez de mois ou réinitialisez.
+              </p>
+            </div>
+          )
+        }
+        if (visible.length === 0) return null
+        return (
+          <div style={{ overflowX: 'auto', marginBottom: 16 }} data-testid="mgr-suivi-board">
+            <table style={css.lineTable}>
+              <thead>
+                <tr>
+                  <th style={css.lineTh}>Chantier</th>
+                  <th style={css.lineTh}>Dépenses du mois</th>
+                  <th style={css.lineTh}>Budget</th>
+                  <th style={css.lineTh}>Engagé (total)</th>
+                  <th style={css.lineTh}>Engagement</th>
+                  <th style={css.lineTh}>Feu</th>
+                  <th style={css.lineTh}>Avenant</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((b) => {
+                  const light = (b.trafficLight ?? 'none') as BudgetTrafficLight
+                  return (
+                    <tr
+                      key={b.siteId}
+                      data-testid={`mgr-suivi-board-row-${b.siteId}`}
+                      onClick={() => setSelectedSiteId(b.siteId)}
+                      style={{
+                        cursor: 'pointer',
+                        background: b.siteId === selectedSiteId ? 'var(--bg-muted, #f8fafc)' : undefined,
+                      }}
+                    >
+                      <td style={css.lineTd}>{b.siteName}</td>
+                      <td style={css.lineTd}>{formatFcfa(monthExpenses[b.siteId] ?? 0)}</td>
+                      <td style={css.lineTd}>{formatFcfa(b.budgetTotalFcfa)}</td>
+                      <td style={css.lineTd}>{formatFcfa(b.engagedFcfa)}</td>
+                      <td style={css.lineTd}>{formatPct(b.engagementPct)}</td>
+                      <td style={{ ...css.lineTd, color: TRAFFIC_LIGHT_STYLE[light].color }}>
+                        {b.budgetFrozenAt ? TRAFFIC_LIGHT_LABEL[light] : 'Non gelée'}
+                      </td>
+                      <td style={css.lineTd}>
+                        {b.missingAmendment ? 'Manquant' : b.overBudget ? 'À surveiller' : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
       {selectedBudget && (
         <EnvelopeBanner
           key={selectedBudget.siteId}

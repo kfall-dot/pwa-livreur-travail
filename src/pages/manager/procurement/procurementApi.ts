@@ -69,6 +69,16 @@ export async function fetchSiteBudgets(): Promise<SiteBudget[]> {
   return data.budgets ?? []
 }
 
+/** Dépenses engagées du mois (YYYY-MM), ventilées par chantier. */
+export async function fetchSiteMonthlyExpenses(
+  month: string,
+): Promise<{ siteId: string; amountFcfa: number }[]> {
+  const res = await authFetch(`${BASE}/site-budgets/monthly?month=${encodeURIComponent(month)}`)
+  if (!res.ok) throw new Error('Dépenses mensuelles indisponibles')
+  const data = await res.json() as { expenses?: { siteId: string; amountFcfa: number }[] }
+  return data.expenses ?? []
+}
+
 export async function freezeSiteBudget(siteId: string, amountFcfa: number, pin: string): Promise<SiteBudget> {
   const res = await authFetch(`${BASE}/sites/${encodeURIComponent(siteId)}/budget/freeze`, {
     method: 'POST',

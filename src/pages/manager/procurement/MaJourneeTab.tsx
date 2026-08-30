@@ -38,6 +38,23 @@ export function MaJourneeTab({ handleAuth }: { handleAuth: (status: number) => b
   const [comment, setComment] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
+type CalReport = {
+  id: string
+  siteId: string
+  siteName: string
+  reportDate: string
+  status: 'draft' | 'submitted'
+  progressPct: number | null
+  tasksDone: number
+  tasksTotal: number
+  comment: string | null
+}
+
+const localToday = (): string => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
   const loadSites = useCallback(async () => {
     setLoading(true)
     try {
@@ -81,6 +98,55 @@ export function MaJourneeTab({ handleAuth }: { handleAuth: (status: number) => b
   useEffect(() => {
     if (siteId) void loadReport()
   }, [siteId, loadReport])
+
+  const [calMonth, setCalMonth] = useState(() => localToday().slice(0, 7))
+  const [calReports, setCalReports] = useState<CalReport[]>([])
+  const [viewingPast, setViewingPast] = useState(false)
+
+  const loadCalendar = useCallback(async () => {
+    const res = await authFetch(`/daily-reports/my-reports?month=${encodeURIComponent(calMonth)}`)
+    if (handleAuth(res.status)) return
+    if (res.ok) {
+      const body = (await res.json()) as { reports?: CalReport[] }
+      setCalReports(body.reports ?? [])
+    }
+  }, [calMonth, handleAuth])
+
+  useEffect(() => {
+    void loadCalendar()
+  }, [loadCalendar])
+
+  /** Ouvre un rapport passé (lecture + photos). */
+  const openReportById = async (id: string) => {
+    setLoading(true)
+    try {
+      const res = await authFetch(`/daily-reports/reports/${id}`)
+      if (handleAuth(res.status)) return
+      if (!res.ok) {
+        flash('Rapport introuvable')
+        return
+      }
+      const body = (await res.json()) as ReportPayload
+      setDetail(body)
+      setProgress(body.report.globalProgressPct != null ? String(Number(body.report.globalProgressPct)) : '')
+      setComment(body.report.comment ?? '')
+      setViewingPast(body.report.reportDate !== localToday())
+      const photoRes = await authFetch(`/daily-reports/reports/${id}/photos`)
+      if (photoRes.ok && !handleAuth(photoRes.status)) {
+        const photoBody = (await photoRes.json()) as { photos?: PhotoRow[] }
+        setDetail((prev) => (prev ? { ...prev, photos: photoBody.photos ?? [] } : prev))
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /** Revenir au dossier du jour. */
+  const backToToday = async () => {
+    setViewingPast(false)
+    await loadReport()
+    await loadCalendar()
+  }
 
   const reportId = detail?.report.id ?? null
   const isDraft = detail?.report.status === 'draft'
@@ -220,6 +286,53 @@ export function MaJourneeTab({ handleAuth }: { handleAuth: (status: number) => b
             {new Date(detail.report.reportDate).toLocaleDateString('fr-FR')} · {statusBadge}
             {detail.report.submissions.length > 0 && ` · ${detail.report.submissions.length} soumission(s)`}
           </p>
+        )}
+        {viewingPast && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--muted, #667)' }}>
+              📜 Consultation d'un rapport passé
+            </span>
+            <button type="button" onClick={() => void backToToday()} data-testid="mgr-mj-back-today">
+              ← Revenir à aujourd'hui
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={css.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <h4 style={{ margin: 0 }}>📅 Historique des activités</h4>
+          <input
+            type="month"
+            value={calMonth}
+            onChange={(e) => setCalMonth(e.target.value)}
+            data-testid="mgr-mj-month"
+            style={{ padding: '0.3rem' }}
+          />
+        </div>
+        {calReports.length === 0 ? (
+          <p style={{ ...css.meta, marginBottom: 0 }}>Aucune activité enregistrée ce mois.</p>
+        ) : (
+          <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
+            {calReports.map((r) => (
+              <li
+                key={r.id}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.35rem 0', borderBottom: '1px solid var(--border)' }}
+              >
+                <span style={{ minWidth: 92, fontSize: 13 }}>
+                  {new Date(r.reportDate).toLocaleDateString('fr-FR')}
+                </span>
+                <span style={{ flex: 1, fontSize: 13 }}>
+                  {r.siteName} · {r.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'}
+                  {r.progressPct != null && ` · ${r.progressPct}%`}
+                  {` · ${r.tasksDone}/${r.tasksTotal} tâches`}
+                </span>
+                <button type="button" onClick={() => void openReportById(r.id)} data-testid={`mgr-mj-open-${r.reportDate}`}>
+                  Voir
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
