@@ -42,8 +42,16 @@ export function SiteAssignmentCard({ siteId, siteName }: { siteId: string; siteN
     }
   }
 
-  const chefs = managers.filter((m) => m.procurementRole === 'site_manager')
-  const superviseurs = managers.filter((m) => m.procurementRole === 'technical_director')
+  // Toutes les gestionnaires sont proposés : l'affectation promeut automatiquement
+  // le rôle côté serveur (chef → site_manager, DT superviseur → technical_director).
+  const roleLabel = (r: string | null): string =>
+    r === 'site_manager'
+      ? ' — chef de chantier'
+      : r === 'technical_director'
+        ? ' — DT'
+        : r
+          ? ` — ${r}`
+          : ''
   const selectStyle = { padding: '0.4rem', flex: 1 } as const
 
   return (
@@ -57,8 +65,8 @@ export function SiteAssignmentCard({ siteId, siteName }: { siteId: string; siteN
             <span style={{ minWidth: 140 }}>Chef de chantier :</span>
             <select value={site.managerId ?? ''} onChange={(e) => void assign('managerId', e.target.value)} style={selectStyle}>
               <option value="">— Non affecté —</option>
-              {chefs.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
+              {managers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}{roleLabel(m.procurementRole)}</option>
               ))}
             </select>
           </label>
@@ -66,16 +74,19 @@ export function SiteAssignmentCard({ siteId, siteName }: { siteId: string; siteN
             <span style={{ minWidth: 140 }}>DT superviseur :</span>
             <select value={site.supervisorManagerId ?? ''} onChange={(e) => void assign('supervisorManagerId', e.target.value)} style={selectStyle}>
               <option value="">— Non affecté —</option>
-              {superviseurs.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
+              {managers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}{roleLabel(m.procurementRole)}</option>
               ))}
             </select>
           </label>
-          {chefs.length === 0 && (
+          {managers.length === 0 && (
             <p style={{ ...css.meta, margin: 0 }}>
-              Aucun chef de chantier — créez un gestionnaire avec le rôle « Chef de chantier ».
+              Aucun gestionnaire — invitez d'abord la personne (Équipe → Inviter).
             </p>
           )}
+          <p style={{ ...css.meta, margin: 0 }}>
+            Astuce : affecter quelqu'un comme chef ou DT lui donne automatiquement le rôle correspondant.
+          </p>
           {message && <p style={{ ...css.meta, margin: 0 }}>{message}</p>}
         </div>
       )}

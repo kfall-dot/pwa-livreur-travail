@@ -39,6 +39,9 @@ import {
   updateRequestLinePrices,
 } from '../db/procurementQueries.js'
 import type { ParsedEbLine, ProcurementRole, PurchaseRequestStatus } from '../db/schema.js'
+import { managers } from '../db/schema.js'
+import { db } from '../db/index.js'
+import { and, eq } from 'drizzle-orm'
 import { createTourWithStops, ensureCompanyUnit, ensureProductsFromEbLines, getManagerById } from '../db/queries.js'
 import { catalogUnitFromEb } from '../../shared/ebCatalog.js'
 import { linesForSupplier } from '../lib/procurementLines.js'
@@ -315,6 +318,8 @@ const siteAssignSchema = z.object({
 })
 
 // PATCH /sites/:id/assignments — affecte chef de chantier / DT superviseur
+// L'affectation promeut automatiquement le rôle achats du gestionnaire
+// (managerId → site_manager, supervisorManagerId → technical_director).
 procurementRouter.patch(
   '/sites/:id/assignments',
   requireProcurementRole('technical_director', 'daf'),
@@ -329,6 +334,20 @@ procurementRouter.patch(
     if (!site) {
       res.status(404).json({ message: 'Chantier introuvable' })
       return
+    }
+    // Promotion implicite du rôle pour que la page « Ma journée » / supervision fonctionne.
+    const promotions: { id: string; role: ProcurementRole }[] = []
+    if (clean.managerId) promotions.push({ id: clean.managerId, role: 'site_manager' })
+    if (clean.supervisorManagerId) promotions.push({ id: clean.supervisorManagerId, role: 'technical_director' })
+    for (const p of promotions) {
+      const [row] = await db
+        .select({ id: managers.id })
+        .from(managers)
+        .where(and(eq(managers.companyId, manager.companyId), eq(managers.id, p.id)))
+        .limit(1)
+      if (row) {
+        await db.update(managers).set({ procurementRole: p.role }).where(eq(managers.id, p.id))
+      }
     }
     res.json({ site })
   },
