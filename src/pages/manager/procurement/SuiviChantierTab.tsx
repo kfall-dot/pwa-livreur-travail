@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
 import { DossiersPanel } from './DossiersPanel'
+import { SiteAssignmentCard } from './SiteAssignmentCard'
 import { AlertBox, css, formatFcfa, formatPct, TRAFFIC_LIGHT_LABEL, TRAFFIC_LIGHT_STYLE } from './procurementUi'
 import {
   createSiteBudgetAmendment,
@@ -483,6 +484,9 @@ export function SuiviChantierTab({
           onChanged={() => void load()}
           onOpenIndicator={(id) => setOpenIndicator({ siteId: selectedBudget.siteId, id })}
         />
+      )}
+      {selectedBudget && (procurementRole === 'technical_director' || procurementRole === 'daf') && (
+        <SiteAssignmentCard siteId={selectedBudget.siteId} siteName={selectedBudget.siteName} />
       )}
       {loading ? (
         <p style={css.meta}>Chargement…</p>

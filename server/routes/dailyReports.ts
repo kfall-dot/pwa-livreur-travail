@@ -236,6 +236,25 @@ dailyReportsRouter.get('/reports/:id/photos', async (req, res) => {
   res.json({ photos: photos.map((p) => ({ ...p, url: `/api/v1/daily-reports/photos/${encodeURIComponent(p.photoId)}` })) })
 })
 
+// ─── Affectation chantiers (DT/DAF) ──────────────────────────────────────────
+
+import { db } from '../db/index.js'
+import { managers } from '../db/schema.js'
+import { eq } from 'drizzle-orm'
+
+dailyReportsRouter.get('/assignable-managers', async (req, res) => {
+  const mode = chefMode(req)
+  if (mode !== 'superviseur') return unauthorized(res)
+  const { companyId } = manager(req)
+  const rows = await db
+    .select({ id: managers.id, name: managers.name, email: managers.email, procurementRole: managers.procurementRole })
+    .from(managers)
+    .where(eq(managers.companyId, companyId))
+  res.json({
+    managers: rows.map((r) => ({ ...r, procurementRole: r.procurementRole ?? null })),
+  })
+})
+
 // ─── Vue DT / superviseur ─────────────────────────────────────────────────────
 
 import { listReportsForSites, listSiteConsumption } from '../db/dailyReportQueries.js'
