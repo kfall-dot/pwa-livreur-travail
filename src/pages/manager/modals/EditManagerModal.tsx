@@ -18,6 +18,7 @@ export function EditManagerModal({
     email: row?.email ?? '',
     password: '',
     role: (row?.role ?? 'manager') as 'admin' | 'manager',
+    procurementRole: row?.procurementRole ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,6 +33,7 @@ export function EditManagerModal({
       if (form.email.trim()) body.email = form.email.trim()
       if (form.password) body.password = form.password
       body.role = form.role
+      body.procurementRole = form.procurementRole
       const res = await authFetch(`/dashboard/managers/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -77,6 +79,23 @@ export function EditManagerModal({
             >
               <option value="manager">Gestionnaire</option>
               <option value="admin">Administrateur</option>
+            </select>
+          </Field>
+          <div style={{ marginBottom: 8 }} />
+          <Field label="Profil chantiers (dossier quotidien)">
+            <select
+              value={form.procurementRole}
+              style={css.input}
+              onChange={(e) => setForm((p) => ({ ...p, procurementRole: e.target.value }))}
+            >
+              <option value="">Aucun</option>
+              <option value="site_manager">Chef de chantier</option>
+              <option value="technical_director">Directeur technique</option>
+              <option value="site_controller">Conducteur de travaux</option>
+              <option value="purchasing">Service achats</option>
+              <option value="controle_gestion">Contrôle de gestion</option>
+              <option value="daf">DAF</option>
+              <option value="pdg">PDG</option>
             </select>
           </Field>
           <div style={{ marginBottom: 8 }} />

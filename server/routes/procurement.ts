@@ -6,6 +6,7 @@ import { normalizeEbSpendCategory } from '../../shared/ebSpendCategory.js'
 import {
   createPurchaseRequestFromDraft,
   createSite,
+  updateSiteAssignments,
   createSiteBudgetAmendment,
   createSupplier,
   decideSiteBudgetAmendment,
@@ -307,6 +308,31 @@ procurementRouter.post('/sites', requireProcurementRole('technical_director', 'd
   const site = await createSite({ companyId: manager.companyId, ...body })
   res.status(201).json({ site })
 })
+
+const siteAssignSchema = z.object({
+  managerId: z.string().nullable().optional(),
+  supervisorManagerId: z.string().nullable().optional(),
+})
+
+// PATCH /sites/:id/assignments — affecte chef de chantier / DT superviseur
+procurementRouter.patch(
+  '/sites/:id/assignments',
+  requireProcurementRole('technical_director', 'daf'),
+  async (req, res) => {
+    const body = parseBody(siteAssignSchema, req.body, res)
+    if (!body) return
+    const { manager } = req as unknown as ManagerRequest
+    const clean: { managerId?: string | null; supervisorManagerId?: string | null } = {}
+    if ('managerId' in body) clean.managerId = body.managerId || null
+    if ('supervisorManagerId' in body) clean.supervisorManagerId = body.supervisorManagerId || null
+    const site = await updateSiteAssignments(manager.companyId, String(req.params.id), clean)
+    if (!site) {
+      res.status(404).json({ message: 'Chantier introuvable' })
+      return
+    }
+    res.json({ site })
+  },
+)
 
 const freezeBudgetSchema = z.object({
   amountFcfa: z.number().int().positive(),

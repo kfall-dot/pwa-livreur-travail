@@ -74,6 +74,24 @@ export async function getSiteByWhatsappGroup(companyId: string, groupId: string)
   return row ?? null
 }
 
+/** Affecte chef de chantier et/ou DT superviseur sur un chantier. */
+export async function updateSiteAssignments(
+  companyId: string,
+  siteId: string,
+  data: { managerId?: string | null; supervisorManagerId?: string | null },
+) {
+  const set: { managerId?: string | null; supervisorManagerId?: string | null } = {}
+  if ('managerId' in data) set.managerId = data.managerId
+  if ('supervisorManagerId' in data) set.supervisorManagerId = data.supervisorManagerId
+  if (Object.keys(set).length === 0) return getSiteById(companyId, siteId)
+  const [row] = await db
+    .update(sites)
+    .set(set)
+    .where(and(eq(sites.id, siteId), eq(sites.companyId, companyId)))
+    .returning()
+  return row ?? null
+}
+
 export async function createSite(input: {
   companyId: string
   name: string

@@ -709,13 +709,14 @@ export async function createManager(
 
 export async function updateManager(
   id: string,
-  data: Partial<Pick<Manager, 'name' | 'email' | 'passwordHash' | 'role'>>,
+  data: Partial<Pick<Manager, 'name' | 'email' | 'passwordHash' | 'role' | 'procurementRole'>>,
 ): Promise<Manager | null> {
-  const set: Partial<Pick<Manager, 'name' | 'email' | 'passwordHash' | 'role'>> = {}
+  const set: Partial<Pick<Manager, 'name' | 'email' | 'passwordHash' | 'role' | 'procurementRole'>> = {}
   if (data.name) set.name = data.name.trim()
   if (data.email) set.email = data.email.trim().toLowerCase()
   if (data.passwordHash) set.passwordHash = data.passwordHash
   if (data.role) set.role = data.role
+  if ('procurementRole' in data) set.procurementRole = data.procurementRole ?? null
   if (Object.keys(set).length === 0) return getManagerById(id)
   const [row] = await db.update(managers).set(set).where(eq(managers.id, id)).returning()
   return row ?? null

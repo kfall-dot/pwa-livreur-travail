@@ -95,7 +95,7 @@ import {
 } from '../db/procurementQueries.js'
 import { isSiteType, isSupplierFamily } from '../../shared/catalogEnums.js'
 import { isProduction, allowDevDuplicateDriverPhone } from '../config/production.js'
-import { DEMO_COMPANY_ID } from '../db/schema.js'
+import { DEMO_COMPANY_ID, type ProcurementRole } from '../db/schema.js'
 import { isPgUniqueViolation } from '../lib/pgErrors.js'
 import { isSelfSignupAllowed, newCompanyId, slugifyCompanyName } from '../lib/tenant.js'
 import { rateLimitByBodyField, rateLimitByIp } from '../middleware/rateLimit.js'
@@ -1531,7 +1531,7 @@ dashboardRouter.patch('/dashboard/managers/:id', requireAdmin, async (req, res) 
       }
     }
 
-    const update: Partial<{ name: string; email: string; passwordHash: string; role: 'admin' | 'manager' }> = {}
+    const update: Partial<{ name: string; email: string; passwordHash: string; role: 'admin' | 'manager'; procurementRole: ProcurementRole | null }> = {}
     if (name?.trim()) update.name = name.trim()
     if (email?.trim()) {
       const normalizedEmail = email.trim().toLowerCase()
@@ -1554,6 +1554,22 @@ dashboardRouter.patch('/dashboard/managers/:id', requireAdmin, async (req, res) 
       update.passwordHash = await bcrypt.hash(password, 10)
     }
     if (role === 'admin' || role === 'manager') update.role = role
+
+    // Profil chantiers (rôle achats/terrain) — null = aucun profil
+    if ('procurementRole' in req.body) {
+      const validProcurementRoles = [
+        'site_controller',
+        'technical_director',
+        'daf',
+        'purchasing',
+        'pdg',
+        'controle_gestion',
+        'site_manager',
+      ]
+      const pr = (req.body as { procurementRole?: unknown }).procurementRole
+      update.procurementRole =
+        typeof pr === 'string' && validProcurementRoles.includes(pr) ? (pr as ProcurementRole) : null
+    }
 
     const row = await updateManager(String(id), update)
     if (!row) {

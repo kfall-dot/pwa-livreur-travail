@@ -765,7 +765,6 @@ export type NewSiteReportPhoto = typeof siteReportPhotos.$inferInsert
 export type ProcurementRole = (typeof procurementRoleEnum.enumValues)[number]
 export type NewEbParseRun = typeof ebParseRuns.$inferInsert
 
-export type ProcurementRole = (typeof procurementRoleEnum.enumValues)[number]
 export type ParsedEbLine = {
   label: string
   quantity: number

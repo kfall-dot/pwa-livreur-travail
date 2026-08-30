@@ -10,6 +10,7 @@ const ROLE_LABELS: Record<ProcurementRole, string> = {
   purchasing: 'Service achats',
   pdg: 'PDG',
   controle_gestion: 'Contrôle de gestion',
+  site_manager: 'Chef de chantier',
 }
 
 export async function notifyManagersByProcurementRole(

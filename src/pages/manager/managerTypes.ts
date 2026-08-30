@@ -17,7 +17,7 @@ export interface DeliveryRow {
 
 export interface DriverRow { id: string; name: string; phone: string; status: string }
 
-export interface ManagerRow { id: string; name: string; email: string; role?: 'admin' | 'manager'; createdAt?: string }
+export interface ManagerRow { id: string; name: string; email: string; role?: 'admin' | 'manager'; procurementRole?: string | null; createdAt?: string }
 
 export interface ManagerInviteRow { id: string; email: string; name: string; expiresAt: string; createdAt?: string }
 

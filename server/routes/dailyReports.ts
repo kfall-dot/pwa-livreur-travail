@@ -25,7 +25,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 type Proc = { procurementRole?: string | null }
 
-function manager(req: Request) {
+function manager(req: import('express').Request) {
   const m = (req as ManagerRequest).manager
   return { id: m.sub, companyId: m.companyId, role: (m as unknown as Proc).procurementRole ?? null }
 }
@@ -35,7 +35,7 @@ function isChef(role: string | null): boolean {
 }
 
 /** Chef = accès à ses chantiers (managerId) ; DT/superviseur = ses chantiers supervisés. */
-function chefMode(req: Request): 'chef' | 'superviseur' | null {
+function chefMode(req: import('express').Request): 'chef' | 'superviseur' | null {
   const { role } = manager(req)
   if (isChef(role)) return 'chef'
   if (role === 'technical_director' || role === 'controle_gestion' || role === 'daf') return 'superviseur'
@@ -179,24 +179,26 @@ dailyReportsRouter.post('/reports/:id/photos', upload.single('photo'), async (re
   if (mode !== 'chef') return unauthorized(res)
   if (!req.file) return void res.status(400).json({ message: 'Photo requise' })
   const { companyId, id } = manager(req)
-  const detail = await loadReportById(req.params.id)
+  const reportIdParam = String(req.params.id)
+  const detail = await loadReportById(reportIdParam)
   if (!detail) return void res.status(404).json({ message: 'Dossier introuvable' })
   if (!(await canAccessSite(companyId, detail.report.siteId, id, mode))) return unauthorized(res)
 
-  const photoId = `${req.params.id}/${randomUUID()}`
-  const buffer = Buffer.from(
-    req.file.buffer.buffer.slice(req.file.buffer.byteOffset, req.file.buffer.byteOffset + req.file.buffer.byteLength),
-  )
+  const photoId = `${reportIdParam}/${randomUUID()}`
+  const arrayBuffer = req.file.buffer.buffer.slice(
+    req.file.buffer.byteOffset,
+    req.file.buffer.byteOffset + req.file.buffer.byteLength,
+  ) as ArrayBuffer
   if (isBlobsEnabled()) {
-    await getDeliveryPhotosStore().set(photoId, buffer, {
-      metadata: { reportId: req.params.id, uploadedAt: new Date().toISOString() },
+    await getDeliveryPhotosStore().set(photoId, arrayBuffer, {
+      metadata: { reportId: reportIdParam, uploadedAt: new Date().toISOString() },
     })
   } else if (isLocalPhotoStorageEnabled()) {
-    savePhotoLocal(photoId, buffer, { reportId: req.params.id, uploadedAt: new Date().toISOString() })
+    savePhotoLocal(photoId, Buffer.from(arrayBuffer), { reportId: reportIdParam, uploadedAt: new Date().toISOString() })
   } else {
     return void res.status(503).json({ message: 'Stockage photo indisponible, réessayez.' })
   }
-  const photo = await addReportPhoto(req.params.id, photoId, req.file.size, (req.body?.taskId as string) ?? null)
+  const photo = await addReportPhoto(reportIdParam, photoId, req.file.size, typeof req.body?.taskId === 'string' ? req.body.taskId : null)
   res.json({ ok: true, photo, photoId })
 })
 
@@ -204,7 +206,7 @@ dailyReportsRouter.get('/photos/:photoId', async (req, res) => {
   const mode = chefMode(req)
   if (!mode) return unauthorized(res)
   const { companyId, id } = manager(req)
-  const photoId = req.params.photoId
+  const photoId = String(req.params.photoId)
   const reportId = photoId.split('/')[0]
   const detail = await loadReportById(reportId)
   if (!detail) return void res.status(404).json({ message: 'Photo introuvable' })
@@ -231,7 +233,7 @@ dailyReportsRouter.get('/reports/:id/photos', async (req, res) => {
   if (!detail) return void res.status(404).json({ message: 'Dossier introuvable' })
   if (!(await canAccessSite(companyId, detail.report.siteId, id, mode))) return unauthorized(res)
   const photos = await listReportPhotos(req.params.id)
-  res.json({ photos: photos.map((p) => ({ ...p, url: `/api/v1/daily-reports/photos/${p.photoId}` })) })
+  res.json({ photos: photos.map((p) => ({ ...p, url: `/api/v1/daily-reports/photos/${encodeURIComponent(p.photoId)}` })) })
 })
 
 // ─── Vue DT / superviseur ─────────────────────────────────────────────────────
@@ -274,6 +276,7 @@ dailyReportsRouter.get('/dt/stock', async (req, res) => {
     .map((r) => {
       const consumed = consumption.get(`${siteId}|${r.productLabel}|${r.unit}`)?.consumed ?? 0
       const available = r.onHand - consumed
+      const alert: StockRowApi['alert'] = available < 0 ? 'negative' : available <= 2 ? 'low' : 'ok'
       return {
         productLabel: r.productLabel,
         unit: r.unit,
@@ -281,7 +284,7 @@ dailyReportsRouter.get('/dt/stock', async (req, res) => {
         consumed,
         available,
         onOrder: r.onOrder,
-        alert: available < 0 ? 'negative' : available <= 2 ? 'low' : 'ok',
+        alert,
       }
     })
     .sort((a, b) => a.alert.localeCompare(b.alert) || a.productLabel.localeCompare(b.productLabel))
