@@ -14,6 +14,7 @@ import { logSecurityEvent } from '../lib/securityAudit.js'
 import { captureException } from '../lib/sentry.js'
 import {
   createSession,
+  findDriverIdWithLatestTour,
   getDriverByPhone,
   getDriversByPhone,
   getDriverById,
@@ -62,8 +63,6 @@ authRouter.post(
       res.status(401).json({ message: 'Téléphone ou PIN incorrect' })
       return
     }
-    let driver = active[0]!
-    let pinOk = false
     const pinMatches: NonNullable<(typeof active)[number]>[] = []
     for (const candidate of active) {
       const ok = candidate.pinHash
