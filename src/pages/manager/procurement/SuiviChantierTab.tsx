@@ -432,11 +432,17 @@ export function SuiviChantierTab({
   const [sitePhotos, setSitePhotos] = useState<SitePhoto[]>([])
   const [openReport, setOpenReport] = useState<ReportDetailPayload | null>(null)
 
-  // Chantiers du sélecteur « Chantier » : responsabilité du DT/CdG, ou ses chantiers (CDC).
+  // Chantiers du sélecteur « Chantier » : responsabilité du DT, tous les actifs
+  // pour les autres rôles compagnie, ou ses chantiers (CDC).
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const res = await authFetch('/daily-reports/my-sites?scope=mine')
+      // DT : uniquement les chantiers sous sa responsabilité (demande métier).
+      const url =
+        procurementRole === 'technical_director'
+          ? '/daily-reports/my-sites?scope=mine'
+          : '/daily-reports/my-sites'
+      const res = await authFetch(url)
       if (handleAuth(res.status) || !res.ok) return
       const body = (await res.json()) as { sites?: ChantierSite[] }
       if (cancelled) return
@@ -472,6 +478,10 @@ export function SuiviChantierTab({
   // Photos récentes du chantier sélectionné — un 403 n'entraîne pas de déconnexion.
   useEffect(() => {
     if (!selectedSiteId || !canSee('photos')) return
+    // CDC : ne jamais interroger un chantier hors de sa responsabilité.
+    if (isChef && chantierSites.length > 0 && !chantierSites.some((s) => s.id === selectedSiteId)) {
+      return
+    }
     let cancelled = false
     void (async () => {
       const res = await authFetch(`/daily-reports/site-photos?siteId=${encodeURIComponent(selectedSiteId)}`)
