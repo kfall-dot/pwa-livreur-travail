@@ -50,4 +50,21 @@ async function dumpBody(email) {
 
 await dumpBody('cdc@btp-pilote.ci')
 await dumpBody('daf@btp-pilote.ci')
+
+async function diagRole(email) {
+  const page = await browser.newPage()
+  const bad = []
+  page.on('response', (r) => { if (r.status() >= 400) bad.push(`[${r.status()}] ${r.url().slice(0, 130)}`) })
+  page.on('pageerror', (e) => bad.push(`[PAGEERROR] ${e.message.slice(0, 300)}`))
+  await page.request.post(base + '/api/auth/login-dashboard', {
+    data: { email, password: 'admin1234' },
+  })
+  await page.goto(base + '/manager?tab=suiviChantier', { waitUntil: 'networkidle' })
+  await page.waitForTimeout(5000)
+  console.log(`\n===== DIAG ${email} — URL: ${page.url()} =====`)
+  bad.forEach((b) => console.log(b))
+  await page.close()
+}
+
+await diagRole('cdc@btp-pilote.ci')
 await browser.close()

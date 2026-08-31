@@ -354,7 +354,8 @@ export function SuiviChantierTab({
     setLoading(true)
     try {
       // Stock réel : uniquement pour les rôles de la matrice (évite un 403 → déconnexion).
-      const stockRes = canSee('stock') ? await authFetch('/procurement/site-stock') : null
+      const stockAllowed = canSeeSuiviBlock('stock', procurementRole)
+      const stockRes = stockAllowed ? await authFetch('/procurement/site-stock') : null
       if (stockRes && handleAuth(stockRes.status)) return
       const [stockBody, sitesBudgets] = await Promise.all([
         stockRes && stockRes.ok
@@ -364,22 +365,24 @@ export function SuiviChantierTab({
       ])
       setRows(stockBody.rows ?? [])
       setBudgets(sitesBudgets)
-      setSelectedSiteId((prev) => {
-        if (prev && sitesBudgets.some((b) => b.siteId === prev)) return prev
-        const withStock = (stockBody.rows ?? []).find((r) => sitesBudgets.some((b) => b.siteId === r.siteId))
-        if (withStock) return withStock.siteId
-        const frozen = sitesBudgets.find((b) => b.budgetFrozenAt)
-        if (frozen) return frozen.siteId
-        const pilote = sitesBudgets.find((b) => b.siteId === 'site-btp-pilote-1')
-        return pilote?.siteId ?? sitesBudgets[0]?.siteId ?? null
-      })
+      if (procurementRole !== 'site_manager') {
+        setSelectedSiteId((prev) => {
+          if (prev && sitesBudgets.some((b) => b.siteId === prev)) return prev
+          const withStock = (stockBody.rows ?? []).find((r) => sitesBudgets.some((b) => b.siteId === r.siteId))
+          if (withStock) return withStock.siteId
+          const frozen = sitesBudgets.find((b) => b.budgetFrozenAt)
+          if (frozen) return frozen.siteId
+          const pilote = sitesBudgets.find((b) => b.siteId === 'site-btp-pilote-1')
+          return pilote?.siteId ?? sitesBudgets[0]?.siteId ?? null
+        })
+      }
     } catch (err) {
       setRows([])
       setError(err instanceof Error ? err.message : 'Stock indisponible')
     } finally {
       setLoading(false)
     }
-  }, [handleAuth])
+  }, [handleAuth, procurementRole])
 
   useEffect(() => {
     void load()
@@ -437,13 +440,17 @@ export function SuiviChantierTab({
     }
   }, [histMonth, procurementRole, handleAuth])
 
-  // Photos récentes du chantier sélectionné
+  // Photos récentes du chantier sélectionné — un 403 n'entraîne pas de déconnexion.
   useEffect(() => {
     if (!selectedSiteId || !canSee('photos')) return
     let cancelled = false
     void (async () => {
       const res = await authFetch(`/daily-reports/site-photos?siteId=${encodeURIComponent(selectedSiteId)}`)
-      if (handleAuth(res.status) || !res.ok) return
+      if (res.status === 401 && handleAuth(res.status)) return
+      if (!res.ok) {
+        if (!cancelled) setSitePhotos([])
+        return
+      }
       const body = (await res.json()) as { photos?: SitePhoto[] }
       if (!cancelled) setSitePhotos(body.photos ?? [])
     })()
@@ -451,6 +458,12 @@ export function SuiviChantierTab({
       cancelled = true
     }
   }, [selectedSiteId, procurementRole, handleAuth])
+
+  // CDC : ne présélectionner que parmi SES chantiers (une fois la liste connue).
+  useEffect(() => {
+    if (!isChef || chefSiteIds.size === 0) return
+    setSelectedSiteId((prev) => (prev && chefSiteIds.has(prev) ? prev : [...chefSiteIds][0]))
+  }, [isChef, chefSiteIds])
 
   useEffect(() => {
     if (!selectedSiteId) return
