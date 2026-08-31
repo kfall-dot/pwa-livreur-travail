@@ -391,7 +391,6 @@ export function SuiviChantierTab({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Stock indisponible')
-    } finally {
     }
   }, [handleAuth, procurementRole])
 

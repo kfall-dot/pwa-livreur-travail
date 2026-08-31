@@ -93,7 +93,6 @@ authRouter.post(
       const latestId = await findDriverIdWithLatestTour(pinMatches.map((d) => d.id))
       if (latestId) driver = pinMatches.find((d) => d.id === latestId) ?? driver
     }
-    const pinOk = true
 
     await clearDriverLoginFailures(normalized)
     logSecurityEvent({
