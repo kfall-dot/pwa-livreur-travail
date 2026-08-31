@@ -193,7 +193,7 @@ export const SUIVI_CHANTIER_MATRIX: Record<SuiviChantierBlock, ProcurementRole[]
   enveloppe: ['daf', 'controle_gestion', 'pdg'],
   indicateurs: ['controle_gestion', 'daf', 'pdg'],
   stock: ['technical_director', 'controle_gestion'],
-  affectation: ['technical_director', 'controle_gestion'],
+  affectation: ['technical_director'],
   historique: ['technical_director', 'controle_gestion', 'site_manager'],
   photos: ['technical_director', 'daf', 'controle_gestion', 'pdg', 'site_manager'],
 }

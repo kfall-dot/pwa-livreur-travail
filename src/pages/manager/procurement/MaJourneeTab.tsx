@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../managerApi'
+import { formatQuantityWithUnit } from '../../../lib/deliveryUnits'
 import { css } from './procurementUi'
 
 type SiteOption = { id: string; name: string; address: string }
@@ -360,7 +361,7 @@ const localToday = (): string => {
                       <div style={{ fontSize: 12, color: 'var(--muted, #667)' }}>
                         {t.usages.map((u) => (
                           <div key={u.id}>
-                            🔩 {u.quantity} {u.unit} — {u.productLabel}
+                            🔩 {formatQuantityWithUnit(u.quantity, u.unit)} — {u.productLabel}
                             {u.sourceSiteId && ` (apport externe)`}
                             {isDraft && (
                               <button

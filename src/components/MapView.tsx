@@ -9,6 +9,7 @@ import {
   useMap,
 } from 'react-leaflet'
 import L from 'leaflet'
+import { formatQuantityWithUnit } from '../lib/deliveryUnits'
 import { canOpenDelivery } from '../lib/deliveryAccess'
 import { buildTourColorMap } from '../lib/tourColors'
 import type { Coordinates, DeliveryPoint, Tour } from '../types'
@@ -244,9 +245,7 @@ export function MapView({ tour, currentPosition, onDeliver, highlightId, onStopS
                   </p>
                 )}
                 <p>{stop.address}</p>
-                <p>
-                  {stop.units} {stop.unitType}
-                </p>
+                <p>{formatQuantityWithUnit(stop.units, stop.unitType)}</p>
                 {onDeliver && (
                   <button
                     type="button"

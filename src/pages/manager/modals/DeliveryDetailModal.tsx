@@ -186,9 +186,11 @@ function todayIsoDate(): string {
 function OtpAssistPanel({
   detail,
   onConfirmed,
+  canModify = false,
 }: {
   detail: DeliveryDetail
   onConfirmed: () => void
+  canModify?: boolean
 }) {
   const [otpStatus, setOtpStatus] = useState<OtpStatusResponse | null>(null)
   const [lastResend, setLastResend] = useState<ResendOtpResponse | null>(null)
@@ -330,19 +332,20 @@ function OtpAssistPanel({
       {error && (
         <p style={{ margin: '0 0 10px', fontSize: 13, color: '#b91c1c' }} role="alert">{error}</p>
       )}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: canAssist ? 12 : 0 }}>
-        <button
-          type="button"
-          data-testid="mgr-resend-otp"
-          disabled={!canAssist || resending}
-          onClick={() => void handleResend()}
-          style={{ ...css.btnGold, opacity: !canAssist ? 0.5 : 1 }}
-        >
-          {resending ? 'Envoi…' : 'Renvoyer SMS / afficher code'}
-        </button>
-      </div>
-
-      {canAssist && (
+      {canModify && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: canAssist ? 12 : 0 }}>
+          <button
+            type="button"
+            data-testid="mgr-resend-otp"
+            disabled={!canAssist || resending}
+            onClick={() => void handleResend()}
+            style={{ ...css.btnGold, opacity: !canAssist ? 0.5 : 1 }}
+          >
+            {resending ? 'Envoi…' : 'Renvoyer SMS / afficher code'}
+          </button>
+        </div>
+      )}
+      {canModify && canAssist && (
         <div style={{ borderTop: '1px solid #c5d9cc', paddingTop: 12 }}>
           <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 600, color: 'var(--brand)' }}>
             Alternative — validation sans SMS
@@ -374,10 +377,12 @@ export function DeliveryDetailModal({
   deliveryId,
   onClose,
   onEditTour,
+  canModify = false,
 }: {
   deliveryId: string
   onClose: () => void
   onEditTour: (tourId: string, tourDate: string) => void
+  canModify?: boolean
 }) {
   const [detail, setDetail] = useState<DeliveryDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -550,7 +555,7 @@ export function DeliveryDetailModal({
 
             <DeclarationTable lines={declarationTableLines} />
 
-            <OtpAssistPanel detail={detail} onConfirmed={() => void loadDetail()} />
+            <OtpAssistPanel detail={detail} canModify={canModify} onConfirmed={() => void loadDetail()} />
 
             {Array.isArray(detail.otpAssistTrail) && detail.otpAssistTrail.length > 0 && (
               <section

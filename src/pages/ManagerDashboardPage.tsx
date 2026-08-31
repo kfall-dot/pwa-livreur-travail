@@ -511,6 +511,7 @@ export function ManagerDashboardPage() {
         {tab === 'suivi'    && (
           <SuiviTab
             handleAuth={handleAuth}
+            procurementRole={procurementRole}
             refreshKey={suiviRefreshKey}
             onEditTour={(tourId, tourDate) => {
               setPendingPlanifierDate(tourDate)
@@ -650,6 +651,7 @@ function groupDeliveriesByTour(deliveries: DeliveryRow[]): SuiviTourGroup[] {
 
 function SuiviTab({
   handleAuth,
+  procurementRole,
   onEditTour,
   onReplanTour,
   pendingDeliveryId,
@@ -661,6 +663,7 @@ function SuiviTab({
   onGoToTasks,
 }: {
   handleAuth: (s: number) => boolean
+  procurementRole: ProcurementRole | null
   onEditTour?: (tourId: string, tourDate: string) => void
   onReplanTour?: (tourId: string, sourceDate: string) => void
   pendingDeliveryId?: string | null
@@ -671,6 +674,8 @@ function SuiviTab({
   pendingTaskCount?: number
   onGoToTasks?: () => void
 }) {
+  // Modification des tournées/livraisons réservée au Service Achats (SA).
+  const canModify = procurementRole === 'purchasing'
   const [date, setDate] = useState(() => pendingDate ?? todayIso())
   const [status, setStatus] = useState('all')
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([])
@@ -855,7 +860,7 @@ function SuiviTab({
                     </div>
                   </button>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {canReplan && (
+                    {canModify && canReplan && (
                       <button
                         type="button"
                         data-testid={`mgr-suivi-replan-${group.tourId}`}
@@ -865,15 +870,17 @@ function SuiviTab({
                         Replanifier
                       </button>
                     )}
-                    <button
-                      type="button"
-                      data-testid={`mgr-suivi-edit-${group.tourId}`}
-                      onClick={() => onEditTour?.(group.tourId, group.tourDate)}
-                      style={css.btnOutline}
-                    >
-                      Modifier la tournée
-                    </button>
-                    {group.deliveredCount === 0 && (
+                    {canModify && (
+                      <button
+                        type="button"
+                        data-testid={`mgr-suivi-edit-${group.tourId}`}
+                        onClick={() => onEditTour?.(group.tourId, group.tourDate)}
+                        style={css.btnOutline}
+                      >
+                        Modifier la tournée
+                      </button>
+                    )}
+                    {canModify && group.deliveredCount === 0 && (
                       <button
                         type="button"
                         data-testid={`mgr-suivi-delete-${group.tourId}`}
@@ -882,6 +889,11 @@ function SuiviTab({
                       >
                         Supprimer
                       </button>
+                    )}
+                    {!canModify && (
+                      <span style={{ fontSize: 12, color: 'var(--muted, #667)' }}>
+                        Consultation — seule la Direction des Achats (SA) peut modifier.
+                      </span>
                     )}
                   </div>
                 </div>
@@ -920,6 +932,7 @@ function SuiviTab({
       {selectedId && (
         <DeliveryDetailModal
           deliveryId={selectedId}
+          canModify={procurementRole === 'purchasing'}
           onClose={() => setSelectedId(null)}
           onEditTour={(tourId, tourDate) => { setSelectedId(null); onEditTour?.(tourId, tourDate) }}
         />

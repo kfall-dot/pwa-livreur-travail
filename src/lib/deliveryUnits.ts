@@ -8,7 +8,14 @@ export type DeliveryUnit = (typeof DELIVERY_UNITS)[number]
 
 const UNIT_ALIASES: Record<string, DeliveryUnit> = {
   unité: 'unite',
+  'unités': 'unite',
   bottes: 'botte',
+  palettes: 'palette',
+  tonnes: 'tonne',
+  caisses: 'caisse',
+  cartons: 'carton',
+  sacs: 'sac',
+  bidons: 'bidon',
   seaux: 'seau',
   metres: 'metre',
   mètres: 'metre',

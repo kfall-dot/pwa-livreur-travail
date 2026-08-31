@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from '../../../lib/toast'
+import { formatQuantityWithUnit } from '../../../lib/deliveryUnits'
 import { authFetch } from '../managerApi'
 import { DossiersPanel } from './DossiersPanel'
 import { SiteAssignmentCard } from './SiteAssignmentCard'
@@ -570,7 +571,7 @@ export function SuiviChantierTab({
                   {t.done ? '✅' : '⬜'} {t.label}
                   {t.usages.map((u) => (
                     <div key={u.id} style={{ fontSize: 12, color: 'var(--muted, #667)' }}>
-                      🔩 {u.quantity} {u.unit} — {u.productLabel}
+                      🔩 {formatQuantityWithUnit(u.quantity, u.unit)} — {u.productLabel}
                     </div>
                   ))}
                 </li>

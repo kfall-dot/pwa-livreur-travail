@@ -324,7 +324,7 @@ const siteAssignSchema = z.object({
 // Le DT superviseur conserve la promotion automatique (technical_director).
 procurementRouter.patch(
   '/sites/:id/assignments',
-  requireProcurementRole('technical_director', 'daf'),
+  requireProcurementRole('technical_director'),
   async (req, res) => {
     const body = parseBody(siteAssignSchema, req.body, res)
     if (!body) return
