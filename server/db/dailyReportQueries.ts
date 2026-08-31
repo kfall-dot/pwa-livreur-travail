@@ -289,6 +289,30 @@ export async function listReportPhotos(reportId: string): Promise<SiteReportPhot
     .orderBy(desc(siteReportPhotos.createdAt))
 }
 
+/** Dernières photos d'un chantier (tous rapports confondus) — bloc « Photos » du suivi. */
+export async function listSiteRecentPhotos(
+  companyId: string,
+  siteId: string,
+  limit = 12,
+): Promise<{ photoId: string; reportDate: string; takenAt: string | null }[]> {
+  const rows = await db
+    .select({
+      photoId: siteReportPhotos.photoId,
+      reportDate: siteDailyReports.reportDate,
+      takenAt: siteReportPhotos.takenAt,
+    })
+    .from(siteReportPhotos)
+    .innerJoin(siteDailyReports, eq(siteReportPhotos.reportId, siteDailyReports.id))
+    .where(and(eq(siteDailyReports.companyId, companyId), eq(siteDailyReports.siteId, siteId)))
+    .orderBy(desc(siteReportPhotos.createdAt))
+    .limit(Math.max(1, Math.min(48, limit)))
+  return rows.map((r) => ({
+    photoId: r.photoId,
+    reportDate: r.reportDate,
+    takenAt: r.takenAt ? r.takenAt.toISOString() : null,
+  }))
+}
+
 // ─── Stock réel = livré accepté − consommé ───────────────────────────────────
 
 export type ConsumedRow = { productLabel: string; unit: string; consumed: number }

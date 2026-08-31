@@ -3,7 +3,7 @@ import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
 import { DossiersPanel } from './DossiersPanel'
 import { SiteAssignmentCard } from './SiteAssignmentCard'
-import { AlertBox, css, formatFcfa, formatPct, PROCUREMENT_ROLE_LABELS, TRAFFIC_LIGHT_LABEL, TRAFFIC_LIGHT_STYLE } from './procurementUi'
+import { AlertBox, canSeeSuiviBlock, css, formatFcfa, formatPct, PROCUREMENT_ROLE_LABELS, SUIVI_CHANTIER_BLOCK_LABELS, SUIVI_CHANTIER_MATRIX, TRAFFIC_LIGHT_LABEL, TRAFFIC_LIGHT_STYLE } from './procurementUi'
 import {
   createSiteBudgetAmendment,
   decideSiteBudgetAmendment,
@@ -12,9 +12,25 @@ import {
   fetchSiteMonthlyExpenses,
   freezeSiteBudget,
 } from './procurementApi'
-import type { BudgetTrafficLight } from './procurementUi'
+import type { BudgetTrafficLight, SuiviChantierBlock } from './procurementUi'
 import type { CdgIndicatorId, ProcurementRole, SiteBudget, SiteIndicators } from './procurementTypes'
 import { CdgIndicateurPage, CdgSyntheseTable } from './CdgIndicateurs'
+
+type HistReport = {
+  id: string
+  siteId: string
+  siteName: string
+  reportDate: string
+  status: 'draft' | 'submitted'
+  progressPct: number | null
+  tasksDone: number
+  tasksTotal: number
+  usagesCount: number
+  submissionsCount: number
+}
+type SitePhoto = { photoId: string; reportDate: string }
+
+const SUIVI_ROLES: ProcurementRole[] = ['technical_director', 'daf', 'controle_gestion', 'pdg', 'site_manager']
 
 export type SiteStockRow = {
   siteId: string
@@ -387,6 +403,52 @@ export function SuiviChantierTab({
     }
   }, [month])
 
+  // ── Vue par rôle (matrice métier) ──
+  const isChef = procurementRole === 'site_manager'
+  const showEnveloppe = canSeeSuiviBlock('enveloppe', procurementRole)
+  const showIndicateurs = canSeeSuiviBlock('indicateurs', procurementRole)
+  const canSee = (block: SuiviChantierBlock) => canSeeSuiviBlock(block, procurementRole)
+
+  const [chefSiteIds, setChefSiteIds] = useState<Set<string>>(new Set())
+  const [histMonth, setHistMonth] = useState(defaultMonth)
+  const [histReports, setHistReports] = useState<HistReport[]>([])
+  const [sitePhotos, setSitePhotos] = useState<SitePhoto[]>([])
+
+  // Historique des rapports (DT/CdG : chantiers supervisés — CdC : son chantier)
+  useEffect(() => {
+    if (!canSee('historique')) return
+    let cancelled = false
+    void (async () => {
+      const res = await authFetch(`/daily-reports/my-reports?month=${encodeURIComponent(histMonth)}`)
+      if (handleAuth(res.status) || !res.ok) return
+      const body = (await res.json()) as {
+        reports?: HistReport[]
+        sites?: { id: string }[]
+      }
+      if (cancelled) return
+      setHistReports(body.reports ?? [])
+      if (body.sites) setChefSiteIds(new Set(body.sites.map((s) => s.id)))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [histMonth, procurementRole, handleAuth])
+
+  // Photos récentes du chantier sélectionné
+  useEffect(() => {
+    if (!selectedSiteId || !canSee('photos')) return
+    let cancelled = false
+    void (async () => {
+      const res = await authFetch(`/daily-reports/site-photos?siteId=${encodeURIComponent(selectedSiteId)}`)
+      if (handleAuth(res.status) || !res.ok) return
+      const body = (await res.json()) as { photos?: SitePhoto[] }
+      if (!cancelled) setSitePhotos(body.photos ?? [])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedSiteId, procurementRole, handleAuth])
+
   useEffect(() => {
     if (!selectedSiteId) return
     let cancelled = false
@@ -427,7 +489,9 @@ export function SuiviChantierTab({
 
   return (
     <div data-testid="mgr-suivi-chantier">
-      <DossiersPanel handleAuth={handleAuth} />
+      {canSee('dossiers') && !isChef && <DossiersPanel handleAuth={handleAuth} />}
+      <MatrixCard role={procurementRole} />
+      {isChef && <ChefDossiersCard reports={histReports} />}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
         <div>
           <h2 style={{ ...css.sectionTitle, margin: 0 }}>
@@ -462,17 +526,28 @@ export function SuiviChantierTab({
       {error && <AlertBox>{error}</AlertBox>}
       {(() => {
         const allMonths = month === ''
-        const visible = allMonths
-          ? budgets.filter((b) => b.engagedFcfa > 0)
-          : budgets.filter((b) => (monthExpenses[b.siteId] ?? 0) > 0)
+        const base = isChef
+          ? budgets.filter((b) => chefSiteIds.size === 0 || chefSiteIds.has(b.siteId))
+          : allMonths
+            ? budgets.filter((b) => b.engagedFcfa > 0)
+            : budgets.filter((b) => (monthExpenses[b.siteId] ?? 0) > 0)
+        const visible = base
         if (budgets.length > 0 && visible.length === 0) {
           return (
             <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-suivi-empty-month">
               <p style={{ ...css.meta, margin: 0 }}>
-                Aucune dépense engagée en {month} sur les chantiers.{' '}
-                <button type="button" onClick={() => setMonth('')} style={{ padding: '0 6px' }}>
-                  Voir tous les mois
-                </button>
+                {isChef
+                  ? 'Aucun de vos chantiers dans la liste pour le moment.'
+                  : allMonths
+                    ? 'Aucun chantier avec engagement à afficher.'
+                    : (
+                      <>
+                        Aucune dépense engagée en {month} sur les chantiers.{' '}
+                        <button type="button" onClick={() => setMonth('')} style={{ padding: '0 6px' }}>
+                          Voir tous les mois
+                        </button>
+                      </>
+                    )}
               </p>
             </div>
           )
@@ -485,11 +560,15 @@ export function SuiviChantierTab({
                 <tr>
                   <th style={css.lineTh}>Chantier</th>
                   {!allMonths && <th style={css.lineTh}>Dépenses du mois</th>}
-                  <th style={css.lineTh}>Budget</th>
-                  <th style={css.lineTh}>Engagé (total)</th>
-                  <th style={css.lineTh}>Engagement</th>
-                  <th style={css.lineTh}>Feu</th>
-                  <th style={css.lineTh}>Avenant</th>
+                  {showEnveloppe && (
+                    <>
+                      <th style={css.lineTh}>Budget</th>
+                      <th style={css.lineTh}>Engagé (total)</th>
+                      <th style={css.lineTh}>Engagement</th>
+                      <th style={css.lineTh}>Feu</th>
+                      <th style={css.lineTh}>Avenant</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -507,15 +586,19 @@ export function SuiviChantierTab({
                     >
                       <td style={css.lineTd}>{b.siteName}</td>
                       {!allMonths && <td style={css.lineTd}>{formatFcfa(monthExpenses[b.siteId] ?? 0)}</td>}
-                      <td style={css.lineTd}>{formatFcfa(b.budgetTotalFcfa)}</td>
-                      <td style={css.lineTd}>{formatFcfa(b.engagedFcfa)}</td>
-                      <td style={css.lineTd}>{formatPct(b.engagementPct)}</td>
-                      <td style={{ ...css.lineTd, color: TRAFFIC_LIGHT_STYLE[light].color }}>
-                        {b.budgetFrozenAt ? TRAFFIC_LIGHT_LABEL[light] : 'Non gelée'}
-                      </td>
-                      <td style={css.lineTd}>
-                        {b.missingAmendment ? 'Manquant' : b.overBudget ? 'À surveiller' : '—'}
-                      </td>
+                      {showEnveloppe && (
+                        <>
+                          <td style={css.lineTd}>{formatFcfa(b.budgetTotalFcfa)}</td>
+                          <td style={css.lineTd}>{formatFcfa(b.engagedFcfa)}</td>
+                          <td style={css.lineTd}>{formatPct(b.engagementPct)}</td>
+                          <td style={{ ...css.lineTd, color: TRAFFIC_LIGHT_STYLE[light].color }}>
+                            {b.budgetFrozenAt ? TRAFFIC_LIGHT_LABEL[light] : 'Non gelée'}
+                          </td>
+                          <td style={css.lineTd}>
+                            {b.missingAmendment ? 'Manquant' : b.overBudget ? 'À surveiller' : '—'}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   )
                 })}
@@ -524,7 +607,7 @@ export function SuiviChantierTab({
           </div>
         )
       })()}
-      {selectedBudget && (
+      {selectedBudget && (showEnveloppe || showIndicateurs) && (
         <EnvelopeBanner
           key={selectedBudget.siteId}
           budget={selectedBudget}
@@ -534,12 +617,72 @@ export function SuiviChantierTab({
           onOpenIndicator={(id) => setOpenIndicator({ siteId: selectedBudget.siteId, id })}
         />
       )}
-      {selectedBudget && (procurementRole === 'technical_director' || procurementRole === 'daf') && (
+      {selectedBudget && canSee('affectation') && (
         <SiteAssignmentCard siteId={selectedBudget.siteId} siteName={selectedBudget.siteName} />
       )}
-      {loading ? (
-        <p style={css.meta}>Chargement…</p>
-      ) : rows.length === 0 ? (
+      {canSee('historique') && (
+        <div style={css.card} data-testid="mgr-suivi-historique">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h4 style={{ margin: 0 }}>
+              📅 Historique des rapports{selectedBudget ? ` — ${selectedBudget.siteName}` : ''}
+            </h4>
+            <input
+              type="month"
+              value={histMonth}
+              onChange={(e) => setHistMonth(e.target.value)}
+              data-testid="mgr-suivi-hist-month"
+              style={{ padding: '0.3rem' }}
+            />
+          </div>
+          {histReports.length === 0 ? (
+            <p style={{ ...css.meta, marginBottom: 0 }}>Aucun rapport ce mois.</p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
+              {histReports
+                .filter((r) => !selectedSiteId || r.siteId === selectedSiteId)
+                .map((r) => (
+                  <li
+                    key={r.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.35rem 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}
+                  >
+                    <span style={{ minWidth: 92 }}>{new Date(r.reportDate).toLocaleDateString('fr-FR')}</span>
+                    <span style={{ flex: 1 }}>
+                      {r.siteName} · {r.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'}
+                      {r.progressPct != null && ` · 📈 ${r.progressPct}%`}
+                      {` · 📋 ${r.tasksDone}/${r.tasksTotal} tâches`}
+                      {` · 🔩 ${r.usagesCount} consommation(s)`}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {canSee('photos') && selectedBudget && (
+        <div style={css.card} data-testid="mgr-suivi-photos">
+          <h4 style={{ marginTop: 0 }}>📷 Photos — {selectedBudget.siteName}</h4>
+          {sitePhotos.length === 0 ? (
+            <p style={{ ...css.meta, marginBottom: 0 }}>Aucune photo pour ce chantier.</p>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {sitePhotos.map((p) => (
+                <img
+                  key={p.photoId}
+                  src={`/api/v1/daily-reports/photos/${encodeURIComponent(p.photoId)}`}
+                  alt={`Photo chantier ${p.reportDate}`}
+                  title={new Date(p.reportDate).toLocaleDateString('fr-FR')}
+                  style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {canSee('stock') && (
+        <>
+          {loading ? (
+            <p style={css.meta}>Chargement…</p>
+          ) : rows.length === 0 ? (
         <p style={css.meta} data-testid="mgr-suivi-chantier-empty">
           Aucun stock livré.
         </p>
@@ -578,6 +721,86 @@ export function SuiviChantierTab({
             </div>
           </div>
         ))
+        )
+          }
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Matrice des accès — affichée en haut de la page, colonne du rôle courant surlignée. */
+function MatrixCard({ role }: { role: ProcurementRole | null }) {
+  const blocks = Object.keys(SUIVI_CHANTIER_MATRIX) as SuiviChantierBlock[]
+  return (
+    <div style={css.card} data-testid="mgr-suivi-matrix">
+      <h4 style={{ marginTop: 0 }}>
+        🔐 Matrice des accès — {role ? PROCUREMENT_ROLE_LABELS[role] : 'rôle inconnu'}
+      </h4>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={css.lineTable}>
+          <thead>
+            <tr>
+              <th style={css.lineTh}>Bloc</th>
+              {SUIVI_ROLES.map((r) => (
+                <th
+                  key={r}
+                  style={{
+                    ...css.lineTh,
+                    textAlign: 'center',
+                    background: r === role ? 'var(--bg-muted, #e6f0ea)' : undefined,
+                  }}
+                >
+                  {PROCUREMENT_ROLE_LABELS[r]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {blocks.map((block) => (
+              <tr key={block}>
+                <td style={css.lineTd}>{SUIVI_CHANTIER_BLOCK_LABELS[block]}</td>
+                {SUIVI_ROLES.map((r) => (
+                  <td
+                    key={r}
+                    style={{
+                      ...css.lineTd,
+                      textAlign: 'center',
+                      background: r === role ? 'var(--bg-muted, #e6f0ea)' : undefined,
+                    }}
+                  >
+                    {SUIVI_CHANTIER_MATRIX[block].includes(r) ? '✅' : '—'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/** CDC : résumé de son dossier du jour (le détail éditable vit dans « Ma journée »). */
+function ChefDossiersCard({ reports }: { reports: HistReport[] }) {
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const duJour = reports.find((r) => r.reportDate === todayStr)
+  return (
+    <div style={css.card} data-testid="mgr-suivi-cdc-dossiers">
+      <h4 style={{ marginTop: 0 }}>📁 Mon dossier du jour</h4>
+      {!duJour ? (
+        <p style={{ ...css.meta, marginBottom: 0 }}>
+          Aucun dossier aujourd'hui — gérez-le depuis l'onglet « Ma journée ».
+        </p>
+      ) : (
+        <p style={{ ...css.meta, margin: 0 }}>
+          <strong>{new Date(duJour.reportDate).toLocaleDateString('fr-FR')}</strong> ·{' '}
+          {duJour.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'} · 📋 {duJour.tasksDone}/
+          {duJour.tasksTotal} tâches
+          {duJour.progressPct != null && ` · 📈 ${duJour.progressPct}%`}
+          {' — détail dans « Ma journée »'}
+        </p>
       )}
     </div>
   )

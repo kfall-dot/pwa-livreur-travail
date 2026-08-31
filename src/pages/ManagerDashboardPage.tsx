@@ -215,14 +215,14 @@ export function ManagerDashboardPage() {
   }, [procurementRole, searchParams])
 
   useEffect(() => {
-    if (isSiteManagerRole(procurementRole) && tab !== 'maJournee') {
+    if (isSiteManagerRole(procurementRole) && tab !== 'maJournee' && tab !== 'suiviChantier') {
       setTab('maJournee')
       return
     }
     if (!isProcurementWorkspaceRole(procurementRole)) return
     if (procurementRole === 'purchasing' && SA_MANAGER_TABS.has(tab)) return
     if (tab === 'suiviChantier') {
-      if (!canSeeSuiviChantier(procurementRole)) setTab('achats')
+      if (!canSeeSuiviChantier(procurementRole) && !isSiteManagerRole(procurementRole)) setTab('achats')
       return
     }
     if (LOGISTICS_ONLY_TABS.has(tab)) setTab('achats')
@@ -252,7 +252,10 @@ export function ManagerDashboardPage() {
   const sidebarRoleLabel = procurementRole ? PROCUREMENT_ROLE_LABELS[procurementRole] : 'Manager'
 
   const sidebarItems: { id: Tab | 'catalogue'; label: string; tab?: Tab; badge?: number }[] = isSiteManagerRole(procurementRole)
-    ? [{ id: 'maJournee', label: 'Ma journée', tab: 'maJournee' }]
+    ? [
+        { id: 'maJournee', label: 'Ma journée', tab: 'maJournee' },
+        { id: 'suiviChantier' as const, label: 'Suivi chantier', tab: 'suiviChantier' as Tab },
+      ]
     : procurementWorkspace
     ? [
         { id: 'achats', label: 'Achats chantier', tab: 'achats', badge: procurementInboxCount },

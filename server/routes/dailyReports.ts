@@ -239,6 +239,19 @@ dailyReportsRouter.get('/photos/:photoId', async (req, res) => {
   res.send(local.buffer)
 })
 
+// Dernières photos d'un chantier — bloc « Photos » (chef sur son chantier, superviseur sur les siens)
+dailyReportsRouter.get('/site-photos', async (req, res) => {
+  const mode = chefMode(req)
+  if (!mode) return unauthorized(res)
+  const { companyId, id } = manager(req)
+  const siteId = String(req.query.siteId ?? '')
+  if (!siteId) return void res.status(400).json({ message: 'siteId requis' })
+  if (!(await canAccessSite(companyId, siteId, id, mode))) return unauthorized(res)
+  const limit = Number(req.query.limit ?? 12)
+  const photos = await listSiteRecentPhotos(companyId, siteId, Number.isFinite(limit) ? limit : 12)
+  res.json({ photos })
+})
+
 dailyReportsRouter.get('/reports/:id/photos', async (req, res) => {
   const mode = chefMode(req)
   if (!mode) return unauthorized(res)
@@ -271,7 +284,7 @@ dailyReportsRouter.get('/assignable-managers', async (req, res) => {
 
 // ─── Vue DT / superviseur ─────────────────────────────────────────────────────
 
-import { listReportsForSites, listSiteConsumption } from '../db/dailyReportQueries.js'
+import { listReportsForSites, listSiteConsumption, listSiteRecentPhotos } from '../db/dailyReportQueries.js'
 import { listSiteStock } from '../db/procurementQueries.js'
 
 export type StockRowApi = {

@@ -160,6 +160,46 @@ export function canSeeDossiers(role: string | null | undefined): boolean {
   return canSeeSuiviChantier(role)
 }
 
+// ─── Matrice Suivi chantier : qui voit quel bloc ─────────────────────────────
+
+export type SuiviChantierBlock =
+  | 'dossiers'
+  | 'enveloppe'
+  | 'indicateurs'
+  | 'stock'
+  | 'affectation'
+  | 'historique'
+  | 'photos'
+
+export const SUIVI_CHANTIER_BLOCK_LABELS: Record<SuiviChantierBlock, string> = {
+  dossiers: '📁 Dossiers du jour',
+  enveloppe: '💰 Enveloppe (budget, feux, avenants)',
+  indicateurs: '📊 Indicateurs (ventilation, top 3)',
+  stock: '📦 Stock réel',
+  affectation: '👷 Affectation chef/DT',
+  historique: '📅 Historique des rapports',
+  photos: '📷 Photos de chantier',
+}
+
+/** Matrice définie par le métier : blocs visibles par rôle. */
+export const SUIVI_CHANTIER_MATRIX: Record<SuiviChantierBlock, ProcurementRole[]> = {
+  dossiers: ['technical_director', 'site_manager'],
+  enveloppe: ['daf', 'controle_gestion', 'pdg'],
+  indicateurs: ['controle_gestion', 'daf', 'pdg'],
+  stock: ['technical_director', 'controle_gestion'],
+  affectation: ['technical_director', 'controle_gestion'],
+  historique: ['technical_director', 'controle_gestion', 'site_manager'],
+  photos: ['technical_director', 'daf', 'controle_gestion', 'pdg', 'site_manager'],
+}
+
+export function canSeeSuiviBlock(
+  block: SuiviChantierBlock,
+  role: ProcurementRole | null | undefined,
+): boolean {
+  if (!role) return false
+  return SUIVI_CHANTIER_MATRIX[block].includes(role)
+}
+
 export const STATUS_LABELS: Record<PurchaseRequestStatus, string> = {
   whatsapp_ingested: 'WhatsApp reçu',
   draft_parsed: 'Brouillon parsé',
