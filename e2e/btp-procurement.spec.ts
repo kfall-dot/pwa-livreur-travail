@@ -1182,8 +1182,8 @@ test.describe('Achats chantier BTP (procurement)', () => {
 
     await loginBtpManager(page, 'dt')
     await page.getByTestId('mgr-tab-suivi-chantier').click()
-    await expect(page.getByTestId('mgr-suivi-chantier-table')).toBeVisible({ timeout: UI_READY_TIMEOUT })
-    await expect(page.getByTestId('mgr-suivi-chantier-table')).toContainText(/ciment/i)
+    await expect(page.getByTestId('mgr-dossiers-stock-table')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await expect(page.getByTestId('mgr-dossiers-stock-table')).toContainText(/ciment/i)
     await expect(page.getByTestId('mgr-achats-suivi-chantier')).toHaveCount(0)
 
     await loginBtpApi(request, 'sa')

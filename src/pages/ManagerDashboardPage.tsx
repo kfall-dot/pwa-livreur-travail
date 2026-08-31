@@ -674,8 +674,9 @@ function SuiviTab({
   pendingTaskCount?: number
   onGoToTasks?: () => void
 }) {
-  // Modification des tournées/livraisons réservée au Service Achats (SA).
-  const canModify = procurementRole === 'purchasing'
+  // Modification des tournées/livraisons : réservée au SA. Les gestionnaires
+  // sans rôle BTP (héritage, rôle null) conservent l'accès complet.
+  const canModify = procurementRole === 'purchasing' || procurementRole == null
   const [date, setDate] = useState(() => pendingDate ?? todayIso())
   const [status, setStatus] = useState('all')
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([])
@@ -932,7 +933,7 @@ function SuiviTab({
       {selectedId && (
         <DeliveryDetailModal
           deliveryId={selectedId}
-          canModify={procurementRole === 'purchasing'}
+          canModify={procurementRole === 'purchasing' || procurementRole == null}
           onClose={() => setSelectedId(null)}
           onEditTour={(tourId, tourDate) => { setSelectedId(null); onEditTour?.(tourId, tourDate) }}
         />

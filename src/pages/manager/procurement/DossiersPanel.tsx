@@ -126,7 +126,7 @@ export function DossiersPanel({
           {stock.stock.length === 0 ? (
             <p style={{ fontSize: 13 }}>Aucun stock enregistré sur ce chantier.</p>
           ) : (
-            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }} data-testid="mgr-dossiers-stock-table">
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border)' }}>
                   <th style={{ padding: '0.35rem' }}>Produit</th>

@@ -498,13 +498,10 @@ export function SuiviChantierTab({
     }
   }, [selectedSiteId, procurementRole, handleAuth])
 
-  // CDC : ne présélectionner que parmi SES chantiers (une fois la liste connue).
+  // Sélection automatique du premier chantier de la liste (pour tous les rôles).
   useEffect(() => {
-    if (!isChef || chantierSites.length === 0) return
-    setSelectedSiteId((prev) => {
-      const ids = new Set(chantierSites.map((s) => s.id))
-      return prev && ids.has(prev) ? prev : chantierSites[0].id
-    })
+    if (chantierSites.length === 0) return
+    setSelectedSiteId((prev) => (prev && chantierSites.some((s) => s.id === prev) ? prev : chantierSites[0].id))
   }, [isChef, chantierSites])
 
   /** Consultation d'un rapport journalier (lecture seule). */
