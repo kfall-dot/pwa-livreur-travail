@@ -55,6 +55,15 @@ const upload = multer({
 
 const GEOFENCE_BYPASS = testBypass.geofence
 
+/** Rayon GPS configurable via GEOFENCE_MAX_M — 0 désactive la vérification. */
+function configuredGeofenceMaxM(defaultM: number): number {
+  const raw = process.env.GEOFENCE_MAX_M
+  if (raw == null || raw.trim() === '') return defaultM
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) return defaultM
+  return n
+}
+
 export interface PhotoMeta {
   photoId: string
   url: string
@@ -78,12 +87,13 @@ function isTourDatePast(tourDate: string): boolean {
 function geofenceCheck(
   position: { lat: number; lng: number },
   target: { lat: number; lng: number },
-  maxM: number
-): { ok: true } | { ok: false; distanceM: number } {
-  if (GEOFENCE_BYPASS) return { ok: true }
+  defaultM: number
+): { ok: true; maxM: number } | { ok: false; distanceM: number; maxM: number } {
+  const maxM = configuredGeofenceMaxM(defaultM)
+  if (maxM === 0 || GEOFENCE_BYPASS) return { ok: true, maxM }
   const distanceM = Math.round(haversineDistanceM(position, target))
-  if (distanceM <= maxM) return { ok: true }
-  return { ok: false, distanceM }
+  if (distanceM <= maxM) return { ok: true, maxM }
+  return { ok: false, distanceM, maxM }
 }
 
 // ─── GET /:id ─────────────────────────────────────────────────────────────────
@@ -145,9 +155,9 @@ deliveriesRouter.post('/:id/start', async (req, res) => {
     const geo = geofenceCheck({ lat, lng }, { lat: Number(stop.lat), lng: Number(stop.lng) }, 200)
   if (!geo.ok) {
     res.status(403).json({
-      message: `Hors zone de livraison (${geo.distanceM} m, max 200 m)`,
+      message: `Hors zone de livraison (${geo.distanceM} m, max ${geo.maxM} m)`,
       distanceM: geo.distanceM,
-      maxM: 200,
+      maxM: geo.maxM,
     })
     return
   }
@@ -520,9 +530,9 @@ deliveriesRouter.post(
     const geo = geofenceCheck({ lat, lng }, { lat: Number(stop.lat), lng: Number(stop.lng) }, 100)
   if (!geo.ok) {
     res.status(403).json({
-      message: `Vérification GPS finale échouée (${geo.distanceM} m)`,
+      message: `Vérification GPS finale échouée (${geo.distanceM} m, max ${geo.maxM} m)`,
       distanceM: geo.distanceM,
-      maxM: 100,
+      maxM: geo.maxM,
     })
     return
   }

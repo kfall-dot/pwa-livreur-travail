@@ -16,7 +16,7 @@ import {
 import type { DeclarationOutcome } from '../lib/declarationValidation'
 import { validateDeclarationBeforeSubmit } from '../lib/declarationValidation'
 import { resolvePlannedUnit, formatDriverDeliveryContent } from '../lib/deliveryUnits'
-import { checkGeofence, getCurrentPosition, type GpsReading } from '../lib/geo'
+import { getCurrentPosition, type GpsReading } from '../lib/geo'
 import {
   applyPhotoTargetFromApi,
   effectivePhotoTarget,
@@ -294,14 +294,6 @@ export function DeliveryPage() {
     }
     setError(null)
     setLoading(true)
-    const geo = shouldSkipGeofence(api.isMock)
-      ? { ok: true as const }
-      : checkGeofence(position, delivery.coordinates, 200)
-    if (!geo.ok) {
-      setError(`Hors zone : vous êtes à ${geo.distanceM} m (max 200 m)`)
-      setLoading(false)
-      return
-    }
     try {
       if (online) {
         await api.startDelivery(delivery.id, { lat: position.lat, lng: position.lng })
@@ -733,14 +725,6 @@ export function DeliveryPage() {
     }
     if (!pos) {
       setError('Position GPS requise — autorisez la géolocalisation et réessayez.')
-      return
-    }
-
-    const geo = shouldSkipGeofence(api.isMock)
-      ? { ok: true as const }
-      : checkGeofence(pos, delivery.coordinates, 100)
-    if (!geo.ok) {
-      setError(`Vérification GPS finale : ${geo.distanceM} m du point (max 100 m)`)
       return
     }
 
