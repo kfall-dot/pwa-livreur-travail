@@ -20,10 +20,17 @@ if (import.meta.env.DEV && 'serviceWorker' in navigator) {
   registerSW({ immediate: true })
 }
 
+/** Log systématique en console avant l'envoi Sentry (sinon erreur invisible en prod à cause de la CSP). */
+const logThenReport = (label: string) => (error: unknown, info?: unknown) => {
+  // eslint-disable-next-line no-console
+  console.error(`[traceo:${label}]`, error, info)
+  reactErrorHandler()(error as Error, info as never)
+}
+
 createRoot(document.getElementById('root')!, {
-  onUncaughtError: reactErrorHandler(),
-  onCaughtError: reactErrorHandler(),
-  onRecoverableError: reactErrorHandler(),
+  onUncaughtError: logThenReport('uncaught'),
+  onCaughtError: logThenReport('caught'),
+  onRecoverableError: logThenReport('recoverable'),
 }).render(
   <StrictMode>
     <App />

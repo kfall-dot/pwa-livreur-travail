@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Component, useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { DemoAutoplayBar } from './components/DemoAutoplayBar'
@@ -32,6 +32,30 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
   if (!isAuthenticated) return <Navigate to="/login" replace />
   return <>{children}</>
+}
+
+/** Affiche l'erreur à l'écran au lieu d'une page blanche (debug prod). */
+class VisibleErrorBoundary extends Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidCatch(error: Error, info: unknown) {
+    // eslint-disable-next-line no-console
+    console.error('[traceo:boundary]', error, info)
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 24, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }} data-testid="app-error-boundary">
+          <h2>⚠️ Une erreur inattendue est survenue</h2>
+          <p>{this.state.error.message}</p>
+          <button type="button" onClick={() => window.location.reload()}>Recharger la page</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 function AppRoutes() {
@@ -83,11 +107,13 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-        <DemoAutoplayBar />
-        <ToastViewport />
-      </AuthProvider>
+      <VisibleErrorBoundary>
+        <AuthProvider>
+          <AppRoutes />
+          <DemoAutoplayBar />
+          <ToastViewport />
+        </AuthProvider>
+      </VisibleErrorBoundary>
     </BrowserRouter>
   )
 }
