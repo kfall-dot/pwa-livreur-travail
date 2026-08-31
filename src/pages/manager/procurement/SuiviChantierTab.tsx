@@ -611,9 +611,10 @@ export function SuiviChantierTab({
               siteId={selectedSiteId}
               showDossiersAlerts={canSee('dossiers')}
               showStock={canSee('stock')}
+              onOpenReport={(id) => void openReportById(id)}
             />
           )}
-          {isChef && <ChefDossiersCard reports={histReports} />}
+          {isChef && <ChefDossiersCard reports={histReports} onOpenReport={(id) => void openReportById(id)} />}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
         <div>
           <h2 style={{ ...css.sectionTitle, margin: 0 }}>
@@ -815,8 +816,14 @@ export function SuiviChantierTab({
 }
 
 
-/** CDC : résumé de son dossier du jour (le détail éditable vit dans « Ma journée »). */
-function ChefDossiersCard({ reports }: { reports: HistReport[] }) {
+/** CDC : résumé de son dossier du jour — consultation directe possible. */
+function ChefDossiersCard({
+  reports,
+  onOpenReport,
+}: {
+  reports: HistReport[]
+  onOpenReport?: (id: string) => void
+}) {
   const now = new Date()
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const duJour = reports.find((r) => r.reportDate === todayStr)
@@ -828,13 +835,24 @@ function ChefDossiersCard({ reports }: { reports: HistReport[] }) {
           Aucun dossier aujourd'hui — gérez-le depuis l'onglet « Ma journée ».
         </p>
       ) : (
-        <p style={{ ...css.meta, margin: 0 }}>
-          <strong>{new Date(duJour.reportDate).toLocaleDateString('fr-FR')}</strong> ·{' '}
-          {duJour.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'} · 📋 {duJour.tasksDone}/
-          {duJour.tasksTotal} tâches
-          {duJour.progressPct != null && ` · 📈 ${duJour.progressPct}%`}
-          {' — détail dans « Ma journée »'}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <p style={{ ...css.meta, margin: 0 }}>
+            <strong>{new Date(duJour.reportDate).toLocaleDateString('fr-FR')}</strong> ·{' '}
+            {duJour.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'} · 📋 {duJour.tasksDone}/
+            {duJour.tasksTotal} tâches
+            {duJour.progressPct != null && ` · 📈 ${duJour.progressPct}%`}
+          </p>
+          {onOpenReport && (
+            <button
+              type="button"
+              onClick={() => onOpenReport(duJour.id)}
+              style={{ padding: '0.3rem 0.8rem' }}
+              data-testid="mgr-suivi-cdc-open-today"
+            >
+              📄 Voir le rapport
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

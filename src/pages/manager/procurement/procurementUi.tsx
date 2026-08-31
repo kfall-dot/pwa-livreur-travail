@@ -147,7 +147,13 @@ export function isProcurementWorkspaceRole(role: string | null | undefined): boo
 }
 
 export function canSeeSuiviChantier(role: string | null | undefined): boolean {
-  return role === 'technical_director' || role === 'controle_gestion' || role === 'daf'
+  return (
+    role === 'technical_director' ||
+    role === 'controle_gestion' ||
+    role === 'daf' ||
+    role === 'pdg' ||
+    role === 'site_manager'
+  )
 }
 
 /** Chef de chantier : page « Ma journée » (dossier quotidien). */

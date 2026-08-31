@@ -84,6 +84,23 @@ export async function getDriversByPhone(phone: string): Promise<Driver[]> {
   return db.select().from(drivers).where(eq(drivers.phone, phone))
 }
 
+/**
+ * Parmi plusieurs fiches livreur partageant le même téléphone (doublons dev),
+ * retourne celle qui a la tournée la plus récente — c'est la fiche « active »
+ * utilisée par la planification. Retourne null si aucune n'a de tournée.
+ */
+export async function findDriverIdWithLatestTour(driverIds: string[]): Promise<string | null> {
+  if (driverIds.length === 0) return null
+  const rows = await db
+    .select({ driverId: tours.driverId, latest: sql<string>`max(${tours.date})` })
+    .from(tours)
+    .where(inArray(tours.driverId, driverIds))
+    .groupBy(tours.driverId)
+    .orderBy(desc(sql`max(${tours.date})`))
+    .limit(1)
+  return rows[0]?.driverId ?? null
+}
+
 /** Dev local : lève l’unicité globale du téléphone pour pouvoir recréer un livreur de test. */
 export async function relaxDriversPhoneUniqueForDev(): Promise<void> {
   try {

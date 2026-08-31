@@ -64,29 +64,37 @@ authRouter.post(
     }
     let driver = active[0]!
     let pinOk = false
+    const pinMatches: NonNullable<(typeof active)[number]>[] = []
     for (const candidate of active) {
       const ok = candidate.pinHash
         ? await bcrypt.compare(pin, candidate.pinHash)
         : allowTestBypass() && pin === (process.env.DRIVER_PIN ?? '1234')
       if (ok) {
-        driver = candidate
-        pinOk = true
+        pinMatches.push(candidate)
         break
       }
     }
-    if (!pinOk) {
+    if (pinMatches.length === 0) {
       await recordDriverLoginFailure(normalized)
       logSecurityEvent({
         action: 'driver.login.failure',
         actorType: 'driver',
-        actorId: driver.id,
-        companyId: driver.companyId,
+        actorId: active[0]?.id,
+        companyId: active[0]?.companyId,
         metadata: { phone: normalized },
         req,
       })
       res.status(401).json({ message: 'Téléphone ou PIN incorrect' })
       return
     }
+    // Doublons de fiches (même téléphone) : la fiche avec la tournée la plus
+    // récente est la fiche « active » utilisée par la planification.
+    let driver = pinMatches[0]!
+    if (pinMatches.length > 1) {
+      const latestId = await findDriverIdWithLatestTour(pinMatches.map((d) => d.id))
+      if (latestId) driver = pinMatches.find((d) => d.id === latestId) ?? driver
+    }
+    const pinOk = true
 
     await clearDriverLoginFailures(normalized)
     logSecurityEvent({

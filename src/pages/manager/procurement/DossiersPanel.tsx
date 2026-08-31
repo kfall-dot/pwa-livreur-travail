@@ -35,11 +35,13 @@ export function DossiersPanel({
   siteId,
   showDossiersAlerts = true,
   showStock = true,
+  onOpenReport,
 }: {
   handleAuth: (status: number) => boolean
   siteId: string | null
   showDossiersAlerts?: boolean
   showStock?: boolean
+  onOpenReport?: (reportId: string) => void
 }) {
   const [reports, setReports] = useState<DtReport[]>([])
   const [stock, setStock] = useState<DtStockPayload | null>(null)
@@ -84,7 +86,8 @@ export function DossiersPanel({
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })()
-  const hasTodayReport = reports.some((r) => r.siteId === siteId && r.reportDate === todayStr)
+  const todayReport = reports.find((r) => r.siteId === siteId && r.reportDate === todayStr) ?? null
+  const hasTodayReport = todayReport != null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -103,6 +106,16 @@ export function DossiersPanel({
           )}
           {stock?.alert18h && hasTodayReport && stock.negativeCount === 0 && (
             <p style={{ ...css.meta, marginBottom: 0 }}>Dossier du jour reçu ✅</p>
+          )}
+          {onOpenReport && todayReport && (
+            <button
+              type="button"
+              onClick={() => onOpenReport(todayReport.id)}
+              style={{ marginTop: '0.5rem', padding: '0.35rem 0.8rem' }}
+              data-testid="mgr-dossiers-open-today"
+            >
+              📄 Voir le rapport du jour
+            </button>
           )}
         </div>
       )}
