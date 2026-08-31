@@ -55,13 +55,20 @@ const upload = multer({
 
 const GEOFENCE_BYPASS = testBypass.geofence
 
-/** Rayon GPS configurable via GEOFENCE_MAX_M — 0 désactive la vérification. */
-function configuredGeofenceMaxM(defaultM: number): number {
+/**
+ * Géofence DÉSACTIVÉ par défaut (demande métier : le GPS des chantiers est
+ * trop imprécis). Pour le réactiver côté serveur :
+ *   GEOFENCE_ENFORCE=true  +  GEOFENCE_MAX_M=<rayon en mètres, optionnel>
+ */
+function geofenceState(defaultM: number): { enabled: boolean; maxM: number } {
+  const enforce = process.env.GEOFENCE_ENFORCE === 'true' || process.env.GEOFENCE_ENFORCE === '1'
+  if (!enforce) return { enabled: false, maxM: 0 }
   const raw = process.env.GEOFENCE_MAX_M
-  if (raw == null || raw.trim() === '') return defaultM
-  const n = Number(raw)
-  if (!Number.isFinite(n) || n < 0) return defaultM
-  return n
+  const maxM =
+    raw != null && raw.trim() !== '' && Number.isFinite(Number(raw)) && Number(raw) > 0
+      ? Number(raw)
+      : defaultM
+  return { enabled: true, maxM }
 }
 
 export interface PhotoMeta {
@@ -89,8 +96,8 @@ function geofenceCheck(
   target: { lat: number; lng: number },
   defaultM: number
 ): { ok: true; maxM: number } | { ok: false; distanceM: number; maxM: number } {
-  const maxM = configuredGeofenceMaxM(defaultM)
-  if (maxM === 0 || GEOFENCE_BYPASS) return { ok: true, maxM }
+  const { enabled, maxM } = geofenceState(defaultM)
+  if (!enabled || GEOFENCE_BYPASS) return { ok: true, maxM }
   const distanceM = Math.round(haversineDistanceM(position, target))
   if (distanceM <= maxM) return { ok: true, maxM }
   return { ok: false, distanceM, maxM }
