@@ -1,6 +1,6 @@
 import { chromium } from 'playwright'
 
-const base = 'https://pwa-livreur-travail-production.up.railway.app'
+const base = 'http://localhost:3002'
 const browser = await chromium.launch()
 
 async function checkRole(email, label, screenshot) {

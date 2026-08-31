@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
 import { DossiersPanel } from './DossiersPanel'
 import { SiteAssignmentCard } from './SiteAssignmentCard'
-import { AlertBox, canSeeSuiviBlock, css, formatFcfa, formatPct, PROCUREMENT_ROLE_LABELS, SUIVI_CHANTIER_BLOCK_LABELS, SUIVI_CHANTIER_MATRIX, TRAFFIC_LIGHT_LABEL, TRAFFIC_LIGHT_STYLE } from './procurementUi'
+import { AlertBox, canSeeSuiviBlock, css, formatFcfa, formatPct, PROCUREMENT_ROLE_LABELS, TRAFFIC_LIGHT_LABEL, TRAFFIC_LIGHT_STYLE } from './procurementUi'
 import {
   createSiteBudgetAmendment,
   decideSiteBudgetAmendment,
@@ -29,8 +29,24 @@ type HistReport = {
   submissionsCount: number
 }
 type SitePhoto = { photoId: string; reportDate: string }
-
-const SUIVI_ROLES: ProcurementRole[] = ['technical_director', 'daf', 'controle_gestion', 'pdg', 'site_manager']
+type ChantierSite = { id: string; name: string; address?: string }
+type ReportTask = {
+  id: string
+  label: string
+  done: boolean
+  usages: { id: string; productLabel: string; unit: string; quantity: number }[]
+}
+type ReportDetailPayload = {
+  report: {
+    id: string
+    reportDate: string
+    status: 'draft' | 'submitted'
+    globalProgressPct: string | null
+    comment: string | null
+  }
+  tasks: ReportTask[]
+  photos?: { id: string; url: string }[]
+}
 
 export type SiteStockRow = {
   siteId: string
@@ -340,18 +356,15 @@ export function SuiviChantierTab({
   const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   const [month, setMonth] = useState(defaultMonth)
 
-  const [rows, setRows] = useState<SiteStockRow[]>([])
   const [budgets, setBudgets] = useState<SiteBudget[]>([])
   const [monthExpenses, setMonthExpenses] = useState<Record<string, number>>({})
   const [indicatorsBySite, setIndicatorsBySite] = useState<Record<string, SiteIndicators>>({})
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
   const [openIndicator, setOpenIndicator] = useState<{ siteId: string; id: CdgIndicatorId } | null>(null)
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
-    setLoading(true)
     try {
       // Stock réel : uniquement pour les rôles de la matrice (évite un 403 → déconnexion).
       const stockAllowed = canSeeSuiviBlock('stock', procurementRole)
@@ -363,7 +376,6 @@ export function SuiviChantierTab({
           : Promise.resolve({ rows: [] as SiteStockRow[] }),
         fetchSiteBudgets(),
       ])
-      setRows(stockBody.rows ?? [])
       setBudgets(sitesBudgets)
       if (procurementRole !== 'site_manager') {
         setSelectedSiteId((prev) => {
@@ -377,10 +389,8 @@ export function SuiviChantierTab({
         })
       }
     } catch (err) {
-      setRows([])
       setError(err instanceof Error ? err.message : 'Stock indisponible')
     } finally {
-      setLoading(false)
     }
   }, [handleAuth, procurementRole])
 
@@ -416,9 +426,28 @@ export function SuiviChantierTab({
   const canSee = (block: SuiviChantierBlock) => canSeeSuiviBlock(block, procurementRole)
 
   const [chefSiteIds, setChefSiteIds] = useState<Set<string>>(new Set())
+  const [chantierSites, setChantierSites] = useState<ChantierSite[]>([])
   const [histMonth, setHistMonth] = useState(defaultMonth)
   const [histReports, setHistReports] = useState<HistReport[]>([])
   const [sitePhotos, setSitePhotos] = useState<SitePhoto[]>([])
+  const [openReport, setOpenReport] = useState<ReportDetailPayload | null>(null)
+
+  // Chantiers du sélecteur « Chantier » : responsabilité du DT/CdG, ou ses chantiers (CDC).
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const res = await authFetch('/daily-reports/my-sites?scope=mine')
+      if (handleAuth(res.status) || !res.ok) return
+      const body = (await res.json()) as { sites?: ChantierSite[] }
+      if (cancelled) return
+      const list = body.sites ?? []
+      setChantierSites(list)
+      setChefSiteIds(new Set(list.map((s) => s.id)))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [procurementRole, handleAuth])
 
   // Historique des rapports (DT/CdG : chantiers supervisés — CdC : son chantier)
   useEffect(() => {
@@ -461,9 +490,20 @@ export function SuiviChantierTab({
 
   // CDC : ne présélectionner que parmi SES chantiers (une fois la liste connue).
   useEffect(() => {
-    if (!isChef || chefSiteIds.size === 0) return
-    setSelectedSiteId((prev) => (prev && chefSiteIds.has(prev) ? prev : [...chefSiteIds][0]))
-  }, [isChef, chefSiteIds])
+    if (!isChef || chantierSites.length === 0) return
+    setSelectedSiteId((prev) => {
+      const ids = new Set(chantierSites.map((s) => s.id))
+      return prev && ids.has(prev) ? prev : chantierSites[0].id
+    })
+  }, [isChef, chantierSites])
+
+  /** Consultation d'un rapport journalier (lecture seule). */
+  const openReportById = async (id: string) => {
+    const res = await authFetch(`/daily-reports/reports/${id}`)
+    if (handleAuth(res.status)) return
+    if (!res.ok) return
+    setOpenReport((await res.json()) as ReportDetailPayload)
+  }
 
   useEffect(() => {
     if (!selectedSiteId) return
@@ -478,16 +518,6 @@ export function SuiviChantierTab({
       cancelled = true
     }
   }, [selectedSiteId])
-
-  const bySite = useMemo(() => {
-    const groups = new Map<string, { siteName: string; rows: SiteStockRow[] }>()
-    for (const row of rows) {
-      const g = groups.get(row.siteId) ?? { siteName: row.siteName, rows: [] }
-      g.rows.push(row)
-      groups.set(row.siteId, g)
-    }
-    return [...groups.values()]
-  }, [rows])
 
   const selectedBudget = budgets.find((b) => b.siteId === selectedSiteId) ?? null
   const openSnapshot = openIndicator ? indicatorsBySite[openIndicator.siteId] : null
@@ -505,10 +535,76 @@ export function SuiviChantierTab({
 
   return (
     <div data-testid="mgr-suivi-chantier">
-      {canSee('dossiers') && !isChef && <DossiersPanel handleAuth={handleAuth} />}
-      <MatrixCard role={procurementRole} />
-      {isChef && <ChefDossiersCard reports={histReports} />}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+      {openReport ? (
+        <div style={css.card} data-testid="mgr-suivi-report-detail">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0 }}>
+              📄 Rapport du {new Date(openReport.report.reportDate).toLocaleDateString('fr-FR')} —{' '}
+              {openReport.report.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'}
+            </h3>
+            <button type="button" onClick={() => setOpenReport(null)} style={css.btnOutline}>
+              ← Retour
+            </button>
+          </div>
+          {openReport.report.globalProgressPct != null && (
+            <p style={css.meta}>📈 Avancement : {Number(openReport.report.globalProgressPct)}%</p>
+          )}
+          {openReport.report.comment && <p style={css.meta}>💬 {openReport.report.comment}</p>}
+          <h4>📋 Tâches</h4>
+          {openReport.tasks.length === 0 ? (
+            <p style={css.meta}>Aucune tâche.</p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              {openReport.tasks.map((t) => (
+                <li key={t.id} style={{ padding: '0.3rem 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                  {t.done ? '✅' : '⬜'} {t.label}
+                  {t.usages.map((u) => (
+                    <div key={u.id} style={{ fontSize: 12, color: 'var(--muted, #667)' }}>
+                      🔩 {u.quantity} {u.unit} — {u.productLabel}
+                    </div>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )}
+          <h4>📷 Photos</h4>
+          {(openReport.photos ?? []).length === 0 ? (
+            <p style={{ ...css.meta, marginBottom: 0 }}>Aucune photo.</p>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {(openReport.photos ?? []).map((p) => (
+                <img key={p.id} src={p.url} alt="Photo chantier" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }} />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <div style={css.card} data-testid="mgr-suivi-chantier-select">
+            <h3 style={{ marginTop: 0 }}>📁 Chantier</h3>
+            <select
+              value={selectedSiteId ?? ''}
+              onChange={(e) => setSelectedSiteId(e.target.value || null)}
+              style={{ padding: '0.5rem', width: '100%', maxWidth: 420 }}
+              aria-label="Sélectionner le chantier"
+              data-testid="mgr-suivi-chantier-dropdown"
+            >
+              <option value="">— Sélectionner —</option>
+              {chantierSites.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          {canSee('dossiers') && !isChef && (
+            <DossiersPanel
+              handleAuth={handleAuth}
+              siteId={selectedSiteId}
+              showDossiersAlerts={canSee('dossiers')}
+              showStock={canSee('stock')}
+            />
+          )}
+          {isChef && <ChefDossiersCard reports={histReports} />}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
         <div>
           <h2 style={{ ...css.sectionTitle, margin: 0 }}>
             Suivi chantier{procurementRole ? ` — vue ${PROCUREMENT_ROLE_LABELS[procurementRole] ?? procurementRole}` : ''}
@@ -668,6 +764,14 @@ export function SuiviChantierTab({
                       {` · 📋 ${r.tasksDone}/${r.tasksTotal} tâches`}
                       {` · 🔩 ${r.usagesCount} consommation(s)`}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => void openReportById(r.id)}
+                      style={{ padding: '0.15rem 0.6rem' }}
+                      data-testid={`mgr-suivi-hist-open-${r.id}`}
+                    >
+                      Voir
+                    </button>
                   </li>
                 ))}
             </ul>
@@ -694,108 +798,12 @@ export function SuiviChantierTab({
           )}
         </div>
       )}
-      {canSee('stock') && (
-        <>
-          {loading ? (
-            <p style={css.meta}>Chargement…</p>
-          ) : rows.length === 0 ? (
-        <p style={css.meta} data-testid="mgr-suivi-chantier-empty">
-          Aucun stock livré.
-        </p>
-      ) : !selectedSiteId ? (
-        <p style={css.meta} data-testid="mgr-suivi-chantier-no-site">
-          Sélectionnez un chantier dans le tableau ci-dessus pour consulter son stock.
-        </p>
-      ) : (
-        // Stock limité au chantier sélectionné — un chantier à la fois (demande métier CdG).
-        bySite
-          .filter((group) => group.rows.some((row) => row.siteId === selectedSiteId))
-          .map((group) => (
-          <div key={group.siteName} style={{ marginBottom: 20 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 8px' }}>{group.siteName}</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={css.lineTable} data-testid="mgr-suivi-chantier-table">
-                <thead>
-                  <tr>
-                    <th style={css.lineTh}>Produit</th>
-                    <th style={css.lineTh}>Unité</th>
-                    <th style={css.lineTh}>Disponible</th>
-                    <th style={css.lineTh}>En commande</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.rows.map((row) => (
-                    <tr key={`${row.siteId}-${row.productLabel}-${row.unit}`}>
-                      <td style={css.lineTd}>{row.productLabel}</td>
-                      <td style={css.lineTd}>{row.unit}</td>
-                      <td style={css.lineTd}>{row.onHand}</td>
-                      <td style={css.lineTd}>{row.onOrder}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ))
-        )
-          }
         </>
       )}
     </div>
   )
 }
 
-/** Matrice des accès — affichée en haut de la page, colonne du rôle courant surlignée. */
-function MatrixCard({ role }: { role: ProcurementRole | null }) {
-  const blocks = Object.keys(SUIVI_CHANTIER_MATRIX) as SuiviChantierBlock[]
-  return (
-    <div style={css.card} data-testid="mgr-suivi-matrix">
-      <h4 style={{ marginTop: 0 }}>
-        🔐 Matrice des accès — {role ? PROCUREMENT_ROLE_LABELS[role] : 'rôle inconnu'}
-      </h4>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={css.lineTable}>
-          <thead>
-            <tr>
-              <th style={css.lineTh}>Bloc</th>
-              {SUIVI_ROLES.map((r) => (
-                <th
-                  key={r}
-                  style={{
-                    ...css.lineTh,
-                    textAlign: 'center',
-                    background: r === role ? 'var(--bg-muted, #e6f0ea)' : undefined,
-                  }}
-                >
-                  {PROCUREMENT_ROLE_LABELS[r]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {blocks.map((block) => (
-              <tr key={block}>
-                <td style={css.lineTd}>{SUIVI_CHANTIER_BLOCK_LABELS[block]}</td>
-                {SUIVI_ROLES.map((r) => (
-                  <td
-                    key={r}
-                    style={{
-                      ...css.lineTd,
-                      textAlign: 'center',
-                      background: r === role ? 'var(--bg-muted, #e6f0ea)' : undefined,
-                    }}
-                  >
-                    {SUIVI_CHANTIER_MATRIX[block].includes(r) ? '✅' : '—'}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
 
 /** CDC : résumé de son dossier du jour (le détail éditable vit dans « Ma journée »). */
 function ChefDossiersCard({ reports }: { reports: HistReport[] }) {

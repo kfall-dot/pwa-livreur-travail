@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { css } from './procurementUi'
 
-type DtSite = { id: string; name: string }
 type DtReport = {
   id: string
   siteId: string
@@ -30,10 +29,18 @@ type DtStockPayload = {
   negativeCount: number
 }
 
-/** Panneau DT — dossiers du jour en direct + stock réel par chantier (sélecteur). */
-export function DossiersPanel({ handleAuth }: { handleAuth: (status: number) => boolean }) {
-  const [sites, setSites] = useState<DtSite[]>([])
-  const [siteId, setSiteId] = useState<string | null>(null)
+/** Panneau DT/CdG — alertes du jour + stock réel du chantier sélectionné (dropdown de page). */
+export function DossiersPanel({
+  handleAuth,
+  siteId,
+  showDossiersAlerts = true,
+  showStock = true,
+}: {
+  handleAuth: (status: number) => boolean
+  siteId: string | null
+  showDossiersAlerts?: boolean
+  showStock?: boolean
+}) {
   const [reports, setReports] = useState<DtReport[]>([])
   const [stock, setStock] = useState<DtStockPayload | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -43,11 +50,9 @@ export function DossiersPanel({ handleAuth }: { handleAuth: (status: number) => 
     const boot = async () => {
       const res = await authFetch('/daily-reports/dt/reports')
       if (handleAuth(res.status)) return
-      const body = (await res.json()) as { sites?: DtSite[]; reports?: DtReport[] }
+      const body = (await res.json()) as { reports?: DtReport[] }
       if (cancelled) return
-      setSites(body.sites ?? [])
       setReports(body.reports ?? [])
-      setSiteId((prev) => prev ?? body.sites?.[0]?.id ?? null)
       setLoaded(true)
     }
     void boot()
@@ -57,7 +62,7 @@ export function DossiersPanel({ handleAuth }: { handleAuth: (status: number) => 
   }, [handleAuth])
 
   useEffect(() => {
-    if (!siteId) return
+    if (!siteId || !showStock) return
     let cancelled = false
     const loadStock = async () => {
       const res = await authFetch(`/daily-reports/dt/stock?siteId=${encodeURIComponent(siteId)}`)
@@ -70,59 +75,39 @@ export function DossiersPanel({ handleAuth }: { handleAuth: (status: number) => 
     return () => {
       cancelled = true
     }
-  }, [siteId, handleAuth, reports])
+  }, [siteId, handleAuth, showStock])
 
-  if (!loaded) return <div style={css.card}>Chargement des dossiers…</div>
-  if (sites.length === 0) return null
+  if (!loaded) return null
+  if (!siteId) return null
 
-  const siteReports = reports.filter((r) => r.siteId === siteId)
+  const todayStr = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  const hasTodayReport = reports.some((r) => r.siteId === siteId && r.reportDate === todayStr)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div style={css.card}>
-        <h3 style={{ marginTop: 0 }}>📁 Dossiers du jour</h3>
-        <select
-          value={siteId ?? ''}
-          onChange={(e) => setSiteId(e.target.value)}
-          style={{ padding: '0.5rem', marginBottom: '0.75rem' }}
-          aria-label="Sélectionner le chantier"
-        >
-          {sites.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
-        {stock?.alert18h && (
-          <div style={{ ...css.messageBox, background: '#fef2f2', borderColor: '#fecaca', marginBottom: '0.75rem' }}>
-            ⚠️ Aucun dossier soumis aujourd'hui pour ce chantier (après 18h).
-          </div>
-        )}
-        {stock && stock.negativeCount > 0 && (
-          <div style={{ ...css.messageBox, background: '#fef2f2', borderColor: '#fecaca', marginBottom: '0.75rem' }}>
-            🔴 {stock.negativeCount} produit(s) en stock négatif — consommation supérieure aux livraisons. À investiguer.
-          </div>
-        )}
-        {siteReports.length === 0 ? (
-          <p style={{ fontSize: 13 }}>Aucun dossier pour ce chantier.</p>
-        ) : (
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            {[...siteReports]
-              .sort((a, b) => b.reportDate.localeCompare(a.reportDate))
-              .slice(0, 14)
-              .map((r) => (
-                <li key={r.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                  <strong>{new Date(r.reportDate).toLocaleDateString('fr-FR')}</strong>{' '}
-                  {r.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'}{' '}
-                  {r.submissionsCount > 1 && `· ${r.submissionsCount} soumissions`}
-                  {' · '}📋 {r.tasksDone}/{r.tasksTotal} tâches
-                  {' · '}🔩 {r.usagesCount} consommation(s)
-                  {r.globalProgressPct != null && ` · 📈 ${Number(r.globalProgressPct)}%`}
-                </li>
-              ))}
-          </ul>
-        )}
-      </div>
+      {showDossiersAlerts && (
+        <div style={css.card} data-testid="mgr-dossiers-alertes">
+          <h3 style={{ marginTop: 0 }}>📁 Dossiers du jour</h3>
+          {stock?.alert18h && !hasTodayReport && (
+            <div style={{ ...css.messageBox, background: '#fef2f2', borderColor: '#fecaca', marginBottom: '0.75rem' }}>
+              ⚠️ Aucun dossier soumis aujourd'hui pour ce chantier (après 18h).
+            </div>
+          )}
+          {stock && stock.negativeCount > 0 && (
+            <div style={{ ...css.messageBox, background: '#fef2f2', borderColor: '#fecaca', marginBottom: 0 }}>
+              🔴 {stock.negativeCount} produit(s) en stock négatif — consommation supérieure aux livraisons. À investiguer.
+            </div>
+          )}
+          {stock?.alert18h && hasTodayReport && stock.negativeCount === 0 && (
+            <p style={{ ...css.meta, marginBottom: 0 }}>Dossier du jour reçu ✅</p>
+          )}
+        </div>
+      )}
 
-      {stock && (
+      {showStock && stock && (
         <div style={css.card}>
           <h4 style={{ marginTop: 0 }}>📦 Stock réel (livré − consommé)</h4>
           {stock.stock.length === 0 ? (

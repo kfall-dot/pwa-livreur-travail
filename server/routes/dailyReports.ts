@@ -65,8 +65,12 @@ function unauthorized(res: import('express').Response): void {
 dailyReportsRouter.get('/my-sites', async (req, res) => {
   const mode = chefMode(req)
   if (!mode) return unauthorized(res)
-  const { id, companyId } = manager(req)
-  const sites = await listSitesForManager(companyId, id, mode, isCompanyWide(manager(req).role) && mode === 'superviseur')
+  const { id, companyId, role } = manager(req)
+  // scope=mine → uniquement les chantiers dont la personne est responsable
+  // (sélecteur « Chantier » du DT), sinon rôles compagnie = tous les actifs.
+  const allSites =
+    isCompanyWide(role) && mode === 'superviseur' && String(req.query.scope ?? '') !== 'mine'
+  const sites = await listSitesForManager(companyId, id, mode, allSites)
   res.json({ sites, mode })
 })
 
