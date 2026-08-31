@@ -364,6 +364,14 @@ export async function listReportsForSites(
         .groupBy(siteDailyTasks.reportId)
     : []
   const countsById = new Map(taskCounts.map((t) => [t.reportId, t]))
+  const usageCounts = reportIds.length
+    ? await db
+        .select({ reportId: siteMaterialUsages.reportId, total: sql<string>`count(*)` })
+        .from(siteMaterialUsages)
+        .where(inArray(siteMaterialUsages.reportId, reportIds))
+        .groupBy(siteMaterialUsages.reportId)
+    : []
+  const usagesById = new Map(usageCounts.map((u) => [u.reportId, Number(u.total)]))
   return rows.map((r) => ({
     id: r.report.id,
     siteId: r.report.siteId,
@@ -376,6 +384,7 @@ export async function listReportsForSites(
     progressPct: r.report.globalProgressPct != null ? Number(r.report.globalProgressPct) : null,
     tasksDone: Number(countsById.get(r.report.id)?.done ?? 0),
     tasksTotal: Number(countsById.get(r.report.id)?.total ?? 0),
+    usagesCount: usagesById.get(r.report.id) ?? 0,
     comment: r.report.comment,
   }))
 }
