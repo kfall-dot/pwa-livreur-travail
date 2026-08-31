@@ -611,7 +611,10 @@ dashboardRouter.post('/dashboard/tours', requireManager, async (req, res) => {
       stops: resolvedStops,
     })
     if (replannedFromTourId) {
-      const superseded = await supersedeNonDeliveredStopsFromTour(String(replannedFromTourId))
+      // Ne clôturer que les arrêts du MÊME BC : planifier un nouveau BC ne doit
+      // pas masquer les livraisons déjà planifiées pour les autres.
+      const newOrderRefs = [...new Set(resolvedStops.map((s) => s.orderRef).filter((o): o is string => !!o))]
+      const superseded = await supersedeNonDeliveredStopsFromTour(String(replannedFromTourId), newOrderRefs)
       if (superseded > 0) {
         console.log(`[dashboard] replan: ${superseded} arrêt(s) obsolète(s) clôturé(s) sur ${String(replannedFromTourId)}`)
       }

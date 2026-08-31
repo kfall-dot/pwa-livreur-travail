@@ -550,13 +550,23 @@ export async function verifyOtp(deliveryId: string, code: string): Promise<OtpVe
   return { ok: true }
 }
 
-/** Marque les arrêts non livrés d'une tournée comme obsolètes après replanification. */
-export async function supersedeNonDeliveredStopsFromTour(tourId: string): Promise<number> {
+/** Marque les arrêts non livrés d'une tournée comme obsolètes après replanification.
+ *  onlyOrderRefs : si fourni, ne clôture que les arrêts de ces références BC —
+ *  une nouvelle planification d'un AUTRE BC ne doit pas tuer les livraisons existantes. */
+export async function supersedeNonDeliveredStopsFromTour(
+  tourId: string,
+  onlyOrderRefs?: string[],
+): Promise<number> {
   const rows = await db
-    .select({ id: deliveryPoints.id, status: deliveryPoints.status })
+    .select({ id: deliveryPoints.id, status: deliveryPoints.status, orderRef: deliveryPoints.orderRef })
     .from(deliveryPoints)
     .where(eq(deliveryPoints.tourId, tourId))
-  const toSupersede = rows.filter((r) => r.status !== 'delivered' && r.status !== 'failed')
+  const toSupersede = rows.filter(
+    (r) =>
+      r.status !== 'delivered' &&
+      r.status !== 'failed' &&
+      (!onlyOrderRefs || (r.orderRef != null && onlyOrderRefs.includes(r.orderRef))),
+  )
   if (toSupersede.length === 0) return 0
   await db
     .update(deliveryPoints)
