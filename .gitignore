@@ -37,3 +37,4 @@ dev-dist
 
 # Photos de livraison en stockage local (dev / fallback Railway)
 .data/
+.data/

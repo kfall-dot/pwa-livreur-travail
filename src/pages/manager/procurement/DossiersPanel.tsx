@@ -12,7 +12,7 @@ type DtReport = {
   tasksDone: number
   tasksTotal: number
   usagesCount: number
-  submissions: { at: string }[]
+  submissionsCount: number
 }
 type DtStockRow = {
   productLabel: string
@@ -112,7 +112,7 @@ export function DossiersPanel({ handleAuth }: { handleAuth: (status: number) => 
                 <li key={r.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                   <strong>{new Date(r.reportDate).toLocaleDateString('fr-FR')}</strong>{' '}
                   {r.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'}{' '}
-                  {r.submissions.length > 1 && `· ${r.submissions.length} soumissions`}
+                  {r.submissionsCount > 1 && `· ${r.submissionsCount} soumissions`}
                   {' · '}📋 {r.tasksDone}/{r.tasksTotal} tâches
                   {' · '}🔩 {r.usagesCount} consommation(s)
                   {r.globalProgressPct != null && ` · 📈 ${Number(r.globalProgressPct)}%`}
