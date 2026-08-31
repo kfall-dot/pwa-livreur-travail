@@ -38,8 +38,22 @@ function isChef(role: string | null): boolean {
 function chefMode(req: import('express').Request): 'chef' | 'superviseur' | null {
   const { role } = manager(req)
   if (isChef(role)) return 'chef'
-  if (role === 'technical_director' || role === 'controle_gestion' || role === 'daf') return 'superviseur'
+  if (
+    role === 'technical_director' ||
+    role === 'controle_gestion' ||
+    role === 'daf' ||
+    role === 'pdg'
+  ) {
+    return 'superviseur'
+  }
   return null
+}
+
+/** DT/DAF/CdG/PDG : rôles compagnie → accès à tous les chantiers actifs. */
+function isCompanyWide(role: string | null): boolean {
+  return (
+    role === 'technical_director' || role === 'daf' || role === 'controle_gestion' || role === 'pdg'
+  )
 }
 
 function unauthorized(res: import('express').Response): void {
@@ -52,7 +66,7 @@ dailyReportsRouter.get('/my-sites', async (req, res) => {
   const mode = chefMode(req)
   if (!mode) return unauthorized(res)
   const { id, companyId } = manager(req)
-  const sites = await listSitesForManager(companyId, id, mode)
+  const sites = await listSitesForManager(companyId, id, mode, isCompanyWide(manager(req).role) && mode === 'superviseur')
   res.json({ sites, mode })
 })
 
@@ -61,7 +75,7 @@ dailyReportsRouter.get('/my-reports', async (req, res) => {
   const mode = chefMode(req)
   if (!mode) return unauthorized(res)
   const { id, companyId } = manager(req)
-  const sites = await listSitesForManager(companyId, id, mode)
+  const sites = await listSitesForManager(companyId, id, mode, isCompanyWide(manager(req).role) && mode === 'superviseur')
   const siteIds = sites.map((s) => s.id)
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month ?? '')) ? String(req.query.month) : null
   const since = month ? `${month}-01` : undefined
@@ -78,7 +92,7 @@ dailyReportsRouter.post('/today', async (req, res) => {
   const { id, companyId } = manager(req)
   const siteId = String(req.body?.siteId ?? '')
   if (!siteId) return void res.status(400).json({ message: 'siteId requis' })
-  if (!(await canAccessSite(companyId, siteId, id, mode))) return unauthorized(res)
+  if (!(await canAccessSite(companyId, siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
   const detail = await getOrCreateTodayReport(companyId, siteId, id)
   res.json(detail)
 })
@@ -89,7 +103,7 @@ dailyReportsRouter.get('/reports/:id', async (req, res) => {
   const { id, companyId } = manager(req)
   const detail = await loadReportById(req.params.id)
   if (!detail) return void res.status(404).json({ message: 'Dossier introuvable' })
-  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode))) return unauthorized(res)
+  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
   res.json(detail)
 })
 
@@ -103,7 +117,7 @@ dailyReportsRouter.post('/reports/:id/tasks', async (req, res) => {
   if (!label) return void res.status(400).json({ message: 'Libellé de tâche requis' })
   const detail = await loadReportById(req.params.id)
   if (!detail) return void res.status(404).json({ message: 'Dossier introuvable' })
-  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode))) return unauthorized(res)
+  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
   const task = await addTask(req.params.id, label)
   res.json({ ok: true, task })
 })
@@ -135,7 +149,7 @@ dailyReportsRouter.post('/reports/:id/usages', async (req, res) => {
   }
   const detail = await loadReportById(req.params.id)
   if (!detail) return void res.status(404).json({ message: 'Dossier introuvable' })
-  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode))) return unauthorized(res)
+  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
   try {
     await addMaterialUsage(req.params.id, {
       taskId: String(taskId),
@@ -196,7 +210,7 @@ dailyReportsRouter.post('/reports/:id/photos', upload.single('photo'), async (re
   const reportIdParam = String(req.params.id)
   const detail = await loadReportById(reportIdParam)
   if (!detail) return void res.status(404).json({ message: 'Dossier introuvable' })
-  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode))) return unauthorized(res)
+  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
 
   const photoId = `${reportIdParam}/${randomUUID()}`
   const arrayBuffer = req.file.buffer.buffer.slice(
@@ -224,7 +238,7 @@ dailyReportsRouter.get('/photos/:photoId', async (req, res) => {
   const reportId = photoId.split('/')[0]
   const detail = await loadReportById(reportId)
   if (!detail) return void res.status(404).json({ message: 'Photo introuvable' })
-  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode))) return unauthorized(res)
+  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
   if (isBlobsEnabled()) {
     const result = await getDeliveryPhotosStore().get(photoId, { type: 'arrayBuffer' })
     if (!result) return void res.status(404).json({ message: 'Photo introuvable' })
@@ -246,7 +260,7 @@ dailyReportsRouter.get('/site-photos', async (req, res) => {
   const { companyId, id } = manager(req)
   const siteId = String(req.query.siteId ?? '')
   if (!siteId) return void res.status(400).json({ message: 'siteId requis' })
-  if (!(await canAccessSite(companyId, siteId, id, mode))) return unauthorized(res)
+  if (!(await canAccessSite(companyId, siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
   const limit = Number(req.query.limit ?? 12)
   const photos = await listSiteRecentPhotos(companyId, siteId, Number.isFinite(limit) ? limit : 12)
   res.json({ photos })
@@ -258,7 +272,7 @@ dailyReportsRouter.get('/reports/:id/photos', async (req, res) => {
   const { companyId, id } = manager(req)
   const detail = await loadReportById(req.params.id)
   if (!detail) return void res.status(404).json({ message: 'Dossier introuvable' })
-  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode))) return unauthorized(res)
+  if (!(await canAccessSite(companyId, detail.report.siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
   const photos = await listReportPhotos(req.params.id)
   res.json({ photos: photos.map((p) => ({ ...p, url: `/api/v1/daily-reports/photos/${encodeURIComponent(p.photoId)}` })) })
 })
@@ -302,7 +316,7 @@ dailyReportsRouter.get('/dt/reports', async (req, res) => {
   const mode = chefMode(req)
   if (!mode) return unauthorized(res)
   const { id, companyId } = manager(req)
-  const sites = await listSitesForManager(companyId, id, mode)
+  const sites = await listSitesForManager(companyId, id, mode, isCompanyWide(manager(req).role) && mode === 'superviseur')
   const since = typeof req.query.since === 'string' ? req.query.since : undefined
   const reports = await listReportsForSites(companyId, sites.map((s) => s.id), since)
   res.json({ sites, reports })
@@ -314,7 +328,7 @@ dailyReportsRouter.get('/dt/stock', async (req, res) => {
   const { id, companyId } = manager(req)
   const siteId = String(req.query.siteId ?? '')
   if (!siteId) return void res.status(400).json({ message: 'siteId requis' })
-  if (!(await canAccessSite(companyId, siteId, id, mode))) return unauthorized(res)
+  if (!(await canAccessSite(companyId, siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
   const stock = await listSiteStock(companyId)
   const consumption = await listSiteConsumption(companyId, siteId)
   const rows: StockRowApi[] = stock

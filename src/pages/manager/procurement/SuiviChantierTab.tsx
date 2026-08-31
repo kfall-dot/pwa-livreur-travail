@@ -353,10 +353,13 @@ export function SuiviChantierTab({
     setError(null)
     setLoading(true)
     try {
-      const stockRes = await authFetch('/procurement/site-stock')
-      if (handleAuth(stockRes.status)) return
+      // Stock réel : uniquement pour les rôles de la matrice (évite un 403 → déconnexion).
+      const stockRes = canSee('stock') ? await authFetch('/procurement/site-stock') : null
+      if (stockRes && handleAuth(stockRes.status)) return
       const [stockBody, sitesBudgets] = await Promise.all([
-        stockRes.ok ? (stockRes.json() as Promise<{ rows?: SiteStockRow[] }>) : Promise.resolve({ rows: [] }),
+        stockRes && stockRes.ok
+          ? (stockRes.json() as Promise<{ rows?: SiteStockRow[] }>)
+          : Promise.resolve({ rows: [] as SiteStockRow[] }),
         fetchSiteBudgets(),
       ])
       setRows(stockBody.rows ?? [])

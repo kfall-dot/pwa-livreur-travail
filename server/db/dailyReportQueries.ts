@@ -26,27 +26,36 @@ export async function listSitesForManager(
   companyId: string,
   managerId: string,
   mode: 'chef' | 'superviseur',
+  allSites = false,
 ): Promise<{ id: string; name: string; address: string }[]> {
   const col = mode === 'chef' ? sites.managerId : sites.supervisorManagerId
+  const conds = [eq(sites.companyId, companyId), eq(sites.active, true)]
+  if (!allSites) conds.push(eq(col, managerId))
   const rows = await db
     .select({ id: sites.id, name: sites.name, address: sites.address })
     .from(sites)
-    .where(and(eq(sites.companyId, companyId), eq(col, managerId), eq(sites.active, true)))
+    .where(and(...conds))
     .orderBy(asc(sites.name))
   return rows
 }
+
+/** Rôles « compagnie entière » : accès à tous les chantiers actifs (DT, DAF, CdG, PDG). */
+export const COMPANY_WIDE_ROLES = ['technical_director', 'daf', 'controle_gestion', 'pdg']
 
 export async function canAccessSite(
   companyId: string,
   siteId: string,
   managerId: string,
   mode: 'chef' | 'superviseur',
+  allSites = false,
 ): Promise<boolean> {
   const col = mode === 'chef' ? sites.managerId : sites.supervisorManagerId
+  const conds = [eq(sites.companyId, companyId), eq(sites.id, siteId)]
+  if (!allSites) conds.push(eq(col, managerId))
   const rows = await db
     .select({ id: sites.id })
     .from(sites)
-    .where(and(eq(sites.companyId, companyId), eq(sites.id, siteId), eq(col, managerId)))
+    .where(and(...conds))
     .limit(1)
   return rows.length > 0
 }
