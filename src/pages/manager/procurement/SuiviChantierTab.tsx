@@ -98,6 +98,7 @@ function EnvelopeBanner({
     }
   }
 
+  const showBudget = canSeeSuiviBlock('enveloppe', role)
   return (
     <div
       data-testid="mgr-suivi-enveloppe"
@@ -109,18 +110,19 @@ function EnvelopeBanner({
       }}
     >
       <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 8px' }}>
-        Enveloppe — {budget.siteName}
+        {showBudget ? 'Enveloppe' : 'Avenants'} — {budget.siteName}
       </h3>
-      {budget.overBudget && (
+      {showBudget && budget.overBudget && (
         <p data-testid="mgr-suivi-enveloppe-over" style={{ ...css.meta, color: '#b45309', marginBottom: 8 }}>
           Warning : l’engagé dépasse le budget total. Le SA peut quand même émettre un BC.
         </p>
       )}
-      {budget.budgetFrozenAt == null && (
+      {showBudget && budget.budgetFrozenAt == null && (
         <p data-testid="mgr-suivi-enveloppe-empty" style={{ ...css.meta, marginBottom: 8 }}>
           Enveloppe non renseignée
         </p>
       )}
+      {showBudget && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 8 }}>
         <div>
           <div style={css.meta}>Budget initial</div>
@@ -176,8 +178,9 @@ function EnvelopeBanner({
           </>
         )}
       </div>
+      )}
 
-      {budget.missingAmendment && (
+      {showBudget && budget.missingAmendment && (
         <p data-testid="mgr-suivi-enveloppe-missing-amendment" style={{ ...css.meta, color: '#b45309', marginBottom: 8 }}>
           Avenant manquant : l’engagé dépasse le budget et aucun avenant n’est approuvé.
           {budget.overrunDays != null ? ` Dérive depuis ${budget.overrunDays} j.` : ''}
@@ -727,7 +730,7 @@ export function SuiviChantierTab({
           </div>
         )
       })()}
-      {selectedBudget && (showEnveloppe || showIndicateurs) && (
+      {selectedBudget && (showEnveloppe || showIndicateurs || procurementRole === 'technical_director') && (
         <EnvelopeBanner
           key={selectedBudget.siteId}
           budget={selectedBudget}
