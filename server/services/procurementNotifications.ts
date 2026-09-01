@@ -33,8 +33,18 @@ export async function notifyManagersByProcurementRole(
     console.log(
       `[procurement-notify] ${ROLE_LABELS[target.procurementRole!]} ${target.name} <${target.email}>: ${subject}`,
     )
-    await sendEmail({ to: target.email, subject, text })
-    notified++
+    try {
+      await sendEmail({ to: target.email, subject, text })
+      notified++
+    } catch (err) {
+      // Une notification ne doit JAMAIS faire échouer le workflow : le statut
+      // est déjà mis à jour côté base — un échec SMTP/quota est journalisé et
+      // n'interrompt ni la boucle ni la requête HTTP appelante.
+      console.error(
+        `[procurement-notify] Échec envoi à ${target.email} (${subject}):`,
+        err instanceof Error ? err.message : err,
+      )
+    }
   }
   return { notified }
 }
