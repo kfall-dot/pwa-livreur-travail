@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { css } from './procurementUi'
-import { formatQuantityWithUnit } from '../../lib/deliveryUnits'
-import { appTodayString } from '../../lib/appDate'
+import { formatQuantityWithUnit } from '../../../lib/deliveryUnits'
+import { appTodayString } from '../../../lib/appDate'
 
 type DtReport = {
   id: string
