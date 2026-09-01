@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { formatQuantityWithUnit } from '../../../lib/deliveryUnits'
 import { authFetch } from '../managerApi'
@@ -367,6 +367,14 @@ export function SuiviChantierTab({
   const [openIndicator, setOpenIndicator] = useState<{ siteId: string; id: CdgIndicatorId } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  /**
+   * Au premier chargement, la préférence chantier (stock → budget gelé → site
+   * pilote) doit primer sur un `prev` posé par l'effet du dropdown (liste triée
+   * par nom → exemple « 35° ARRONDISSEMENT » premier). Après ce premier tour,
+   * on respecte la sélection de l'utilisateur (y compris au clic « Actualiser »).
+   */
+  const firstLoadRef = useRef(true)
+
   const load = useCallback(async () => {
     setError(null)
     try {
@@ -383,13 +391,18 @@ export function SuiviChantierTab({
       setBudgets(sitesBudgets)
       if (procurementRole !== 'site_manager') {
         setSelectedSiteId((prev) => {
-          if (prev && sitesBudgets.some((b) => b.siteId === prev)) return prev
           const withStock = (stockBody.rows ?? []).find((r) => sitesBudgets.some((b) => b.siteId === r.siteId))
-          if (withStock) return withStock.siteId
           const frozen = sitesBudgets.find((b) => b.budgetFrozenAt)
-          if (frozen) return frozen.siteId
           const pilote = sitesBudgets.find((b) => b.siteId === 'site-btp-pilote-1')
-          return pilote?.siteId ?? sitesBudgets[0]?.siteId ?? null
+          // Premier chargement : la préférence métier prime sur un `prev` déjà posé
+          // par l'effet du dropdown (liste triée par nom — ex. « 35° ARRONDISSEMENT »).
+          if (firstLoadRef.current) {
+            firstLoadRef.current = false
+            const preferred = withStock?.siteId ?? frozen?.siteId ?? pilote?.siteId ?? null
+            if (preferred) return preferred
+          }
+          if (prev && sitesBudgets.some((b) => b.siteId === prev)) return prev
+          return withStock?.siteId ?? frozen?.siteId ?? pilote?.siteId ?? sitesBudgets[0]?.siteId ?? null
         })
       }
     } catch (err) {
