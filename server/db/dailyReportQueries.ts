@@ -12,9 +12,19 @@ import {
   type SiteReportPhoto,
 } from './schema.js'
 
-/** Date du jour au format date (UTC — même convention que la CI/prod). */
+/** Fuseau métier — la date du « jour » est celle de l'exploitation (Côte d'Ivoire). */
+export const APP_TIMEZONE = process.env.APP_TIMEZONE ?? 'Africa/Abidjan'
+
+/** Date du jour au format AAAA-MM-JJ dans le fuseau métier (pas l'UTC). */
 export function todayDateString(now: Date = new Date()): string {
-  return now.toISOString().slice(0, 10)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+  const get = (type: 'year' | 'month' | 'day') => parts.find((p) => p.type === type)?.value ?? ''
+  return `${get('year')}-${get('month')}-${get('day')}`
 }
 
 export type SubmissionEntry = { at: string; byManagerId: string; note?: string }
@@ -66,7 +76,14 @@ export async function canAccessSite(
 export type ReportDetail = {
   report: typeof siteDailyReports.$inferSelect
   tasks: (SiteDailyTask & {
-    usages: { id: string; productLabel: string; unit: string; quantity: number; sourceSiteId: string | null }[]
+    usages: {
+      id: string
+      productLabel: string
+      unit: string
+      quantity: number
+      sourceSiteId: string | null
+      provenance: string | null
+    }[]
   })[]
   photos: SiteReportPhoto[]
 }
@@ -132,6 +149,7 @@ async function loadReportDetail(reportId: string): Promise<ReportDetail> {
         unit: u.unit,
         quantity: Number(u.quantity),
         sourceSiteId: u.sourceSiteId,
+        provenance: u.provenance,
       })),
     })),
     photos,
@@ -179,6 +197,7 @@ export async function addMaterialUsage(
     unit: string
     quantity: number
     sourceSiteId?: string | null
+    provenance?: string | null
   },
 ): Promise<void> {
   const report = (await db.select().from(siteDailyReports).where(eq(siteDailyReports.id, reportId)).limit(1))[0]
@@ -202,6 +221,7 @@ export async function addMaterialUsage(
     unit: input.unit.trim(),
     quantity: String(input.quantity),
     sourceSiteId: input.sourceSiteId ?? null,
+    provenance: input.provenance ?? null,
   })
   await touchReport(reportId)
 }

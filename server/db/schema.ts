@@ -740,6 +740,8 @@ export const siteMaterialUsages = pgTable('site_material_usages', {
   quantity: numeric('quantity', { precision: 12, scale: 3 }).notNull(),
   /** Provenance : si le matériau vient d'un autre chantier (traçabilité). */
   sourceSiteId: text('source_site_id').references(() => sites.id),
+  /** Provenance libre (texte) — obligatoire pour un matériau « Autre » non livré. */
+  provenance: text('provenance'),
   authorManagerId: text('author_manager_id').references(() => managers.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })

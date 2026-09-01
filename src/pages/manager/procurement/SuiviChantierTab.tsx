@@ -35,7 +35,7 @@ type ReportTask = {
   id: string
   label: string
   done: boolean
-  usages: { id: string; productLabel: string; unit: string; quantity: number }[]
+  usages: { id: string; productLabel: string; unit: string; quantity: number; sourceSiteId?: string | null; provenance?: string | null }[]
 }
 type ReportDetailPayload = {
   report: {

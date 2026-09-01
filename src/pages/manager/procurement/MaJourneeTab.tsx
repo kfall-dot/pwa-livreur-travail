@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { formatQuantityWithUnit } from '../../../lib/deliveryUnits'
+import { appTodayString } from '../../../lib/appDate'
 import { css } from './procurementUi'
 
 type SiteOption = { id: string; name: string; address: string }
@@ -8,7 +9,7 @@ type TaskRow = {
   id: string
   label: string
   done: boolean
-  usages: { id: string; productLabel: string; unit: string; quantity: number; sourceSiteId: string | null }[]
+  usages: { id: string; productLabel: string; unit: string; quantity: number; sourceSiteId: string | null; provenance: string | null }[]
 }
 type PhotoRow = { id: string; photoId: string; url: string }
 type ReportPayload = {
@@ -34,7 +35,17 @@ export function MaJourneeTab({ handleAuth }: { handleAuth: (status: number) => b
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
   const [taskLabel, setTaskLabel] = useState('')
-  const [usage, setUsage] = useState({ taskId: '', productLabel: '', unit: '', quantity: '', sourceSiteId: '' })
+  const [usage, setUsage] = useState({
+    taskId: '',
+    productLabel: '',
+    /** '__autre__' → matériau non livré ; le libellé exact va dans customLabel. */
+    customLabel: '',
+    unit: '',
+    quantity: '',
+    sourceSiteId: '',
+    provenance: '',
+  })
+  const [siteStock, setSiteStock] = useState<{ productLabel: string; unit: string }[]>([])
   const [progress, setProgress] = useState('')
   const [comment, setComment] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -52,8 +63,7 @@ type CalReport = {
 }
 
 const localToday = (): string => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return appTodayString()
 }
 
   const loadSites = useCallback(async () => {
@@ -99,6 +109,21 @@ const localToday = (): string => {
   useEffect(() => {
     if (siteId) void loadReport()
   }, [siteId, loadReport])
+
+  // Matériaux livrés sur le chantier (liste déroulante des consommations).
+  useEffect(() => {
+    if (!siteId) return
+    let cancelled = false
+    void (async () => {
+      const res = await authFetch(`/daily-reports/dt/stock?siteId=${encodeURIComponent(siteId)}`)
+      if (handleAuth(res.status) || !res.ok) return
+      const body = (await res.json()) as { stock?: { productLabel: string; unit: string }[] }
+      if (!cancelled) setSiteStock(body.stock ?? [])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [siteId, handleAuth])
 
   const [calMonth, setCalMonth] = useState(() => localToday().slice(0, 7))
   const [calReports, setCalReports] = useState<CalReport[]>([])
@@ -180,8 +205,21 @@ const localToday = (): string => {
   }
 
   const addUsage = async () => {
-    if (!reportId || !usage.taskId || !usage.productLabel.trim() || !usage.unit.trim() || !Number(usage.quantity)) {
-      flash('Tâche, produit, unité et quantité requis')
+    if (!reportId || !usage.taskId) {
+      flash('Choisissez la tâche concernée')
+      return
+    }
+    const isOther = usage.productLabel === '__autre__'
+    const productLabel = (isOther ? usage.customLabel.trim() : usage.productLabel.trim())
+    const unit = usage.unit.trim()
+    const qty = Number(usage.quantity)
+    if (!productLabel || !unit || !Number.isFinite(qty) || qty <= 0) {
+      flash('Matériau, unité et quantité (> 0) requis')
+      return
+    }
+    // « Autre matériau » : la provenance est obligatoire.
+    if (isOther && !usage.provenance.trim()) {
+      flash('Avec « Autre matériau », précisez la provenance')
       return
     }
     const res = await authFetch(`/daily-reports/reports/${reportId}/usages`, {
@@ -189,10 +227,11 @@ const localToday = (): string => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         taskId: usage.taskId,
-        productLabel: usage.productLabel,
-        unit: usage.unit,
-        quantity: Number(usage.quantity),
+        productLabel,
+        unit,
+        quantity: qty,
         sourceSiteId: usage.sourceSiteId || null,
+        provenance: isOther ? usage.provenance.trim() : null,
       }),
     })
     if (handleAuth(res.status)) return
@@ -201,7 +240,7 @@ const localToday = (): string => {
       flash(body.message ?? 'Erreur')
       return
     }
-    setUsage({ taskId: '', productLabel: '', unit: '', quantity: '', sourceSiteId: '' })
+    setUsage({ taskId: '', productLabel: '', customLabel: '', unit: '', quantity: '', sourceSiteId: '', provenance: '' })
     await loadReport()
     flash('Consommation enregistrée')
   }
@@ -362,7 +401,7 @@ const localToday = (): string => {
                         {t.usages.map((u) => (
                           <div key={u.id}>
                             🔩 {formatQuantityWithUnit(u.quantity, u.unit)} — {u.productLabel}
-                            {u.sourceSiteId && ` (apport externe)`}
+                            {u.provenance ? ` (provenance : ${u.provenance})` : u.sourceSiteId ? ` (apport externe)` : ''}
                             {isDraft && (
                               <button
                                 type="button"
@@ -409,13 +448,54 @@ const localToday = (): string => {
                     <option key={t.id} value={t.id}>{t.label}</option>
                   ))}
                 </select>
+                <select
+                  value={usage.productLabel === '__autre__' ? '__autre__' : usage.productLabel ? `${usage.productLabel}|${usage.unit || ''}` : ''}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '__autre__') {
+                      setUsage((u) => ({ ...u, productLabel: '__autre__', unit: '' }))
+                      return
+                    }
+                    if (!v) {
+                      setUsage((u) => ({ ...u, productLabel: '', unit: '' }))
+                      return
+                    }
+                    const [label, unit] = v.split('|')
+                    setUsage((u) => ({ ...u, productLabel: label, unit: unit ?? '', customLabel: '', provenance: '' }))
+                  }}
+                  style={{ padding: '0.5rem' }}
+                  data-testid="mgr-mj-material-select"
+                >
+                  <option value="">Matériau livré sur le chantier…</option>
+                  {siteStock.map((s) => (
+                    <option key={`${s.productLabel}|${s.unit}`} value={`${s.productLabel}|${s.unit}`}>
+                      {s.productLabel} ({s.unit})
+                    </option>
+                  ))}
+                  <option value="__autre__">Autre matériau (préciser)…</option>
+                </select>
+                {siteStock.length === 0 && (
+                  <p style={{ fontSize: 12, color: 'var(--muted, #667)', margin: 0 }}>
+                    Aucun matériau livré enregistré sur ce chantier — utilisez « Autre matériau ».
+                  </p>
+                )}
+                {usage.productLabel === '__autre__' && (
+                  <>
+                    <input
+                      value={usage.customLabel}
+                      onChange={(e) => setUsage((u) => ({ ...u, customLabel: e.target.value }))}
+                      placeholder="Matériau (ex. Fer 12/14 ramené d'un autre chantier)"
+                      style={{ padding: '0.5rem' }}
+                    />
+                    <input
+                      value={usage.provenance}
+                      onChange={(e) => setUsage((u) => ({ ...u, provenance: e.target.value }))}
+                      placeholder="Provenance (lieu de récupération) *"
+                      style={{ padding: '0.5rem' }}
+                    />
+                  </>
+                )}
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input
-                    value={usage.productLabel}
-                    onChange={(e) => setUsage((u) => ({ ...u, productLabel: e.target.value }))}
-                    placeholder="Produit (ex. Ciment 50kg)"
-                    style={{ flex: 2, padding: '0.5rem' }}
-                  />
                   <input
                     value={usage.quantity}
                     onChange={(e) => setUsage((u) => ({ ...u, quantity: e.target.value }))}
@@ -430,18 +510,20 @@ const localToday = (): string => {
                     style={{ flex: 1, padding: '0.5rem' }}
                   />
                 </div>
-                <select
-                  value={usage.sourceSiteId}
-                  onChange={(e) => setUsage((u) => ({ ...u, sourceSiteId: e.target.value }))}
-                  style={{ padding: '0.5rem' }}
-                >
-                  <option value="">Provenance : stock de ce chantier</option>
-                  {sites
-                    .filter((s) => s.id !== detail.report.siteId)
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>Venant de : {s.name}</option>
-                    ))}
-                </select>
+                {usage.productLabel !== '__autre__' && (
+                  <select
+                    value={usage.sourceSiteId}
+                    onChange={(e) => setUsage((u) => ({ ...u, sourceSiteId: e.target.value }))}
+                    style={{ padding: '0.5rem' }}
+                  >
+                    <option value="">Provenance : stock de ce chantier</option>
+                    {sites
+                      .filter((s) => s.id !== detail.report.siteId)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>Venant de : {s.name}</option>
+                      ))}
+                  </select>
+                )}
                 <button type="button" onClick={() => void addUsage()}>+ Enregistrer la consommation</button>
               </div>
             ) : (

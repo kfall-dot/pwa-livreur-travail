@@ -2,7 +2,7 @@ import { Router } from 'express'
 import multer from 'multer'
 import { randomUUID } from 'crypto'
 import { requireManager, type ManagerRequest } from '../middleware/managerAuth.js'
-import { canAccessSite, getOrCreateTodayReport, loadReportById, listSitesForManager } from '../db/dailyReportQueries.js'
+import { canAccessSite, getOrCreateTodayReport, loadReportById, listSitesForManager, APP_TIMEZONE, todayDateString } from '../db/dailyReportQueries.js'
 import {
   addTask,
   setTaskDone,
@@ -146,7 +146,7 @@ dailyReportsRouter.post('/reports/:id/usages', async (req, res) => {
   const mode = chefMode(req)
   if (mode !== 'chef') return unauthorized(res)
   const { id, companyId } = manager(req)
-  const { taskId, productLabel, unit, quantity, sourceSiteId } = req.body ?? {}
+  const { taskId, productLabel, unit, quantity, sourceSiteId, provenance } = req.body ?? {}
   const qty = Number(quantity)
   if (!taskId || !String(productLabel ?? '').trim() || !String(unit ?? '').trim() || !Number.isFinite(qty) || qty <= 0) {
     return void res.status(400).json({ message: 'Tâche, produit, unité et quantité (> 0) requis' })
@@ -161,6 +161,7 @@ dailyReportsRouter.post('/reports/:id/usages', async (req, res) => {
       unit: String(unit),
       quantity: qty,
       sourceSiteId: sourceSiteId ? String(sourceSiteId) : null,
+      provenance: provenance ? String(provenance) : null,
     })
     const refreshed = await loadReportById(req.params.id)
     res.json({ ok: true, detail: refreshed })
@@ -352,17 +353,20 @@ dailyReportsRouter.get('/dt/stock', async (req, res) => {
       }
     })
     .sort((a, b) => a.alert.localeCompare(b.alert) || a.productLabel.localeCompare(b.productLabel))
-  // Alerte 18h : dossier du jour non soumis
-  const today = new Date().toISOString().slice(0, 10)
+  // Alerte 18h : dossier du jour non soumis — date et heure du fuseau métier.
+  const today = todayDateString()
   const reportsToday = await listReportsForSites(companyId, [siteId], today)
   const todays = reportsToday.filter((r) => r.reportDate === today)
+  const hourInTz = Number(
+    new Intl.DateTimeFormat('fr-FR', { timeZone: APP_TIMEZONE, hour: '2-digit', hourCycle: 'h23' }).format(new Date()),
+  )
   res.json({
     stock: rows,
     todayReport:
       todays.find((r) => r.status === 'draft') ??
       todays.find((r) => r.status === 'submitted') ??
       null,
-    alert18h: new Date().getUTCHours() >= 18 && !todays.some((r) => r.status === 'submitted'),
+    alert18h: Number.isFinite(hourInTz) && hourInTz >= 18 && !todays.some((r) => r.status === 'submitted'),
     negativeCount: rows.filter((r) => r.alert === 'negative').length,
   })
 })

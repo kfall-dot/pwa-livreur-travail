@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { css } from './procurementUi'
 import { formatQuantityWithUnit } from '../../lib/deliveryUnits'
+import { appTodayString } from '../../lib/appDate'
 
 type DtReport = {
   id: string
@@ -83,10 +84,7 @@ export function DossiersPanel({
   if (!loaded) return null
   if (!siteId) return null
 
-  const todayStr = (() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  })()
+  const todayStr = appTodayString()
   const todayReport = reports.find((r) => r.siteId === siteId && r.reportDate === todayStr) ?? null
   const hasTodayReport = todayReport != null
 
