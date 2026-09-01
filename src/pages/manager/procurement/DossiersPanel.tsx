@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { css } from './procurementUi'
+import { formatQuantityWithUnit } from '../../lib/deliveryUnits'
 
 type DtReport = {
   id: string
@@ -148,10 +149,10 @@ export function DossiersPanel({
                       {r.alert === 'negative' ? '🔴 ' : r.alert === 'low' ? '🟠 ' : ''}
                       {r.productLabel}
                     </td>
-                    <td style={{ padding: '0.35rem' }}>{r.onHand} {r.unit}</td>
-                    <td style={{ padding: '0.35rem' }}>−{r.consumed} {r.unit}</td>
+                    <td style={{ padding: '0.35rem' }}>{formatQuantityWithUnit(r.onHand, r.unit)}</td>
+                    <td style={{ padding: '0.35rem' }}>−{formatQuantityWithUnit(r.consumed, r.unit)}</td>
                     <td style={{ padding: '0.35rem', fontWeight: r.alert !== 'ok' ? 700 : 400 }}>
-                      {r.available} {r.unit}
+                      {formatQuantityWithUnit(r.available, r.unit)}
                     </td>
                   </tr>
                 ))}

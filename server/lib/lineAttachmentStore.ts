@@ -2,7 +2,22 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { getProcurementMediaStore, isBlobsEnabled } from './blobs.js'
 
-const LOCAL_DIR = path.join(process.cwd(), '.netlify', 'eb-attachments')
+/**
+ * Répertoire local des pièces jointes EB.
+ * - Railway/Docker : PHOTOS_DIR est défini (/data/delivery-photos, volume persistant)
+ *   → on stocke dans le dossier frère /data/eb-attachments pour survivre aux redéploiements.
+ * - Local (dev) : PHOTOS_DIR absent → comportement historique .netlify/eb-attachments.
+ * - Surcharge possible via EB_ATTACHMENTS_DIR.
+ */
+function resolveLocalDir(): string {
+  const custom = process.env.EB_ATTACHMENTS_DIR?.trim()
+  if (custom) return custom
+  const photosDir = process.env.PHOTOS_DIR?.trim()
+  if (photosDir) return path.join(path.dirname(photosDir), 'eb-attachments')
+  return path.join(process.cwd(), '.netlify', 'eb-attachments')
+}
+
+const LOCAL_DIR = resolveLocalDir()
 const BLOBS_TIMEOUT_MS = 2_500
 
 export function localAttachmentPath(key: string): string {
