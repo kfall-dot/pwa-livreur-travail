@@ -556,6 +556,11 @@ export function AchatsTab({
 
   const handleSubmitFinance = async () => {
     if (!selectedRequestId || !requestDetail) return
+    // Garde : EB déjà partie au CdG (statut périmé dans l'UI, double-clic…) → rien à faire
+    if (requestDetail.request.status !== 'submitted') {
+      toast.info('Cette EB a déjà été envoyée au Contrôle de gestion — aucune action nécessaire.')
+      return
+    }
     const incomplete = saFinanceIncompleteMessage(requestDetail.lines)
     if (incomplete) {
       toast.error(incomplete.endsWith('.') ? incomplete : `${incomplete}.`)
@@ -571,7 +576,13 @@ export function AchatsTab({
       void loadRequests()
       onInboxCountChanged?.()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Envoi au DAF échoué')
+      const msg = err instanceof Error ? err.message : ''
+      // Si l'EB a été envoyée entre-temps (double-clic / autre onglet), message neutre au lieu de l'erreur de prix
+      if (msg.includes('qu’avant envoi au CdG')) {
+        toast.info('Cette EB a déjà été envoyée au Contrôle de gestion — aucune action nécessaire.')
+      } else {
+        toast.error(msg || 'Soumission au CdG échouée')
+      }
     } finally {
       setActionLoading(false)
     }
