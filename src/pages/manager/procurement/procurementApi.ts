@@ -217,7 +217,11 @@ export async function submitDraft(
     body: JSON.stringify(payload ?? {}),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
+    const err = await res.json().catch(() => null) as { message?: string } | null
+    // Réponse non-JSON (502/504 gateway, redéploiement Railway) → message actionable
+    if (err == null) {
+      throw new Error('Serveur momentanément indisponible (redéploiement en cours ?) — réessayez dans 1 minute.')
+    }
     throw new Error(err.message ?? 'Soumission du brouillon échouée')
   }
   const data = await res.json() as { request: PurchaseRequestRow }
