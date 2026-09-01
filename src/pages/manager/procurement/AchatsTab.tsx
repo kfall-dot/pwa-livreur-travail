@@ -271,9 +271,10 @@ export function AchatsTab({
     selectedDraftIdRef.current = selectedDraftId
   }, [selectedDraftId])
 
-  const loadLists = useCallback(async () => {
+  const loadLists = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true
     const keepPanel = Boolean(selectedDraftIdRef.current)
-    if (!keepPanel) {
+    if (!keepPanel && !silent) {
       setLoading(true)
       setError(null)
     }
@@ -294,13 +295,29 @@ export function AchatsTab({
         }
       }
     } catch (err) {
-      if (!keepPanel && !handleAuth(500)) {
+      if (!keepPanel && !silent && !handleAuth(500)) {
         setError(err instanceof Error ? err.message : 'Erreur chargement achats')
       }
     } finally {
-      if (!keepPanel) setLoading(false)
+      if (!keepPanel && !silent) setLoading(false)
     }
   }, [handleAuth, procurementRole])
+
+  // Rafraîchissement automatique silencieux : les statuts avancent côté serveur
+  // (CdG/DAF/PDG/SA) — l'interface converge sans rechargement manuel.
+  useEffect(() => {
+    if (!procurementRole) return
+    const tick = () => { void loadLists({ silent: true }) }
+    const id = window.setInterval(tick, 30_000)
+    const onVisible = () => { if (document.visibilityState === 'visible') tick() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [loadLists, procurementRole])
 
   const loadRequests = loadLists
 
