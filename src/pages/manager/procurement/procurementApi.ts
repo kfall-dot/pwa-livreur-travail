@@ -19,6 +19,19 @@ import type {
 
 const BASE = '/procurement'
 
+/**
+ * Extrait le message d'erreur du serveur. Si la réponse n'est pas du JSON
+ * (502/504 de la gateway pendant un redéploiement Railway), renvoie un
+ * message actionnable au lieu d'un fallback générique incompréhensible.
+ */
+async function apiErrorMessage(res: Response, fallback: string): Promise<Error> {
+  const err = (await res.json().catch(() => null)) as { message?: string } | null
+  if (err == null) {
+    return new Error('Serveur momentanément indisponible (redéploiement en cours ?) — réessayez dans 1 minute.')
+  }
+  return new Error(err.message ?? fallback)
+}
+
 export async function fetchProcurementConfig(): Promise<ProcurementConfig> {
   const res = await authFetch(`${BASE}/config`)
   if (!res.ok) throw new Error('Config achats indisponible')
@@ -34,8 +47,7 @@ export async function patchBcRegisterFollowup(
     body: JSON.stringify(patch),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Enregistrement suivi BC impossible')
+    throw await apiErrorMessage(res, 'Enregistrement suivi BC impossible')
   }
   const data = await res.json() as { row: BcRegisterRow }
   return data.row
@@ -85,7 +97,7 @@ export async function freezeSiteBudget(siteId: string, amountFcfa: number, pin: 
     body: JSON.stringify({ amountFcfa, pin }),
   })
   const data = await res.json().catch(() => ({})) as SiteBudget & { message?: string }
-  if (!res.ok) throw new Error(data.message ?? 'Gel de l’enveloppe impossible')
+  if (!res.ok) throw await apiErrorMessage(res, 'Gel de l’enveloppe impossible')
   return data
 }
 
@@ -99,7 +111,7 @@ export async function createSiteBudgetAmendment(
     body: JSON.stringify({ signedAmountFcfa, reason }),
   })
   const data = await res.json().catch(() => ({})) as SiteBudget & { message?: string }
-  if (!res.ok) throw new Error(data.message ?? 'Avenant impossible')
+  if (!res.ok) throw await apiErrorMessage(res, 'Avenant impossible')
   return data
 }
 
@@ -115,7 +127,7 @@ export async function decideSiteBudgetAmendment(
     { method: 'POST', body: JSON.stringify({ pin, comment }) },
   )
   const data = await res.json().catch(() => ({})) as SiteBudget & { message?: string }
-  if (!res.ok) throw new Error(data.message ?? 'Décision avenant impossible')
+  if (!res.ok) throw await apiErrorMessage(res, 'Décision avenant impossible')
   return data
 }
 
@@ -149,8 +161,7 @@ export async function fetchDraftInboxCount(): Promise<number> {
 export async function fetchDraft(id: string): Promise<DraftDetailResponse> {
   const res = await authFetch(`${BASE}/drafts/${encodeURIComponent(id)}`)
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Brouillon introuvable')
+    throw await apiErrorMessage(res, 'Brouillon introuvable')
   }
   return res.json() as Promise<DraftDetailResponse>
 }
@@ -161,8 +172,7 @@ export async function updateDraft(id: string, payload: DraftUpdatePayload): Prom
     body: JSON.stringify(payload),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Mise à jour du brouillon échouée')
+    throw await apiErrorMessage(res, 'Mise à jour du brouillon échouée')
   }
   const data = await res.json() as { draft: PurchaseRequestDraftRow }
   return data.draft
@@ -176,8 +186,7 @@ export async function archiveDraft(id: string): Promise<void> {
     method: 'DELETE',
   })
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string }
-    throw new Error(err.message ?? 'Suppression du brouillon impossible')
+    throw await apiErrorMessage(res, 'Suppression du brouillon impossible')
   }
 }
 
@@ -190,8 +199,7 @@ export async function pasteWhatsappDraft(payload: {
     body: JSON.stringify(payload),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Collage WhatsApp échoué')
+    throw await apiErrorMessage(res, 'Collage WhatsApp échoué')
   }
   return res.json() as Promise<{ draftId: string; lines: ParsedEbLine[]; confidenceScore: number }>
 }
@@ -202,8 +210,7 @@ export async function createBlankEbFiche(payload?: { siteId?: string }): Promise
     body: JSON.stringify(payload ?? {}),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Création de fiche vierge échouée')
+    throw await apiErrorMessage(res, 'Création de fiche vierge échouée')
   }
   return res.json() as Promise<{ draftId: string; siteId: string | null }>
 }
@@ -217,12 +224,7 @@ export async function submitDraft(
     body: JSON.stringify(payload ?? {}),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => null) as { message?: string } | null
-    // Réponse non-JSON (502/504 gateway, redéploiement Railway) → message actionable
-    if (err == null) {
-      throw new Error('Serveur momentanément indisponible (redéploiement en cours ?) — réessayez dans 1 minute.')
-    }
-    throw new Error(err.message ?? 'Soumission du brouillon échouée')
+    throw await apiErrorMessage(res, 'Soumission du brouillon échouée')
   }
   const data = await res.json() as { request: PurchaseRequestRow }
   return data.request
@@ -248,8 +250,7 @@ export async function approveRequest(id: string, payload?: ApproveRejectPayload)
     body: JSON.stringify(payload ?? {}),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Approbation échouée')
+    throw await apiErrorMessage(res, 'Approbation échouée')
   }
   await res.json()
   return fetchRequest(id)
@@ -261,8 +262,7 @@ export async function rejectRequest(id: string, payload?: ApproveRejectPayload):
     body: JSON.stringify(payload ?? {}),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Rejet échoué')
+    throw await apiErrorMessage(res, 'Rejet échoué')
   }
   await res.json()
   return fetchRequest(id)
@@ -274,8 +274,7 @@ export async function createPurchaseOrder(id: string, payload: CreatePoPayload):
     body: JSON.stringify(payload),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Création BC échouée')
+    throw await apiErrorMessage(res, 'Création BC échouée')
   }
   await res.json()
   return fetchRequest(id)
@@ -287,8 +286,7 @@ export async function scheduleDelivery(id: string, payload: ScheduleDeliveryPayl
     body: JSON.stringify(payload),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Planification livraison échouée')
+    throw await apiErrorMessage(res, 'Planification livraison échouée')
   }
   await res.json()
   return fetchRequest(id)
@@ -309,8 +307,7 @@ export async function updateRequestPricing(
     body: JSON.stringify({ lines }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Enregistrement des prix échoué')
+    throw await apiErrorMessage(res, 'Enregistrement des prix échoué')
   }
   return res.json() as Promise<RequestDetailResponse>
 }
@@ -324,8 +321,7 @@ export async function submitRequestFinance(id: string): Promise<{
     body: JSON.stringify({}),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Envoi au DAF échoué')
+    throw await apiErrorMessage(res, 'Envoi au DAF échoué')
   }
   return res.json() as Promise<{
     request: PurchaseRequestRow
@@ -354,8 +350,7 @@ export async function uploadRequestLineAttachment(
     }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Pièce jointe refusée')
+    throw await apiErrorMessage(res, 'Pièce jointe refusée')
   }
   return res.json() as Promise<RequestDetailResponse>
 }
@@ -368,8 +363,7 @@ export async function removeRequestLineAttachment(
     method: 'DELETE',
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Impossible de retirer la pièce jointe')
+    throw await apiErrorMessage(res, 'Impossible de retirer la pièce jointe')
   }
   return res.json() as Promise<RequestDetailResponse>
 }
@@ -387,8 +381,7 @@ export async function fetchRequestLineAttachment(
     },
   )
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Pièce jointe introuvable')
+    throw await apiErrorMessage(res, 'Pièce jointe introuvable')
   }
   const rawType = (res.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim()
   const blob = new Blob([await res.arrayBuffer()], { type: rawType || 'application/octet-stream' })
@@ -417,8 +410,7 @@ export async function createTreasuryAdvance(id: string): Promise<RequestDetailRe
     body: JSON.stringify({}),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(err.message ?? 'Création du bon de trésorerie échouée')
+    throw await apiErrorMessage(res, 'Création du bon de trésorerie échouée')
   }
   await res.json()
   return fetchRequest(id)
