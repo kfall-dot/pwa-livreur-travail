@@ -1022,8 +1022,10 @@ function PlanifierTab({
   const replanLoadRef = useRef(0)
   const replanIntentRef = useRef<{ tourId?: string; hintSourceDate?: string | null } | null>(null)
   const createFormRef = useRef<HTMLElement | null>(null)
-  const procurementRequestIdRef = useRef<string | null>(null)
-  const procurementOrderIdRef = useRef<string | null>(null)
+  // Lien BC du brouillon en cours — en state (lu pendant le rendu pour les
+  // verrous produits ; un ref déclencherait react-hooks/refs).
+  const [procurementRequestId, setProcurementRequestId] = useState<string | null>(null)
+  const [procurementOrderId, setProcurementOrderId] = useState<string | null>(null)
 
   const resetCreateForm = useCallback(() => {
     replanLoadRef.current += 1
@@ -1043,8 +1045,8 @@ function PlanifierTab({
     setReplanSourceTourId(null)
     setReplanKind('tour')
     setCreateError(null)
-    procurementRequestIdRef.current = null
-    procurementOrderIdRef.current = null
+    setProcurementRequestId(null)
+    setProcurementOrderId(null)
     setFormVersion((v) => v + 1)
   }, [])
 
@@ -1112,8 +1114,8 @@ function PlanifierTab({
     if (!initialProcurementPrefill || !catalogReady) return
     const p = initialProcurementPrefill
     const smId = matchSupermarketId(supermarkets, p.stopName, p.stopAddress)
-    procurementRequestIdRef.current = p.purchaseRequestId
-    procurementOrderIdRef.current = p.purchaseOrderId ?? null
+    setProcurementRequestId(p.purchaseRequestId)
+    setProcurementOrderId(p.purchaseOrderId ?? null)
     setNewTour({
       driverId: p.driverId ?? '',
       date: p.date,
@@ -1206,11 +1208,11 @@ function PlanifierTab({
     setReplanKind(data.replanKind ?? (partialDeliveryId ? 'partial' : 'tour'))
     // Conserver le lien BC pour le verrouillage des produits lors de la replan
     if (data.purchaseRequestId) {
-      procurementRequestIdRef.current = data.purchaseRequestId
-      procurementOrderIdRef.current = data.purchaseOrderId ?? null
+      setProcurementRequestId(data.purchaseRequestId)
+      setProcurementOrderId(data.purchaseOrderId ?? null)
     } else {
-      procurementRequestIdRef.current = null
-      procurementOrderIdRef.current = null
+      setProcurementRequestId(null)
+      setProcurementOrderId(null)
     }
     setReplanSourceTourId(partialDeliveryId ? null : tourId)
     setNewTour((p) => ({
@@ -1355,11 +1357,11 @@ function PlanifierTab({
           depotName: newTour.depotName,
           depotAddress: newTour.depotAddress,
           ...(replanSourceTourId ? { replannedFromTourId: replanSourceTourId } : {}),
-          ...(procurementRequestIdRef.current
+          ...(procurementRequestId
             ? {
-                purchaseRequestId: procurementRequestIdRef.current,
-                ...(procurementOrderIdRef.current
-                  ? { purchaseOrderId: procurementOrderIdRef.current }
+                purchaseRequestId: procurementRequestId,
+                ...(procurementOrderId
+                  ? { purchaseOrderId: procurementOrderId }
                   : {}),
               }
             : {}),
@@ -1377,8 +1379,8 @@ function PlanifierTab({
       setReplanSourceTourId(null)
       setReplanKind('tour')
       setReplanSessionActive(false)
-      procurementRequestIdRef.current = null
-      procurementOrderIdRef.current = null
+      setProcurementRequestId(null)
+      setProcurementOrderId(null)
       await fetchTours(createdDate)
       setDate(createdDate)
       onTasksChanged?.()
@@ -1567,7 +1569,7 @@ function PlanifierTab({
                 supermarkets={supermarkets}
                 catalogRefreshKey={catalogRefreshKey}
                 canRemove={stops.length > 1}
-                productsLocked={!!procurementRequestIdRef.current}
+                productsLocked={!!procurementRequestId}
                 onRemove={() => removeStop(idx)}
                 onChange={(next) => setStops((prev) => prev.map((st, i) => i === idx ? next : st))}
               />
