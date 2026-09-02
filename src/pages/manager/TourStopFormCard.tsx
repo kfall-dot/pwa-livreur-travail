@@ -8,6 +8,7 @@ export function TourStopFormCard({
   index,
   supermarkets,
   locked,
+  productsLocked = false,
   canRemove,
   onRemove,
   onChange,
@@ -17,6 +18,8 @@ export function TourStopFormCard({
   index: number
   supermarkets: Supermarket[]
   locked?: boolean
+  /** Tournée pré-remplie depuis un BC : empêche l'ajout de produits hors BC. */
+  productsLocked?: boolean
   canRemove: boolean
   onRemove: () => void
   onChange: (next: StopDraft) => void
@@ -111,7 +114,7 @@ export function TourStopFormCard({
         </Field>
       </Row>
 
-      {!locked && stop.products.length === 0 && (
+      {!locked && !productsLocked && stop.products.length === 0 && (
         <p style={{ margin: '0 0 8px', fontSize: 12, color: '#b45309', background: '#fffbeb', padding: '6px 8px', borderRadius: 6 }}>
           Ajoutez au moins un produit attendu — les quantités et unités se définissent ci-dessous (plus de ligne « unité / quantité / poids » séparée).
         </p>
@@ -120,6 +123,7 @@ export function TourStopFormCard({
       <ProductLinesEditor
         lines={stop.products}
         readOnly={locked}
+        disableAdd={productsLocked}
         catalogRefreshKey={catalogRefreshKey}
         onChange={(lines) => onChange({ ...stop, products: lines })}
       />

@@ -15,11 +15,14 @@ export function ProductLinesEditor({
   lines,
   onChange,
   readOnly,
+  disableAdd = false,
   catalogRefreshKey = 0,
 }: {
   lines: ProductLine[]
   onChange: (lines: ProductLine[]) => void
   readOnly?: boolean
+  /** Tournée issue d'un BC : l'ajout de produits hors BC est interdit (quantités modifiables). */
+  disableAdd?: boolean
   catalogRefreshKey?: number
 }) {
   const [catalog, setCatalog] = useState<ProductRow[]>([])
@@ -106,8 +109,11 @@ export function ProductLinesEditor({
     <div style={{ marginTop: 10, background: readOnly ? '#f3f4f6' : '#f0f9ff', borderRadius: 8, padding: '0.75rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Produits attendus</span>
-        {!readOnly && (
+        {!readOnly && !disableAdd && (
           <button type="button" onClick={add} data-testid="mgr-add-product-line" style={{ fontSize: 12, background: 'none', border: '1px solid var(--brand)', borderRadius: 5, padding: '2px 10px', cursor: 'pointer', color: 'var(--brand)', fontFamily: 'inherit' }}>+ Ajouter</button>
+        )}
+        {!readOnly && disableAdd && (
+          <span data-testid="mgr-products-locked-bc" style={{ fontSize: 11, color: '#6b7280' }}>🔒 Produits issus du BC — quantités modifiables uniquement</span>
         )}
       </div>
       {catalogLoading && (

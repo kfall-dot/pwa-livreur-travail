@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
-import { validateStopProducts } from '../../shared/expectedProducts.js'
+import { validateStopProducts, expectedProductLabelKey } from '../../shared/expectedProducts.js'
 import { getDeliveryPhotosStore, isBlobsEnabled } from '../lib/blobs.js'
 import {
   isLocalPhotoStorageEnabled,
@@ -89,6 +89,8 @@ import { DEMO, seedDemoProducts, seedDemoStopCatalog, seedLivraisonSupermarkets 
 import { isBtpPilotLoginEmail, seedBtpPilotData } from '../db/seedBtpPilot.js'
 import {
   createSupplier,
+  getPurchaseRequestById,
+  getPurchaseRequestLines,
   getSupplierById,
   listAllSuppliers,
   updateSupplier,
@@ -557,6 +559,20 @@ dashboardRouter.post('/dashboard/tours', requireManager, async (req, res) => {
     return
   }
 
+  // Tournée issue d'un BC : les produits doivent provenir du BC (pas d'ajout libre).
+  const purchaseRequestId = typeof body.purchaseRequestId === 'string' ? body.purchaseRequestId.trim() : ''
+  const purchaseOrderId = typeof body.purchaseOrderId === 'string' ? body.purchaseOrderId.trim() : ''
+  let bcProductKeys: Set<string> | null = null
+  if (purchaseRequestId) {
+    const bc = await getPurchaseRequestById(manager.companyId, purchaseRequestId)
+    if (!bc) {
+      res.status(404).json({ message: 'Bon de commande introuvable pour votre entreprise' })
+      return
+    }
+    const bcLines = await getPurchaseRequestLines(purchaseRequestId)
+    bcProductKeys = new Set(bcLines.map((l) => expectedProductLabelKey(l.label)))
+  }
+
   const resolvedStops = []
   for (const [i, s] of (stops as Record<string, unknown>[]).entries()) {
     if (!s.unitType) {
@@ -579,6 +595,15 @@ dashboardRouter.post('/dashboard/tours', requireManager, async (req, res) => {
     if (duplicateError) {
       res.status(400).json({ message: duplicateError })
       return
+    }
+    if (bcProductKeys && products) {
+      const unknown = products.find((p) => !bcProductKeys.has(expectedProductLabelKey(p.label)))
+      if (unknown) {
+        res.status(400).json({
+          message: `Le produit « ${unknown.label} » ne figure pas sur le bon de commande — les lignes d'une tournée issue d'un BC ne peuvent pas être modifiées.`,
+        })
+        return
+      }
     }
     resolvedStops.push({
       supermarketId: resolved.stop.supermarketId,
@@ -620,10 +645,6 @@ dashboardRouter.post('/dashboard/tours', requireManager, async (req, res) => {
       }
     }
 
-    const purchaseRequestId =
-      typeof body.purchaseRequestId === 'string' ? body.purchaseRequestId.trim() : ''
-    const purchaseOrderId =
-      typeof body.purchaseOrderId === 'string' ? body.purchaseOrderId.trim() : ''
     if (purchaseRequestId) {
       try {
         await markDeliveryScheduled(
