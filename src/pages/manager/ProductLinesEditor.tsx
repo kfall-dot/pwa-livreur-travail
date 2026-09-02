@@ -112,8 +112,8 @@ export function ProductLinesEditor({
         {!readOnly && !disableAdd && (
           <button type="button" onClick={add} data-testid="mgr-add-product-line" style={{ fontSize: 12, background: 'none', border: '1px solid var(--brand)', borderRadius: 5, padding: '2px 10px', cursor: 'pointer', color: 'var(--brand)', fontFamily: 'inherit' }}>+ Ajouter</button>
         )}
-        {!readOnly && disableAdd && (
-          <span data-testid="mgr-products-locked-bc" style={{ fontSize: 11, color: '#6b7280' }}>🔒 Produits issus du BC — quantités modifiables uniquement</span>
+        {disableAdd && (
+          <span data-testid="mgr-products-locked-bc" style={{ fontSize: 11, color: '#6b7280' }}>🔒 Produits issus du BC — non modifiables (conformité bon de commande)</span>
         )}
       </div>
       {catalogLoading && (

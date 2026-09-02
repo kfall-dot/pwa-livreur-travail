@@ -59,6 +59,8 @@ import {
   getStopsForTour,
   getTourById,
   getTourWithStops,
+  getBcProductKeysForTour,
+  resolveTourPurchaseOrderId,
   getTourReplanTemplate,
   getPartialDeliveryReplanTemplate,
   parseExpectedProducts,
@@ -741,12 +743,16 @@ dashboardRouter.get('/dashboard/deliveries/:deliveryId/partial-replan-template',
 dashboardRouter.get('/dashboard/tours/:id', requireManager, async (req, res) => {
   const { manager } = req as ManagerRequest
   try {
-    const result = await getTourWithStops(String(req.params.id))
+    const tourId = String(req.params.id)
+    const result = await getTourWithStops(tourId)
     if (!result || result.tour.companyId !== manager.companyId) {
       res.status(404).json({ message: 'Tournée introuvable' })
       return
     }
-    res.json(result)
+    // Lien BC résolu (colonne directe ou recherche inverse) — utilisé par
+    // « Modifier la tournée » pour verrouiller les lignes produit.
+    const purchaseOrderId = await resolveTourPurchaseOrderId(tourId)
+    res.json({ ...result, tour: { ...result.tour, purchaseOrderId } })
   } catch (err) {
     console.error('[dashboard] get tour error', err)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -771,6 +777,11 @@ dashboardRouter.patch('/dashboard/tours/:id', requireManager, async (req, res) =
       res.status(404).json({ message: 'Tournée introuvable' })
       return
     }
+
+    // Tournée issue d'un BC : les produits doivent provenir du BC (pas d'ajout libre).
+    // Même règle que POST /dashboard/tours — sinon « Modifier la tournée »
+    // permettrait de créer une livraison différente du bon de commande.
+    const bcProductKeys = await getBcProductKeysForTour(tourId)
     // Update tour metadata
     const meta: Record<string, unknown> = {}
     if (driverId) meta.driverId = String(driverId)
@@ -821,6 +832,41 @@ dashboardRouter.patch('/dashboard/tours/:id', requireManager, async (req, res) =
       if (duplicateError) {
         res.status(400).json({ message: duplicateError })
         return
+      }
+
+      if (bcProductKeys && products) {
+        // Conformité BC : sur un arrêt existant, les lignes produit sont immuables
+        // (libellés, quantités et unités doivent rester celles du bon de commande).
+        if (existing) {
+          const before = Array.isArray(existing.products)
+            ? (existing.products as Array<{ label: string; qty: number; unit: string }>)
+            : []
+          const after = products
+          const sameProducts =
+            before.length === after.length &&
+            before.every((p, i) => {
+              const q = after[i]
+              return (
+                !!q &&
+                expectedProductLabelKey(p.label) === expectedProductLabelKey(q.label) &&
+                Number(p.qty) === Number(q.qty) &&
+                p.unit === q.unit
+              )
+            })
+          if (!sameProducts) {
+            res.status(403).json({
+              message: `Les produits de l'arrêt « ${existing.name} » proviennent du bon de commande et ne peuvent pas être modifiés.`,
+            })
+            return
+          }
+        }
+        const unknown = products.find((p) => !bcProductKeys.has(expectedProductLabelKey(p.label)))
+        if (unknown) {
+          res.status(400).json({
+            message: `Le produit « ${unknown.label} » ne figure pas sur le bon de commande — les lignes d'une tournée issue d'un BC ne peuvent pas être modifiées.`,
+          })
+          return
+        }
       }
 
       await upsertDeliveryPoint({

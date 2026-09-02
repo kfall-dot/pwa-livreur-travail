@@ -608,7 +608,10 @@ export function DeliveryDetailModal({
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => onEditTour(detail.tourId, detail.tourDate)} style={css.btnGold}>Modifier la tournée</button>
+              {/* Modifier une tournée : réservé au Service Achats (SA). */}
+              {canModify && (
+                <button type="button" onClick={() => onEditTour(detail.tourId, detail.tourDate)} style={css.btnGold}>Modifier la tournée</button>
+              )}
               <button type="button" onClick={onClose} style={css.btnGhost}>Fermer</button>
             </div>
           </>

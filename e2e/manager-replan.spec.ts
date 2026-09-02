@@ -5,7 +5,10 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-test.describe('Replanification gestionnaire', () => {
+// REPLAN DÉSACTIVÉ — la fonctionnalité « Replanifier » a été retirée de l'UI
+// (on garde uniquement « Modifier »). Ces tests sont ignorés en attendant une
+// éventuelle réactivation de la replanification.
+test.describe.skip('Replanification gestionnaire', () => {
   test.beforeEach(async ({ page, request }) => {
     await resetAndSeed(request)
     await page.context().clearCookies()

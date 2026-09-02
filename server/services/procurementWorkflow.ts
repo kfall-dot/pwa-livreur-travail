@@ -14,6 +14,7 @@ import {
   listPurchaseOrdersForRequest,
   recordApprovalStep,
   setPurchaseOrderTour,
+  setTourPurchaseOrder,
   updatePurchaseOrderHtml,
   updatePurchaseRequestStatus,
   updateTreasuryOrderHtml,
@@ -380,6 +381,9 @@ export async function markDeliveryScheduled(
     ?? pos[pos.length - 1]
   if (target?.id) {
     await setPurchaseOrderTour(target.id, tourId)
+    // Lien inverse : tours.purchase_order_id — sans lui, la replanification
+    // perd le lien BC (verrou produits + re-liaison du BC à la nouvelle tournée).
+    await setTourPurchaseOrder(tourId, target.id)
   }
   const refreshed = await listPurchaseOrdersForRequest(companyId, requestId)
   const allLinked = refreshed.length > 0 && refreshed.every((p) => p.tourId)

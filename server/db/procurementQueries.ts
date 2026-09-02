@@ -1408,6 +1408,13 @@ export async function setPurchaseOrderTour(poId: string, tourId: string | null) 
   await db.update(purchaseOrders).set({ tourId }).where(eq(purchaseOrders.id, poId))
 }
 
+/** Écrit le lien inverse tournée → BC (tours.purchase_order_id).
+ *  Indispensable : getTourReplanTemplate lit cette colonne pour conserver
+ *  le verrou produits BC lors d'une replanification. */
+export async function setTourPurchaseOrder(tourId: string, purchaseOrderId: string | null) {
+  await db.update(tours).set({ purchaseOrderId }).where(eq(tours.id, tourId))
+}
+
 export async function createTreasuryOrder(input: {
   companyId: string
   purchaseRequestId: string

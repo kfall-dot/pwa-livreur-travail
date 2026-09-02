@@ -122,7 +122,7 @@ export function TourStopFormCard({
 
       <ProductLinesEditor
         lines={stop.products}
-        readOnly={locked}
+        readOnly={locked || productsLocked}
         disableAdd={productsLocked}
         catalogRefreshKey={catalogRefreshKey}
         onChange={(lines) => onChange({ ...stop, products: lines })}

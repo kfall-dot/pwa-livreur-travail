@@ -532,6 +532,7 @@ export function ManagerDashboardPage() {
             handleAuth={handleAuth}
             catalogRefreshKey={catalogRefreshKey}
             useFournisseurLabels={Boolean(procurementRole)}
+            procurementRole={procurementRole}
             initialEditTourId={pendingEditTourId}
             onEditConsumed={() => setPendingEditTourId(null)}
             initialPlanifierDate={pendingPlanifierDate}
@@ -653,7 +654,8 @@ function SuiviTab({
   handleAuth,
   procurementRole,
   onEditTour,
-  onReplanTour,
+  // REPLAN DÉSACTIVÉ — bouton retiré ; prop conservée pour compatibilité.
+  onReplanTour: _onReplanTour,
   pendingDeliveryId,
   onPendingDeliveryConsumed,
   pendingDate,
@@ -676,7 +678,9 @@ function SuiviTab({
 }) {
   // Modification des tournées/livraisons : réservée au SA. Les gestionnaires
   // sans rôle BTP (héritage, rôle null) conservent l'accès complet.
-  const canModify = procurementRole === 'purchasing' || procurementRole == null
+  // Modifier une tournée est réservé au Service Achats (SA) — même pour les
+  // managers sans rôle achats (consultation seule).
+  const canModify = procurementRole === 'purchasing'
   const [date, setDate] = useState(() => pendingDate ?? todayIso())
   const [status, setStatus] = useState('all')
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([])
@@ -814,7 +818,8 @@ function SuiviTab({
 
           {tourGroups.map((group) => {
             const collapsed = collapsedTours.has(group.tourId)
-            const canReplan = group.deliveredCount < group.deliveries.length
+            // REPLAN DÉSACTIVÉ — bouton « Replanifier » retiré (on garde « Modifier »).
+            // const canReplan = group.deliveredCount < group.deliveries.length
             const progressLabel = statusFiltered
               ? `${group.deliveries.length} arrêt${group.deliveries.length > 1 ? 's' : ''} affiché${group.deliveries.length > 1 ? 's' : ''}`
               : `${group.deliveredCount}/${group.deliveries.length} livré${group.deliveries.length > 1 ? 's' : ''}`
@@ -861,6 +866,7 @@ function SuiviTab({
                     </div>
                   </button>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {/* REPLAN DÉSACTIVÉ — bouton « Replanifier » retiré (on garde « Modifier »).
                     {canModify && canReplan && (
                       <button
                         type="button"
@@ -871,6 +877,7 @@ function SuiviTab({
                         Replanifier
                       </button>
                     )}
+                    */}
                     {canModify && (
                       <button
                         type="button"
@@ -933,7 +940,7 @@ function SuiviTab({
       {selectedId && (
         <DeliveryDetailModal
           deliveryId={selectedId}
-          canModify={procurementRole === 'purchasing' || procurementRole == null}
+          canModify={procurementRole === 'purchasing'}
           onClose={() => setSelectedId(null)}
           onEditTour={(tourId, tourDate) => { setSelectedId(null); onEditTour?.(tourId, tourDate) }}
         />
@@ -948,6 +955,7 @@ function PlanifierTab({
   handleAuth,
   catalogRefreshKey = 0,
   useFournisseurLabels = false,
+  procurementRole = null,
   initialEditTourId,
   onEditConsumed,
   initialPlanifierDate,
@@ -955,18 +963,21 @@ function PlanifierTab({
   initialProcurementPrefill,
   onProcurementPrefillConsumed,
   onTourSaved,
+  // REPLAN DÉSACTIVÉ — bouton retiré ; prop conservée pour compatibilité.
+  onInlineReplanStart: _onInlineReplanStart,
   initialReplanTourId,
   initialReplanDeliveryId,
   initialReplanHintDate,
   onReplanConsumed,
   onTourCreated,
   onReplanCancelled,
-  onInlineReplanStart,
   onTasksChanged,
 }: {
   handleAuth: (s: number) => boolean
   catalogRefreshKey?: number
   useFournisseurLabels?: boolean
+  /** Modifier une tournée est réservé au Service Achats (SA). */
+  procurementRole?: ProcurementRole | null
   initialEditTourId?: string | null
   onEditConsumed?: () => void
   initialPlanifierDate?: string | null
@@ -1400,6 +1411,7 @@ function PlanifierTab({
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
+                {/* REPLAN DÉSACTIVÉ — bouton « Replanifier » retiré (on garde « Modifier »).
                 {t.delivered < t.totalStops && (
                   <button
                     type="button"
@@ -1413,7 +1425,11 @@ function PlanifierTab({
                     Replanifier
                   </button>
                 )}
-                <button type="button" onClick={() => setEditTourId(t.tourId)} style={css.btnOutline}>Modifier</button>
+                */}
+                {/* Modifier une tournée : réservé au Service Achats (SA). */}
+                {procurementRole === 'purchasing' && (
+                  <button type="button" onClick={() => setEditTourId(t.tourId)} style={css.btnOutline}>Modifier</button>
+                )}
                 {t.delivered === 0 && (
                   <button
                     type="button"
@@ -2407,7 +2423,8 @@ function TachesTab({
   handleAuth,
   onOpenDelivery,
   onOpenTour,
-  onReplanTour,
+  // REPLAN DÉSACTIVÉ — bouton retiré ; prop conservée pour compatibilité.
+  onReplanTour: _onReplanTour,
   onTasksChanged,
 }: {
   handleAuth: (s: number) => boolean
@@ -2503,16 +2520,17 @@ function TachesTab({
               : null
           const resolvedLabel = formatResolvedAt(t.resolvedAt)
 
-          const showReplanBtn =
-            view === 'pending' &&
-            (type === 'partial_delivery' ||
-              type === 'missed_delivery' ||
-              type === 'delivery_cancelled' ||
-              type === 'reassign_tour') &&
-            t.relatedTourId &&
-            onReplanTour &&
-            t.canReplan === true &&
-            (type !== 'partial_delivery' || !!deliveryId)
+          // REPLAN DÉSACTIVÉ — bouton « Replanifier » retiré (on garde « Marquer traitée » / « Modifier »).
+          // const showReplanBtn =
+          //   view === 'pending' &&
+          //   (type === 'partial_delivery' ||
+          //     type === 'missed_delivery' ||
+          //     type === 'delivery_cancelled' ||
+          //     type === 'reassign_tour') &&
+          //   t.relatedTourId &&
+          //   onReplanTour &&
+          //   t.canReplan === true &&
+          //   (type !== 'partial_delivery' || !!deliveryId)
 
           const showDeliveryBtn =
             (type === 'partial_delivery' ||
@@ -2574,6 +2592,7 @@ function TachesTab({
                     Ouvrir la tournée
                   </button>
                 )}
+                {/* REPLAN DÉSACTIVÉ — bouton « Replanifier » retiré (on garde « Modifier »).
                 {showReplanBtn && (
                   <button
                     type="button"
@@ -2586,6 +2605,7 @@ function TachesTab({
                     Replanifier
                   </button>
                 )}
+                */}
                 {view === 'pending' && (
                   <button type="button" disabled={loading} onClick={() => void resolve(t.id)} style={css.btnOutline}>
                     Marquer traitée

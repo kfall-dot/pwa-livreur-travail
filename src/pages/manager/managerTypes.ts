@@ -112,6 +112,8 @@ export interface TourDetail {
   date: string
   depotName: string
   depotAddress: string
+  /** Présent si la tournée est issue d'un bon de commande : lignes produit verrouillées. */
+  purchaseOrderId?: string | null
 }
 
 export function emptyProduct(): ProductLine {

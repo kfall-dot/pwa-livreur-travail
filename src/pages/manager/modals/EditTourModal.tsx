@@ -30,6 +30,13 @@ export function EditTourModal({
 }) {
   const [tour, setTour] = useState<TourDetail | null>(null)
   const [stops, setStops] = useState<StopDraft[]>([])
+  // Tournée liée à un BC : lien explicite (purchaseOrderId) OU détectable via
+  // les instructions pré-remplies (« Livraison matériaux — BC-2026-0006 »).
+  // Dans les deux cas, l'ajout de lignes produit est interdit : la livraison
+  // doit rester conforme au bon de commande.
+  const bcLinked =
+    !!tour?.purchaseOrderId ||
+    stops.some((s) => /BC-\d{4}-\d+/.test(s.instructions ?? ''))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -216,6 +223,11 @@ export function EditTourModal({
                 <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Arrêts ({stops.length})</h3>
                 <button type="button" onClick={addStop} style={css.btnOutline}>+ Ajouter un arrêt</button>
               </div>
+              {bcLinked && (
+                <p style={{ margin: '0 0 10px', fontSize: 12, color: '#1f2937', background: '#f0f7f3', border: '1px solid #bcd4c6', padding: '8px 10px', borderRadius: 6 }}>
+                  Tournée issue d'un bon de commande : les lignes produit sont verrouillées — la livraison doit rester conforme au BC.
+                </p>
+              )}
               <StopsValidationHint stops={stops.filter((s) => !isStopClosedForEdit(s.status, s.declarationOutcome))} />
 
               {stops.map((s, idx) => {
@@ -253,6 +265,7 @@ export function EditTourModal({
                     index={idx}
                     supermarkets={supermarkets}
                     canRemove={stops.length > 1}
+                    productsLocked={bcLinked}
                     onRemove={() => removeStop(idx)}
                     onChange={(next) => setStops((prev) => prev.map((st, i) => i === idx ? next : st))}
                   />

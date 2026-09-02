@@ -57,6 +57,7 @@ import {
 } from './schema.js'
 
 import { formatTimeHHMM, stopPayloadDiffersFromExisting } from './stopPayloadCompare.js'
+import { expectedProductLabelKey } from '../../shared/expectedProducts.js'
 import { DEFAULT_COMPANY_UNITS } from '../../shared/defaultUnits.js'
 import { catalogUnitFromEb } from '../../shared/ebCatalog.js'
 
@@ -270,6 +271,48 @@ export async function getTourWithStops(
     }
   })
   return { tour: { ...row.tour, driverName: row.driverName, driverPhone: row.driverPhone }, stops: enriched }
+}
+
+/**
+ * Retrouve le bon de commande lié à une tournée : colonne directe
+ * `tours.purchase_order_id`, sinon recherche inverse dans `purchase_orders`
+ * (nécessaire pour les tournées créées avant l'alimentation de la colonne).
+ */
+export async function resolveTourPurchaseOrderId(tourId: string): Promise<string | null> {
+  const [tour] = await db
+    .select({ poId: tours.purchaseOrderId })
+    .from(tours)
+    .where(eq(tours.id, tourId))
+    .limit(1)
+  if (tour?.poId) return tour.poId
+  const [po] = await db
+    .select({ id: purchaseOrders.id })
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.tourId, tourId))
+    .limit(1)
+  return po?.id ?? null
+}
+
+/**
+ * Clés produits autorisées pour une tournée liée à un bon de commande (BC).
+ * Retourne null si la tournée n'est pas issue d'un BC (ajout libre autorisé).
+ * Utilisé par POST et PATCH /dashboard/tours pour empêcher toute ligne produit
+ * qui rendrait la livraison différente du BC.
+ */
+export async function getBcProductKeysForTour(tourId: string): Promise<Set<string> | null> {
+  const poId = await resolveTourPurchaseOrderId(tourId)
+  if (!poId) return null
+  const [po] = await db
+    .select({ requestId: purchaseOrders.purchaseRequestId })
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.id, poId))
+    .limit(1)
+  if (!po?.requestId) return null
+  const lines = await db
+    .select({ label: purchaseRequestLines.label })
+    .from(purchaseRequestLines)
+    .where(eq(purchaseRequestLines.purchaseRequestId, po.requestId))
+  return new Set(lines.map((l) => expectedProductLabelKey(l.label)))
 }
 
 export async function updateTourMeta(
@@ -1163,7 +1206,9 @@ export async function getTourReplanTemplate(tourId: string): Promise<TourReplanT
   // Lien BC : si la tournée originale est issue d'un bon de commande, le conserver
   let purchaseRequestId: string | undefined
   let purchaseOrderId: string | undefined
-  const poId = data.tour.purchaseOrderId
+  // Colonne directe, sinon recherche inverse (tournées créées avant que
+  // tours.purchase_order_id ne soit alimenté par markDeliveryScheduled).
+  const poId = await resolveTourPurchaseOrderId(tourId)
   if (poId) {
     purchaseOrderId = poId
     const [po] = await db
