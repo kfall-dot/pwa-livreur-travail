@@ -1,7 +1,7 @@
 const BASE = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '') || '/api/v1'
 
 const SERVER_UNREACHABLE =
-  'Serveur injoignable — ouvrez http://localhost:8888 (`npm run netlify:dev`), pas le port Vite.'
+  'Serveur injoignable — lancez `npm run dev:local` (API attendue sur http://localhost:3002) et ouvrez http://localhost:5173/manager/login.'
 
 function isNetworkFetchError(err: unknown): boolean {
   const raw = err instanceof Error ? err.message : String(err ?? '')

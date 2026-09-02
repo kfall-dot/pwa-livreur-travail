@@ -19,11 +19,11 @@ function loginErrorMessage(err: unknown, fallbackBody?: string): string {
     raw === 'Load failed' ||
     /failed to fetch|networkerror|load failed/i.test(raw)
   ) {
-    return 'Serveur injoignable — ouvrez http://localhost:8888/manager/login (`npm run netlify:dev`), pas la page livreur `/` ni le port Vite.'
+    return 'Serveur injoignable — ouvrez http://localhost:5173/manager/login (`npm run dev:local`), pas la page livreur `/`.'
   }
   if (raw && !/unexpected token/i.test(raw)) return raw
   if (fallbackBody?.trim()) return fallbackBody.trim()
-  return 'Serveur injoignable — lancez `npm run netlify:dev` sur http://localhost:8888'
+  return 'Serveur injoignable — lancez `npm run dev:local` (API attendue sur http://localhost:3002)'
 }
 
 const DEV_ACCOUNTS = [
@@ -85,7 +85,7 @@ export function ManagerLoginPage() {
         data = text.trim() ? (JSON.parse(text) as typeof data) : {}
       } catch {
         throw new Error(
-          'Serveur injoignable — ouvrez http://localhost:8888/manager/login (`npm run netlify:dev`).',
+          'Serveur injoignable — lancez `npm run dev:local` (API attendue sur http://localhost:3002).',
         )
       }
       if (!res.ok) {
@@ -93,7 +93,7 @@ export function ManagerLoginPage() {
           data.message ??
             (text.trim()
               ? 'Identifiants invalides'
-              : 'Serveur injoignable — lancez `npm run netlify:dev` sur http://localhost:8888'),
+              : 'Serveur injoignable — lancez `npm run dev:local` (API attendue sur http://localhost:3002)'),
         )
       }
       if (data.requiresTotp && data.totpToken) {
@@ -209,7 +209,7 @@ export function ManagerLoginPage() {
           </div>
           <p style={{ margin: '0.75rem 0 0', fontSize: 12 }}>
             Mot de passe : <strong>admin1234</strong> — URL :{' '}
-            <strong>http://localhost:8888/manager/login</strong>
+            <strong>http://localhost:5173/manager/login</strong>
           </p>
         </div>
       )}

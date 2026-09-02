@@ -47,7 +47,7 @@ async function parseJsonResponse(res: Response): Promise<Record<string, unknown>
     throw new ApiError(
       res.ok
         ? 'Réponse serveur vide'
-        : 'Serveur injoignable — lancez `npm run netlify:dev` et ouvrez http://localhost:8888',
+        : 'Serveur injoignable — lancez `npm run dev:local` (API attendue sur http://localhost:3002, test : /api/health)',
       res.status || 502,
     )
   }

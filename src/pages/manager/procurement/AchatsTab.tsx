@@ -323,7 +323,8 @@ export function AchatsTab({
 
   const loadDraftDetail = useCallback(async (id: string) => {
     const gen = ++draftLoadGen.current
-    setLoading(true)
+    // Réactivité : pas de spinner global ici — le contenu de l'onglet reste
+    // affiché et interactif pendant le chargement du détail (hint local).
     setError(null)
     try {
       const detail = await fetchDraft(id)
@@ -348,13 +349,11 @@ export function AchatsTab({
       setError(err instanceof Error ? err.message : 'Brouillon introuvable')
       setSelectedDraftId(null)
       setDraftDetail(null)
-    } finally {
-      if (gen === draftLoadGen.current) setLoading(false)
     }
   }, [])
 
   const loadRequestDetail = useCallback(async (id: string) => {
-    setLoading(true)
+    // Réactivité : pas de spinner global — voir loadDraftDetail.
     setError(null)
     try {
       const [detail, suppliers] = await Promise.all([fetchRequest(id), fetchSuppliers()])
@@ -373,8 +372,6 @@ export function AchatsTab({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Demande introuvable')
       setSelectedRequestId(null)
-    } finally {
-      setLoading(false)
     }
   }, [])
 
@@ -1057,6 +1054,14 @@ export function AchatsTab({
             </div>
           )}
           {loading && <LoadingHint />}
+          {/* Réactivité : pendant l'ouverture d'un détail, la liste reste visible
+              et interactive — seul un hint local s'affiche. */}
+          {!loading && selectedDraftId && !draftDetail && (
+            <LoadingHint>Ouverture de l&apos;EB…</LoadingHint>
+          )}
+          {!loading && selectedRequestId && !requestDetail && (
+            <LoadingHint>Ouverture de la demande…</LoadingHint>
+          )}
           {!loading && view === 'inbox' && drafts.length === 0 && (
             <EmptyHint>
               {canPaste
@@ -1668,18 +1673,18 @@ function DraftReviewPanel({
             data-testid="mgr-achats-draft-validate"
             onClick={onValidate}
             disabled={actionLoading}
-            style={css.btnGhost}
+            style={{ ...css.btnGhost, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
           >
-            Enregistrer le brouillon
+            {actionLoading ? 'Enregistrement…' : 'Enregistrer le brouillon'}
           </button>
           <button
             type="button"
             data-testid="btp-draft-submit"
             onClick={onSubmit}
             disabled={actionLoading}
-            style={css.btnGold}
+            style={{ ...css.btnGold, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
           >
-            Valider
+            {actionLoading ? 'Transmission…' : 'Valider'}
           </button>
         </div>
       )}
@@ -2279,9 +2284,9 @@ function RequestDetailPanel({
                 data-testid="mgr-achats-create-bt"
                 onClick={onCreateTreasury}
                 disabled={actionLoading}
-                style={css.btnOutline}
+                style={{ ...css.btnOutline, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
               >
-                {treasuryOrder ? 'Regénérer le bon de trésorerie' : 'Générer le bon de trésorerie'}
+                {actionLoading ? 'Génération…' : treasuryOrder ? 'Regénérer le bon de trésorerie' : 'Générer le bon de trésorerie'}
               </button>
             </div>
           )}
@@ -2291,18 +2296,18 @@ function RequestDetailPanel({
               data-testid="mgr-achats-save-pricing"
               onClick={onSavePricing}
               disabled={actionLoading}
-              style={css.btnGhost}
+              style={{ ...css.btnGhost, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
             >
-              Enregistrer les lignes
+              {actionLoading ? 'Enregistrement…' : 'Enregistrer les lignes'}
             </button>
             <button
               type="button"
               data-testid="mgr-achats-submit-finance"
               onClick={onSubmitFinance}
               disabled={actionLoading}
-              style={css.btnGold}
+              style={{ ...css.btnGold, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
             >
-              Soumettre au CdG
+              {actionLoading ? 'Envoi…' : 'Soumettre au CdG'}
             </button>
           </div>
         </div>
@@ -2431,9 +2436,9 @@ function RequestDetailPanel({
                 data-testid="btp-approve-btn"
                 onClick={onApprove}
                 disabled={actionLoading}
-                style={css.btnGold}
+                style={{ ...css.btnGold, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
               >
-                Approuver
+                {actionLoading ? 'Approbation…' : 'Approuver'}
               </button>
             )}
             {showReject && (
@@ -2442,9 +2447,9 @@ function RequestDetailPanel({
                 data-testid="mgr-achats-reject"
                 onClick={onReject}
                 disabled={actionLoading}
-                style={css.btnDanger}
+                style={{ ...css.btnDanger, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
               >
-                Rejeter
+                {actionLoading ? 'Rejet…' : 'Rejeter'}
               </button>
             )}
           </div>
