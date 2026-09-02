@@ -1016,6 +1016,8 @@ export interface DashboardTourRow {
   totalStops: number
   delivered: number
   inProgress: number
+  /** Nombre d'arrêts en échec (replanifiés, obsolètes). */
+  failed: number
 }
 
 export async function getDashboardTours(date: string, companyId: string): Promise<DashboardTourRow[]> {
@@ -1042,7 +1044,11 @@ export async function getDashboardTours(date: string, companyId: string): Promis
     const totalStops = stops.reduce((s, r) => s + Number(r.cnt), 0)
     const delivered = stops.find((r) => r.status === 'delivered')?.cnt ?? 0
     const inProgress = stops.find((r) => r.status === 'in_progress')?.cnt ?? 0
-    result.push({ ...row, totalStops, delivered: Number(delivered), inProgress: Number(inProgress) })
+    const failed = stops.find((r) => r.status === 'failed')?.cnt ?? 0
+    const active = totalStops - Number(delivered) - Number(failed)
+    // Exclure les tournées dont tous les arrêts non livrés sont en échec (replanifiées, obsolètes)
+    if (active <= 0) continue
+    result.push({ ...row, totalStops, delivered: Number(delivered), inProgress: Number(inProgress), failed: Number(failed) })
   }
   return result
 }
@@ -1130,6 +1136,8 @@ export interface TourReplanTemplate {
   depotAddress: string
   replanKind?: 'tour' | 'partial'
   partialSourceDeliveryId?: string
+  purchaseRequestId?: string
+  purchaseOrderId?: string
   stops: Array<{
     name: string
     address: string
@@ -1151,6 +1159,23 @@ export async function getTourReplanTemplate(tourId: string): Promise<TourReplanT
   if (!data) return null
 
   const redo = data.stops.filter((s) => s.status !== 'delivered')
+
+  // Lien BC : si la tournée originale est issue d'un bon de commande, le conserver
+  let purchaseRequestId: string | undefined
+  let purchaseOrderId: string | undefined
+  const poId = data.tour.purchaseOrderId
+  if (poId) {
+    purchaseOrderId = poId
+    const [po] = await db
+      .select({ requestId: purchaseOrders.purchaseRequestId })
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.id, poId))
+      .limit(1)
+    if (po?.requestId) {
+      purchaseRequestId = po.requestId
+    }
+  }
+
   return {
     sourceTourId: tourId,
     sourceDate: data.tour.date,
@@ -1158,6 +1183,8 @@ export async function getTourReplanTemplate(tourId: string): Promise<TourReplanT
     depotName: data.tour.depotName,
     depotAddress: data.tour.depotAddress,
     replanKind: 'tour',
+    purchaseRequestId,
+    purchaseOrderId,
     stops: redo.map((s) => ({
       name: s.name,
       address: s.address,

@@ -1163,6 +1163,8 @@ function PlanifierTab({
       driverId?: string
       depotName?: string
       depotAddress?: string
+      purchaseRequestId?: string
+      purchaseOrderId?: string
       stops?: Array<{
         name: string
         address: string
@@ -1191,6 +1193,14 @@ function PlanifierTab({
     setReplanSourceDate(sourceDate)
     setReplanLoading(false)
     setReplanKind(data.replanKind ?? (partialDeliveryId ? 'partial' : 'tour'))
+    // Conserver le lien BC pour le verrouillage des produits lors de la replan
+    if (data.purchaseRequestId) {
+      procurementRequestIdRef.current = data.purchaseRequestId
+      procurementOrderIdRef.current = data.purchaseOrderId ?? null
+    } else {
+      procurementRequestIdRef.current = null
+      procurementOrderIdRef.current = null
+    }
     setReplanSourceTourId(partialDeliveryId ? null : tourId)
     setNewTour((p) => ({
       ...p,
@@ -1541,6 +1551,7 @@ function PlanifierTab({
                 supermarkets={supermarkets}
                 catalogRefreshKey={catalogRefreshKey}
                 canRemove={stops.length > 1}
+                productsLocked={!!procurementRequestIdRef.current}
                 onRemove={() => removeStop(idx)}
                 onChange={(next) => setStops((prev) => prev.map((st, i) => i === idx ? next : st))}
               />
