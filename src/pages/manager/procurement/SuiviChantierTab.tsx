@@ -16,6 +16,7 @@ import {
 import type { BudgetTrafficLight, SuiviChantierBlock } from './procurementUi'
 import type { CdgIndicatorId, ProcurementRole, SiteBudget, SiteIndicators } from './procurementTypes'
 import { CdgIndicateurPage, CdgSyntheseTable } from './CdgIndicateurs'
+import { CdgOverviewHeader } from './CdgOverview'
 
 type HistReport = {
   id: string
@@ -660,6 +661,16 @@ export function SuiviChantierTab({
         </div>
       </div>
       {error && <AlertBox>{error}</AlertBox>}
+      {procurementRole === 'controle_gestion' && (
+        <CdgOverviewHeader
+          budgets={budgets}
+          indicators={selectedSiteId ? (indicatorsBySite[selectedSiteId] ?? null) : null}
+          selectedSiteId={selectedSiteId}
+          onOpenIndicator={(id) => {
+            if (selectedSiteId) setOpenIndicator({ siteId: selectedSiteId, id })
+          }}
+        />
+      )}
       {(() => {
         const allMonths = month === ''
         const base = isChef

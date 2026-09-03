@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard CdG — TraceO</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f8f9fb; color: #1a1a2e; padding: 24px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .header h1 { font-size: 22px; font-weight: 700; }
+    .subtitle { font-size: 13px; color: #6b7280; margin-top: 2px; }
+    .btn { padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+    .btn-primary { background: #1e3a5f; color: white; }
+    .btn-outline { background: white; color: #1e3a5f; border: 1.5px solid #d1d5db; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpi-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb; }
+    .kpi-card .label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .kpi-card .value { font-size: 26px; font-weight: 700; }
+    .kpi-card .detail { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .icon { float: right; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .icon-blue { background: #eff6ff; color: #3b82f6; }
+    .icon-green { background: #f0fdf4; color: #22c55e; }
+    .icon-amber { background: #fffbeb; color: #f59e0b; }
+    .icon-red { background: #fef2f2; color: #ef4444; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; }
+    .tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
+    .table-container { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { background: #f9fafb; padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; }
+    tbody td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    tbody tr:hover { background: #f9fafb; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .progress-wrap { display: flex; align-items: center; gap: 10px; }
+    .progress-bar { flex: 1; height: 8px; background: #f3f4f6; border-radius: 4px; overflow: hidden; min-width: 80px; }
+    .progress-fill { height: 100%; border-radius: 4px; }
+    .fill-green { background: #22c55e; }
+    .fill-amber { background: #f59e0b; }
+    .fill-red { background: #ef4444; }
+    .progress-pct { font-size: 12px; font-weight: 600; min-width: 36px; text-align: right; }
+    .site-name { font-weight: 600; }
+    .site-address { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .amount-total { font-size: 11px; color: #9ca3af; }
+    .filter-bar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+    .filter-select { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; background: white; }
+    .month-selector { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+    .month-btn { width: 32px; height: 32px; border: 1px solid #d1d5db; border-radius: 8px; background: white; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+    .month-label { font-size: 14px; font-weight: 600; min-width: 140px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div><h1>📊 Contrôle de Gestion</h1><div class="subtitle">Suivi des dépenses chantier — Août 2026</div></div>
+    <div style="display:flex;gap:8px;"><button class="btn btn-outline">📥 Exporter</button><button class="btn btn-primary">+ Nouvel avenant</button></div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="icon icon-blue">💰</div><div class="label">Total engagé</div><div class="value">2,4M</div><div class="detail">FCFA sur 5 chantiers</div></div>
+    <div class="kpi-card"><div class="icon icon-green">📊</div><div class="label">Budget total</div><div class="value">5,0M</div><div class="detail">FCFA — reste 2,6M</div></div>
+    <div class="kpi-card"><div class="icon icon-amber">🚦</div><div class="label">Feux</div><div class="value">2 🟡</div><div class="detail">1 🔴 alerte — 2 🟢 OK</div></div>
+    <div class="kpi-card"><div class="icon icon-red">📦</div><div class="label">BC en cours</div><div class="value">8</div><div class="detail">3 validés — 2 en attente</div></div>
+  </div>
+  <div class="month-selector"><button class="month-btn">◀</button><span class="month-label">Août 2026</span><button class="month-btn">▶</button></div>
+  <div class="tabs"><div class="tab active">Tous les chantiers (5)</div><div class="tab">Avec dépenses (3)</div><div class="tab">Sans dépense (2)</div><div class="tab">En alerte (1)</div></div>
+  <div class="filter-bar"><select class="filter-select"><option>Toutes catégories</option><option>Terrassement</option><option>Béton</option></select><select class="filter-select"><option>Tous statuts</option><option>Soumis</option><option>Validé</option></select></div>
+<div class="table-container">
+<table>
+<thead><tr><th>Chantier</th><th>Budget</th><th>Engagé</th><th>Réalisé</th><th>Progression</th><th>Écart vs budget</th><th>Top 3 matériaux</th><th>Feu</th><th>Actions</th></tr></thead>
+<tbody>
+<tr><td><div class="site-name">Résidence Cocody — Tour A</div><div class="site-address">Cocody, Abidjan</div></td><td><div class="amount">800 000</div><div class="amount-total">FCFA</div></td><td><div class="amount">395 000</div><div class="amount-total">FCFA</div></td><td><div class="amount">280 000</div><div class="amount-total">FCFA</div></td><td><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill fill-green" style="width:49%"></div></div><span class="progress-pct" style="color:#166534">49%</span></div></td><td><div style="text-align:center"><span style="color:#166534;font-weight:700;font-size:16px">+405k</span><div style="font-size:10px;color:#166534">+51% marge</div></div></td><td><div style="font-size:11px;line-height:1.6"><div><span title="Terrassement" style="cursor:help">🪨</span> <strong>120k</strong> <span style="color:#9ca3af">(15%)</span></div><div><span title="Béton / Parpaings" style="cursor:help">🧱</span> <strong>95k</strong> <span style="color:#9ca3af">(12%)</span></div><div><span title="Ferraillerie / Fer 8mm" style="cursor:help">⛓️</span> <strong>78k</strong> <span style="color:#9ca3af">(10%)</span></div><div style="margin-top:4px;border-top:1px solid #e5e7eb;padding-top:2px;font-weight:600">Total: 293k / 800k</div></div></td><td><span class="badge badge-green">🟢 OK</span></td><td><button class="btn btn-outline btn-sm" title="Voir le détail CdG : budget, réalisé, variance, top 3 — et le journal quotidien">📊 Détails</button></td></tr>
+<tr><td><div class="site-name">Résidence 35ème</div><div class="site-address">35° Arrondissement</div></td><td><div class="amount">1 200 000</div><div class="amount-total">FCFA</div></td><td><div class="amount">400 700</div><div class="amount-total">FCFA</div></td><td><div class="amount">350 000</div><div class="amount-total">FCFA</div></td><td><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill fill-green" style="width:33%"></div></div><span class="progress-pct" style="color:#166534">33%</span></div></td><td><div style="text-align:center"><span style="color:#166534;font-weight:700;font-size:16px">+800k</span><div style="font-size:10px;color:#166534">+67% marge</div></div></td><td><div style="font-size:11px;line-height:1.6"><div><span title="Terrassement" style="cursor:help">🪨</span> <strong>140k</strong> <span style="color:#9ca3af">(12%)</span></div><div><span title="Béton / Parpaings" style="cursor:help">🧱</span> <strong>110k</strong> <span style="color:#9ca3af">(9%)</span></div><div><span title="Ferronnerie / Fer" style="cursor:help">⛓️</span> <strong>85k</strong> <span style="color:#9ca3af">(7%)</span></div><div style="margin-top:4px;border-top:1px solid #e5e7eb;padding-top:2px;font-weight:600">Total: 335k / 1.2M</div></div></td><td><span class="badge badge-green">🟢 OK</span></td><td><button class="btn btn-outline btn-sm" title="Voir le détail CdG : budget, réalisé, variance, top 3 — et le journal quotidien">📊 Détails</button></td></tr>
+<tr><td><div class="site-name">Laurier 20 Bingerville</div><div class="site-address">Bingerville</div></td><td><div class="amount">500 000</div><div class="amount-total">FCFA</div></td><td><div class="amount">4 940</div><div class="amount-total">FCFA</div></td><td><div class="amount">4 940</div><div class="amount-total">FCFA</div></td><td><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill fill-green" style="width:1%"></div></div><span class="progress-pct" style="color:#166534">1%</span></div></td><td><div style="text-align:center"><span style="color:#166534;font-weight:700;font-size:16px">+495k</span><div style="font-size:10px;color:#166534">+99% marge</div></div></td><td><div style="font-size:11px;color:#9ca3af;line-height:1.6">Pas encore de livraison confirmée</div></td><td><span class="badge badge-green">🟢 OK</span></td><td><button class="btn btn-outline btn-sm" title="Voir le détail CdG : budget, réalisé, variance, top 3 — et le journal quotidien">📊 Détails</button></td></tr>
+<tr><td><div class="site-name">Cité Scientifique</div><div class="site-address">Cocody, Abidjan</div></td><td><div class="amount">2 000 000</div><div class="amount-total">FCFA</div></td><td><div class="amount" style="color:#991b1b">2 100 000</div><div class="amount-total">FCFA</div></td><td><div class="amount" style="color:#991b1b">1 850 000</div><div class="amount-total">FCFA</div></td><td><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill fill-red" style="width:100%"></div></div><span class="progress-pct" style="color:#991b1b">105%</span></div></td><td><div style="text-align:center"><span style="color:#991b1b;font-weight:700;font-size:16px">-100k</span><div style="font-size:10px;color:#991b1b">-5% dépassement</div></div></td><td><div style="font-size:11px;line-height:1.6"><div><span title="Terrassement" style="cursor:help">🪨</span> <strong>520k</strong> <span style="color:#9ca3af">(26%)</span></div><div><span title="Béton / Fondations" style="cursor:help">🧱</span> <strong>480k</strong> <span style="color:#9ca3af">(24%)</span></div><div><span title="Ferraillerie" style="cursor:help">⛓️</span> <strong>350k</strong> <span style="color:#9ca3af">(18%)</span></div><div style="margin-top:4px;border-top:1px solid #e5e7eb;padding-top:2px;font-weight:600;color:#991b1b">Total: 1.35M / 2M (68%)</div></div></td><td><span class="badge badge-red">🔴 Alerte</span></td><td><button class="btn btn-outline btn-sm" title="Voir le détail CdG : budget, réalisé, variance, top 3 — et le journal quotidien">📊 Détails</button></td></tr>
+<tr><td><div class="site-name">Lycée Technique</div><div class="site-address">Abidjan Plateau</div></td><td><div class="amount">500 000</div><div class="amount-total">FCFA</div></td><td><div class="amount" style="color:#92400e">475 000</div><div class="amount-total">FCFA</div></td><td><div class="amount">320 000</div><div class="amount-total">FCFA</div></td><td><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill fill-amber" style="width:95%"></div></div><span class="progress-pct" style="color:#92400e">95%</span></div></td><td><div style="text-align:center"><span style="color:#92400e;font-weight:700;font-size:16px">+25k</span><div style="font-size:10px;color:#92400e">+5% marge</div></div></td><td><div style="font-size:11px;line-height:1.6"><div><span title="Briques" style="cursor:help">🧱</span> <strong>140k</strong> <span style="color:#9ca3af">(28%)</span></div><div><span title="Ferronnerie / Fer" style="cursor:help">⛓️</span> <strong>95k</strong> <span style="color:#9ca3af">(19%)</span></div><div><span title="Électricité / Câbles" style="cursor:help">🔌</span> <strong>60k</strong> <span style="color:#9ca3af">(12%)</span></div><div style="margin-top:4px;border-top:1px solid #e5e7eb;padding-top:2px;font-weight:600">Total: 295k / 500k (59%)</div></div></td><td><span class="badge badge-amber">🟡 Attention</span></td><td><button class="btn btn-outline btn-sm" title="Voir le détail CdG : budget, réalisé, variance, top 3 — et le journal quotidien">📊 Détails</button></td></tr>
+</tbody>
+</table>
+</div>
+</body>
+</html>
