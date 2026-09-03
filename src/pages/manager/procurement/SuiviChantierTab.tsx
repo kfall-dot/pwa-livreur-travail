@@ -17,6 +17,15 @@ import type { BudgetTrafficLight, SuiviChantierBlock } from './procurementUi'
 import type { CdgIndicatorId, ProcurementRole, SiteBudget, SiteIndicators } from './procurementTypes'
 import { CdgIndicateurPage, CdgSyntheseTable } from './CdgIndicateurs'
 import { CdgOverviewHeader } from './CdgOverview'
+import { EB_SPEND_CATEGORIES } from '../../../../shared/ebSpendCategory'
+
+const CDG_TAB_LABELS: Record<CdgTab, string> = {
+  all: 'Tous',
+  with: 'Avec dépenses',
+  without: 'Sans dépense',
+  alert: 'En alerte',
+}
+type CdgTab = 'all' | 'with' | 'without' | 'alert'
 
 type HistReport = {
   id: string
@@ -368,6 +377,10 @@ export function SuiviChantierTab({
   const [openIndicator, setOpenIndicator] = useState<{ siteId: string; id: CdgIndicatorId } | null>(null)
   const [openSynthese, setOpenSynthese] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cdgTab, setCdgTab] = useState<CdgTab>('all')
+  const [search, setSearch] = useState('')
+  const [catFilter, setCatFilter] = useState('')
+  const top3LoadedRef = useRef<Set<string>>(new Set())
 
   /**
    * Au premier chargement, la préférence chantier (stock → budget gelé → site
@@ -412,9 +425,50 @@ export function SuiviChantierTab({
     }
   }, [handleAuth, procurementRole])
 
+  // ── Vue par rôle (matrice métier) — déclarées AVANT les effets qui les utilisent ──
+  const isChef = procurementRole === 'site_manager'
+  const showEnveloppe = canSeeSuiviBlock('enveloppe', procurementRole)
+  const showIndicateurs = canSeeSuiviBlock('indicateurs', procurementRole)
+  const canSee = (block: SuiviChantierBlock) => canSeeSuiviBlock(block, procurementRole)
+  const shiftMonth = (delta: number) => {
+    const base = month || defaultMonth
+    const [y, m] = base.split('-').map(Number)
+    const d = new Date(y, m - 1 + delta, 1)
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+
   useEffect(() => {
     void load()
   }, [load])
+
+  // Indicateurs par chantier (top 3 matériaux, ventilation) — chargés une fois
+  // par chantier pour les rôles avec accès aux indicateurs (CdG / DAF / PDG).
+  useEffect(() => {
+    if (!showIndicateurs) return
+    const missing = budgets
+      .filter((b) => !top3LoadedRef.current.has(b.siteId))
+      .map((b) => b.siteId)
+      .slice(0, 40)
+    if (missing.length === 0) return
+    let cancelled = false
+    void (async () => {
+      await Promise.all(
+        missing.map(async (siteId) => {
+          try {
+            const snap = await fetchSiteIndicators(siteId)
+            if (cancelled) return
+            top3LoadedRef.current.add(siteId)
+            setIndicatorsBySite((prev) => ({ ...prev, [siteId]: snap }))
+          } catch {
+            top3LoadedRef.current.add(siteId) // évite de re-essayer en boucle
+          }
+        }),
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [budgets, showIndicateurs])
 
   // Dépenses engagées du mois sélectionné — ventilées par chantier.
   // month === '' → vue « Tous les mois » : pas de filtre mensuel.
@@ -436,12 +490,6 @@ export function SuiviChantierTab({
       cancelled = true
     }
   }, [month])
-
-  // ── Vue par rôle (matrice métier) ──
-  const isChef = procurementRole === 'site_manager'
-  const showEnveloppe = canSeeSuiviBlock('enveloppe', procurementRole)
-  const showIndicateurs = canSeeSuiviBlock('indicateurs', procurementRole)
-  const canSee = (block: SuiviChantierBlock) => canSeeSuiviBlock(block, procurementRole)
 
   const [chefSiteIds, setChefSiteIds] = useState<Set<string>>(new Set())
   const [chantierSites, setChantierSites] = useState<ChantierSite[]>([])
@@ -560,8 +608,20 @@ export function SuiviChantierTab({
   }
   // Synthèse complète d'un chantier (bouton « Détails » du tableau de bord CdG) — réutilise la vue existante.
   const syntheseSnapshot = openSynthese ? (indicatorsBySite[openSynthese] ?? null) : null
-  if (openSynthese && syntheseSnapshot) {
+  if (openSynthese) {
     const syntheseBudget = budgets.find((b) => b.siteId === openSynthese) ?? null
+    if (!syntheseSnapshot) {
+      return (
+        <div data-testid="mgr-suivi-chantier">
+          <div style={css.card}>
+            <p style={css.meta}>Chargement de la synthèse…</p>
+            <button type="button" style={css.btnOutline} data-testid="mgr-cdg-synthese-back" onClick={() => setOpenSynthese(null)}>
+              ← Retour au suivi
+            </button>
+          </div>
+        </div>
+      )
+    }
     return (
       <div data-testid="mgr-suivi-chantier">
         <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-cdg-synthese-page">
@@ -669,16 +729,24 @@ export function SuiviChantierTab({
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
-          <label style={css.meta}>
-            Mois
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              style={{ ...css.input, display: 'block', marginTop: 4, width: 180 }}
-              data-testid="mgr-suivi-chantier-month"
-            />
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button type="button" style={css.btnOutline} aria-label="Mois précédent" data-testid="mgr-suivi-chantier-prev-month" onClick={() => shiftMonth(-1)}>
+              ◀
+            </button>
+            <label style={css.meta}>
+              Mois
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                style={{ ...css.input, display: 'block', marginTop: 4, width: 180 }}
+                data-testid="mgr-suivi-chantier-month"
+              />
+            </label>
+            <button type="button" style={css.btnOutline} aria-label="Mois suivant" data-testid="mgr-suivi-chantier-next-month" onClick={() => shiftMonth(1)}>
+              ▶
+            </button>
+          </div>
           <button type="button" onClick={() => setMonth(defaultMonth)} style={css.btnOutline} data-testid="mgr-suivi-chantier-reset-month">
             Mois courant
           </button>
@@ -705,6 +773,46 @@ export function SuiviChantierTab({
           }}
         />
       )}
+      {procurementRole === 'controle_gestion' && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }} data-testid="mgr-cdg-filters">
+          {(Object.keys(CDG_TAB_LABELS) as CdgTab[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setCdgTab(t)}
+              style={{
+                ...css.btnOutline,
+                background: cdgTab === t ? 'var(--bg-muted, #e2e8f0)' : undefined,
+                fontWeight: cdgTab === t ? 700 : 400,
+              }}
+              data-testid={`mgr-cdg-tab-${t}`}
+            >
+              {CDG_TAB_LABELS[t]}
+            </button>
+          ))}
+          <select
+            value={catFilter}
+            onChange={(e) => setCatFilter(e.target.value)}
+            style={{ ...css.input, width: 'auto' }}
+            data-testid="mgr-cdg-filter-category"
+            aria-label="Filtrer par catégorie de matériaux"
+          >
+            <option value="">Toutes catégories</option>
+            {EB_SPEND_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un chantier…"
+            style={{ ...css.input, width: 220 }}
+            data-testid="mgr-cdg-filter-search"
+            aria-label="Rechercher un chantier"
+          />
+        </div>
+      )}
       {(() => {
         const allMonths = month === ''
         const base = isChef
@@ -712,7 +820,24 @@ export function SuiviChantierTab({
           : allMonths
             ? budgets.filter((b) => b.engagedFcfa > 0)
             : budgets.filter((b) => (monthExpenses[b.siteId] ?? 0) > 0)
-        const visible = base
+        const visible = (() => {
+          let filtered = base
+          if (procurementRole === 'controle_gestion') {
+            if (cdgTab === 'with') filtered = filtered.filter((b) => b.engagedFcfa > 0)
+            else if (cdgTab === 'without') filtered = filtered.filter((b) => b.engagedFcfa === 0)
+            else if (cdgTab === 'alert') filtered = filtered.filter((b) => b.overBudget || b.trafficLight === 'alert')
+            if (search.trim()) {
+              const q = search.trim().toLowerCase()
+              filtered = filtered.filter((b) => b.siteName.toLowerCase().includes(q))
+            }
+            if (catFilter) {
+              filtered = filtered.filter((b) =>
+                (indicatorsBySite[b.siteId]?.byCategory ?? []).some((c) => c.category === catFilter),
+              )
+            }
+          }
+          return filtered
+        })()
         if (budgets.length > 0 && visible.length === 0) {
           return (
             <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-suivi-empty-month">
@@ -745,9 +870,12 @@ export function SuiviChantierTab({
                     <>
                       <th style={css.lineTh}>Budget</th>
                       <th style={css.lineTh}>Engagé (total)</th>
-                      <th style={css.lineTh}>Engagement</th>
+                      <th style={css.lineTh}>Progression</th>
+                      <th style={css.lineTh}>Écart</th>
+                      <th style={css.lineTh}>Top 3 matériaux</th>
                       <th style={css.lineTh}>Feu</th>
                       <th style={css.lineTh}>Avenant</th>
+                      {procurementRole === 'controle_gestion' && <th style={css.lineTh} aria-label="Détails" />}
                     </>
                   )}
                 </tr>
@@ -755,6 +883,10 @@ export function SuiviChantierTab({
               <tbody>
                 {visible.map((b) => {
                   const light = (b.trafficLight ?? 'none') as BudgetTrafficLight
+                  const ind = indicatorsBySite[b.siteId] ?? null
+                  const pct = b.engagementPct ?? (b.budgetTotalFcfa ? Math.min(100, Math.round((b.engagedFcfa / b.budgetTotalFcfa) * 100)) : 0)
+                  const variance = b.budgetTotalFcfa != null ? b.engagedFcfa - b.budgetTotalFcfa : null
+                  const top3 = (ind?.top3 ?? []).slice(0, 3)
                   return (
                     <tr
                       key={b.siteId}
@@ -771,13 +903,76 @@ export function SuiviChantierTab({
                         <>
                           <td style={css.lineTd}>{formatFcfa(b.budgetTotalFcfa)}</td>
                           <td style={css.lineTd}>{formatFcfa(b.engagedFcfa)}</td>
-                          <td style={css.lineTd}>{formatPct(b.engagementPct)}</td>
+                          <td style={css.lineTd}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 120 }}>
+                              <div style={{ flex: 1, height: 8, background: 'var(--border, #e2e8f0)', borderRadius: 4, overflow: 'hidden' }}>
+                                <div
+                                  style={{
+                                    width: `${Math.min(100, pct)}%`,
+                                    height: '100%',
+                                    background: pct >= 100 ? '#dc2626' : pct >= 95 ? '#d97706' : '#16a34a',
+                                  }}
+                                />
+                              </div>
+                              <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatPct(b.engagementPct)}</span>
+                            </div>
+                          </td>
+                          <td
+                            style={{
+                              ...css.lineTd,
+                              color: variance != null && variance > 0 ? '#dc2626' : '#166534',
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {variance == null ? '—' : variance > 0 ? `-${formatFcfa(variance)}` : `+${formatFcfa(-variance)}`}
+                          </td>
+                          <td style={css.lineTd}>
+                            {top3.length === 0 ? (
+                              <span style={{ color: 'var(--muted, #667)' }}>—</span>
+                            ) : (
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {top3.map((p) => (
+                                  <span
+                                    key={p.label}
+                                    title={`${p.label} — ${formatFcfa(p.amountFcfa)}${p.shareOfInitialPct != null ? ` (${p.shareOfInitialPct}% du budget)` : ''}`}
+                                    style={{
+                                      background: 'var(--bg-muted, #f1f5f9)',
+                                      borderRadius: 999,
+                                      padding: '2px 8px',
+                                      fontSize: 12,
+                                      cursor: 'default',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {p.label.length > 16 ? `${p.label.slice(0, 15)}…` : p.label} · {formatFcfa(p.amountFcfa)}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ ...css.lineTd, color: TRAFFIC_LIGHT_STYLE[light].color }}>
                             {b.budgetFrozenAt ? TRAFFIC_LIGHT_LABEL[light] : 'Non gelée'}
                           </td>
                           <td style={css.lineTd}>
                             {b.missingAmendment ? 'Manquant' : b.overBudget ? 'À surveiller' : '—'}
                           </td>
+                          {procurementRole === 'controle_gestion' && (
+                            <td style={css.lineTd}>
+                              <button
+                                type="button"
+                                style={{ ...css.btnOutline, padding: '0.2rem 0.6rem', whiteSpace: 'nowrap' }}
+                                data-testid={`mgr-cdg-row-details-${b.siteId}`}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedSiteId(b.siteId)
+                                  setOpenSynthese(b.siteId)
+                                }}
+                              >
+                                📊 Détails
+                              </button>
+                            </td>
+                          )}
                         </>
                       )}
                     </tr>
