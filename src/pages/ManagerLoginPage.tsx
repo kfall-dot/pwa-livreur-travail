@@ -26,12 +26,6 @@ function loginErrorMessage(err: unknown, fallbackBody?: string): string {
   return 'Serveur injoignable — lancez `npm run dev:local` (API attendue sur http://localhost:3002)'
 }
 
-const DEV_ACCOUNTS = [
-  { label: 'Logistique', email: 'manager@demo.fr', password: 'admin1234' },
-  { label: 'DT', email: 'dt@btp-pilote.ci', password: 'admin1234' },
-  { label: 'SA', email: 'sa@btp-pilote.ci', password: 'admin1234' },
-] as const
-
 export function ManagerLoginPage() {
   const [email, setEmail] = useState(import.meta.env.PROD ? '' : 'manager@demo.fr')
   const [password, setPassword] = useState('')
@@ -187,32 +181,6 @@ export function ManagerLoginPage() {
         </button>
       </form>
 
-      {!import.meta.env.PROD && (
-        <div className="auth-demo-hint" data-testid="mgr-login-btp-hint" style={{ marginTop: '1rem' }}>
-          <p style={{ margin: '0 0 0.5rem' }}>Comptes de test — cliquer pour remplir :</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {DEV_ACCOUNTS.map((account) => (
-              <button
-                key={account.email}
-                type="button"
-                className="btn"
-                data-testid={`mgr-login-fill-${account.label.toLowerCase()}`}
-                onClick={() => {
-                  setEmail(account.email)
-                  setPassword(account.password)
-                  setError(null)
-                }}
-              >
-                {account.label}
-              </button>
-            ))}
-          </div>
-          <p style={{ margin: '0.75rem 0 0', fontSize: 12 }}>
-            Mot de passe : <strong>admin1234</strong> — URL :{' '}
-            <strong>http://localhost:5173/manager/login</strong>
-          </p>
-        </div>
-      )}
       <p className="auth-links">
         <Link to="/manager/forgot-password">Mot de passe oublié ?</Link>
       </p>
