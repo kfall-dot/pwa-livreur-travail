@@ -278,14 +278,12 @@ export function AchatsTab({
 
   // Filtrage recherche + statut
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pre_bc' | 'validated' | 'po_ready' | 'delivery_scheduled' | 'rejected'>('all')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'pre_bc' | 'po_ready' | 'delivery_scheduled'>('all')
 
   let filteredRequests = visibleRequests
   if (activeFilter === 'pre_bc') filteredRequests = filteredRequests.filter((r) => PRE_BC_STATUSES.has(r.status))
-  else if (activeFilter === 'validated') filteredRequests = filteredRequests.filter((r) => r.status === 'bt_pending')
   else if (activeFilter === 'po_ready') filteredRequests = filteredRequests.filter((r) => r.status === 'po_ready')
   else if (activeFilter === 'delivery_scheduled') filteredRequests = filteredRequests.filter((r) => r.status === 'delivery_scheduled')
-  else if (activeFilter === 'rejected') filteredRequests = filteredRequests.filter((r) => r.status === 'rejected')
 
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase()
@@ -1130,10 +1128,8 @@ export function AchatsTab({
               {/* ---- Cartes KPI ---- */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
                 <StatCard label="En attente" value={requests.filter((r) => PRE_BC_STATUSES.has(r.status)).length} tone="warn" />
-                <StatCard label="Validées" value={requests.filter((r) => r.status === 'bt_pending').length} tone="success" />
                 <StatCard label="BC émis" value={requests.filter((r) => r.status === 'po_ready').length} tone="info" />
                 <StatCard label="Livraison planifiée" value={requests.filter((r) => r.status === 'delivery_scheduled').length} tone="brand" />
-                <StatCard label="Rejetées" value={requests.filter((r) => r.status === 'rejected').length} tone="danger" />
               </div>
             </>
           )}
@@ -1164,7 +1160,7 @@ export function AchatsTab({
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)', pointerEvents: 'none' }}>🔍</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {(['all', 'pre_bc', 'validated', 'po_ready', 'delivery_scheduled', 'rejected'] as const).map((f) => (
+                  {(['all', 'pre_bc', 'po_ready', 'delivery_scheduled'] as const).map((f) => (
                     <button
                       key={f}
                       type="button"
@@ -1183,7 +1179,7 @@ export function AchatsTab({
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {f === 'all' ? 'Toutes' : f === 'pre_bc' ? 'En attente' : f === 'validated' ? 'Validées' : f === 'po_ready' ? 'BC émis' : f === 'delivery_scheduled' ? 'Livraison planifiée' : 'Rejetées'}
+                      {f === 'all' ? 'Toutes' : f === 'pre_bc' ? 'En attente' : f === 'po_ready' ? 'BC émis' : 'Livraison planifiée'}
                     </button>
                   ))}
                 </div>
