@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { toast } from '../../../lib/toast'
 import { defaultReplanDate } from '../../../lib/dates'
@@ -280,23 +280,20 @@ export function AchatsTab({
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'pre_bc' | 'validated' | 'po_ready' | 'delivery_scheduled' | 'rejected'>('all')
 
-  const filteredRequests = useMemo(() => {
-    let result = visibleRequests
-    if (activeFilter === 'pre_bc') result = result.filter((r) => PRE_BC_STATUSES.has(r.status))
-    else if (activeFilter === 'validated') result = result.filter((r) => r.status === 'bt_pending')
-    else if (activeFilter === 'po_ready') result = result.filter((r) => r.status === 'po_ready')
-    else if (activeFilter === 'delivery_scheduled') result = result.filter((r) => r.status === 'delivery_scheduled')
-    else if (activeFilter === 'rejected') result = result.filter((r) => r.status === 'rejected')
+  let filteredRequests = visibleRequests
+  if (activeFilter === 'pre_bc') filteredRequests = filteredRequests.filter((r) => PRE_BC_STATUSES.has(r.status))
+  else if (activeFilter === 'validated') filteredRequests = filteredRequests.filter((r) => r.status === 'bt_pending')
+  else if (activeFilter === 'po_ready') filteredRequests = filteredRequests.filter((r) => r.status === 'po_ready')
+  else if (activeFilter === 'delivery_scheduled') filteredRequests = filteredRequests.filter((r) => r.status === 'delivery_scheduled')
+  else if (activeFilter === 'rejected') filteredRequests = filteredRequests.filter((r) => r.status === 'rejected')
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter((r) =>
-        (r.reference ?? '').toLowerCase().includes(q)
-        || (r.siteName ?? '').toLowerCase().includes(q)
-      )
-    }
-    return result
-  }, [visibleRequests, activeFilter, searchQuery])
+  if (searchQuery.trim()) {
+    const q = searchQuery.toLowerCase()
+    filteredRequests = filteredRequests.filter((r) =>
+      (r.reference ?? '').toLowerCase().includes(q)
+      || (r.siteName ?? '').toLowerCase().includes(q)
+    )
+  }
 
   useEffect(() => {
     if (procurementRole && procurementRole !== 'technical_director') {
