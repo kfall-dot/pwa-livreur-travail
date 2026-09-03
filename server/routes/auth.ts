@@ -70,7 +70,6 @@ authRouter.post(
         : allowTestBypass() && pin === (process.env.DRIVER_PIN ?? '1234')
       if (ok) {
         pinMatches.push(candidate)
-        break
       }
     }
     if (pinMatches.length === 0) {

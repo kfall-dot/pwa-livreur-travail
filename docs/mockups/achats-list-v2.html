@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TraceO® — Maquette : Demandes d'achat v2</title>
+<style>
+  /* ===== Tokens (alignés sur src/index.css) ===== */
+  :root {
+    --brand: #0b4a2c;
+    --brand-deep: #083821;
+    --action: #e85d04;
+    --action-hover: #d45303;
+    --bg: #f7f5f2;
+    --bg-elevated: #ffffff;
+    --text: #1a1a1a;
+    --text-muted: #5c6570;
+    --text-faint: #8b94a0;
+    --danger: #dc2626;
+    --warn: #d97706;
+    --success: #15803d;
+    --border: #e2dcd2;
+    --border-strong: #d0c8bc;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --shadow-sm: 0 1px 3px rgba(11, 74, 44, 0.06);
+    --shadow-md: 0 6px 20px rgba(11, 74, 44, 0.10);
+    /* Échelle typographique */
+    --fs-caption: 11px;
+    --fs-small: 12px;
+    --fs-body: 13px;
+    --fs-title: 18px;
+    --fs-display: 24px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--fs-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== Layout ===== */
+  .shell { display: flex; min-height: 100dvh; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px; flex-shrink: 0;
+    background: linear-gradient(180deg, var(--brand-deep), #052e1c);
+    color: #dcebe2;
+    padding: 1.25rem 0.9rem;
+    display: flex; flex-direction: column; gap: 0.25rem;
+    position: sticky; top: 0; height: 100dvh;
+  }
+  .sidebar .logo {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 17px; font-weight: 800; color: #fff;
+    letter-spacing: .02em; padding: 0 0.6rem 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    margin-bottom: 0.9rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sidebar .logo .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--action); }
+  .side-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0.55rem 0.7rem; border-radius: var(--radius-sm);
+    font-size: var(--fs-body); color: #c8dbd1; text-decoration: none;
+    transition: background .15s, color .15s;
+  }
+  .side-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .side-item.active { background: rgba(255,255,255,0.14); color: #fff; font-weight: 700; }
+  .side-item .badge-count {
+    margin-left: auto; background: var(--action); color: #fff;
+    font-size: var(--fs-caption); font-weight: 700;
+    border-radius: 10px; padding: 0 7px; line-height: 18px;
+  }
+
+  /* Contenu */
+  .main { flex: 1; padding: 1.5rem 2rem; max-width: 1200px; }
+
+  .page-title { font-size: var(--fs-display); font-weight: 800; margin: 0 0 0.25rem; }
+  .page-sub { color: var(--text-muted); font-size: var(--fs-body); margin: 0 0 1.25rem; }
+
+  /* Stat cards */
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 1.25rem; }
+  .stat-card {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1rem 1.25rem;
+    box-shadow: var(--shadow-sm);
+  }
+  .stat-card .label { font-size: var(--fs-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .stat-card .value { font-size: 26px; font-weight: 800; }
+/* Tabs */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-strong); margin-bottom: 1.25rem; }
+  .tab {
+    padding: 0.6rem 1.1rem; border: 1px solid var(--border);
+    border-bottom: none; border-radius: 10px 10px 0 0;
+    background: transparent; cursor: pointer; font: inherit; font-weight: 700;
+    font-size: var(--fs-body); color: var(--text-muted);
+    transition: background .15s, color .15s;
+  }
+  .tab:hover { background: #f0ebe3; }
+  .tab.active {
+    background: var(--bg-elevated); color: var(--brand);
+    border-bottom: 2px solid var(--brand);
+  }
+  .tab .tab-badge {
+    background: var(--action); color: #fff; border-radius: 10px;
+    font-size: var(--fs-caption); font-weight: 700; padding: 0 6px; margin-left: 6px; line-height: 16px; display: inline-block;
+  }
+
+  /* Barre outils : recherche + filtres */
+  .toolbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .search {
+    flex: 1; min-width: 220px; position: relative;
+  }
+  .search input {
+    width: 100%; padding: 0.55rem 0.75rem 0.55rem 2rem;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--bg-elevated); font: inherit; font-size: var(--fs-body);
+  }
+  .search svg {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    width: 15px; height: 15px; fill: var(--text-faint);
+  }
+  .chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    padding: 0.35rem 0.8rem; border: 1px solid var(--border-strong); border-radius: 20px;
+    background: var(--bg-elevated); cursor: pointer; font: inherit; font-size: var(--fs-small);
+    color: var(--text-muted); transition: all .15s;
+  }
+  .chip:hover { border-color: var(--brand); color: var(--brand); }
+  .chip.active { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 600; }
+
+  /* Table */
+  .table-card {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; font-size: var(--fs-caption); font-weight: 700;
+    color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em;
+    padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);
+    background: #faf8f5;
+  }
+  tbody td { padding: 0.8rem 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr { transition: background .12s; cursor: pointer; }
+  tbody tr:hover { background: #f3f0ea; }
+  tbody tr:last-child td { border-bottom: none; }
+  .ref { font-weight: 700; font-size: var(--fs-body); }
+  .ref small { display: block; font-weight: 500; color: var(--text-faint); font-size: var(--fs-caption); }
+  .site-name { font-weight: 600; }
+  .site-name small { display: block; color: var(--text-faint); font-size: var(--fs-caption); font-weight: 400; }
+  .amount { font-weight: 700; white-space: nowrap; }
+  .amount small { display: block; color: var(--text-faint); font-weight: 500; font-size: var(--fs-caption); }
+  .urgency { font-size: var(--fs-caption); font-weight: 600; color: var(--warn); }
+
+  /* Badges de statut */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 20px; font-size: var(--fs-small); font-weight: 700; white-space: nowrap;
+  }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .st-sa_review { background: #fee2e2; color: #b91c1c; }
+  .st-cdg_review { background: #fef3c7; color: #b45309; }
+  .st-daf_review,
+  .st-pdg_review { background: #ede9fe; color: #6d28d9; }
+  .st-po_ready { background: #dbeafe; color: #1d4ed8; }
+  .st-delivery_scheduled { background: #dcfce7; color: #15803d; }
+  .st-delivered { background: #e8efe9; color: #065f46; }
+  .st-rejected { background: #f3f4f6; color: #6b7280; }
+  .stat-card .sub { font-size: var(--fs-small); color: var(--text-faint); margin-top: 2px; }
+/* Pied de table : total + pagination */
+  .table-footer {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 0.8rem 1rem; background: #faf8f5; border-top: 1px solid var(--border);
+    font-size: var(--fs-small); color: var(--text-muted);
+  }
+  .pager { display: flex; gap: 6px; }
+  .pager button {
+    min-width: 30px; height: 30px; border: 1px solid var(--border-strong); background: var(--bg-elevated);
+    border-radius: 6px; cursor: pointer; font: inherit; font-size: var(--fs-small);
+    transition: all .15s;
+  }
+  .pager button.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .pager button:hover:not(.active) { border-color: var(--brand); color: var(--brand); }
+
+  /* Bouton principal */
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--action); color: #fff; border: none; border-radius: var(--radius-sm);
+    padding: 0.6rem 1.25rem; font: inherit; font-weight: 700; cursor: pointer;
+    transition: background .15s, transform .05s;
+  }
+  .btn-primary:hover { background: var(--action-hover); }
+  .btn-primary:active { transform: translateY(1px); }
+
+  /* ===== Section Suivi livraisons (aperçu 2) ===== */
+  h2.section-title { font-size: var(--fs-title); font-weight: 800; margin: 2rem 0 0.9rem; }
+  .tour-group {
+    background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); margin-bottom: 1rem; overflow: hidden;
+  }
+  .tour-head {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 0.9rem 1.1rem; background: #faf8f5;
+  }
+  .tour-head .driver { font-weight: 700; font-size: var(--fs-body); }
+  .tour-head .meta { font-size: var(--fs-small); color: var(--text-muted); }
+  .progress { flex: 1; min-width: 140px; height: 6px; border-radius: 4px; background: #e8e2d9; overflow: hidden; }
+  .progress .bar { height: 100%; border-radius: 4px; background: var(--success); }
+  .progress-label { font-size: var(--fs-small); font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+  .tour-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1.5rem; padding: 1rem 1.1rem; }
+  .delivery-row { display: flex; align-items: center; gap: 10px; padding: 0.4rem 0; border-bottom: 1px dashed var(--border); }
+  .delivery-row:last-child { border-bottom: none; }
+  .delivery-row .name { flex: 1; font-size: var(--fs-body); }
+  .delivery-row .qty { font-size: var(--fs-small); color: var(--text-muted); white-space: nowrap; }
+
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { padding: 1rem; }
+    .tour-body { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ============ Sidebar ============ -->
+  <aside class="sidebar">
+    <div class="logo"><span class="dot"></span> TraceO®</div>
+    <a class="side-item" href="#">Achats chantier <span class="badge-count">4</span></a>
+    <a class="side-item active" href="#">Suivi chantier</a>
+    <a class="side-item" href="#">Planifier une tournée</a>
+    <a class="side-item" href="#">Catalogue</a>
+    <a class="side-item" href="#">Équipe</a>
+    <a class="side-item" href="#">Tâches</a>
+    <a class="side-item" href="#">Livraisons</a>
+  </aside>
+
+  <!-- ============ Contenu ============ -->
+  <main class="main">
+
+    <h1 class="page-title">Achats chantier</h1>
+    <p class="page-sub">Validez et suivez les demandes d'achat transmises par les chantiers.</p>
+
+    <!-- Stat cards -->
+    <div class="stat-row">
+      <div class="stat-card"><div class="label">À traiter (SA)</div><div class="value" style="color:var(--danger)">3</div><div class="sub">dont 1 urgente</div></div>
+      <div class="stat-card"><div class="label">En cours avant BC</div><div class="value">6</div><div class="sub">CdG · DAF · PDG</div></div>
+      <div class="stat-card"><div class="label">BC émis</div><div class="value">12</div><div class="sub">ce mois-ci</div></div>
+      <div class="stat-card"><div class="label">Livraisons planifiées</div><div class="value">5</div><div class="sub">tournées liées</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab">Boîte EB <span class="tab-badge">4</span></button>
+      <button class="tab active">Demandes d'achat</button>
+    </div>
+
+    <!-- Toolbar : recherche + filtres -->
+    <div class="toolbar">
+      <div class="search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817-1.414 1.414-4.817-4.817A6 6 0 012 8z"/></svg>
+        <input type="search" placeholder="Rechercher : référence, chantier, fournisseur…">
+      </div>
+      <div class="chip-group">
+        <button class="chip active">Tous</button>
+        <button class="chip">À traiter</button>
+        <button class="chip">En cours</button>
+        <button class="chip">BC émis</button>
+        <button class="chip">Rejetées</button>
+      </div>
+    </div>
+<!-- Table des demandes -->
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Référence</th>
+            <th>Chantier</th>
+            <th>Statut</th>
+            <th style="text-align:right">Montant</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="ref">EB-2026-0142<small>soumise le 02/09</small></span></td>
+            <td><span class="site-name">Chantier Batic Licorne<small>Demandeur : K. Doumbia</small></span></td>
+            <td><span class="badge st-sa_review"><span class="dot"></span>En attente SA</span></td>
+            <td style="text-align:right"><span class="amount">2 450 000 FCFA<small>14 lignes · 3 fournisseurs</small></span></td>
+          </tr>
+          <tr>
+            <td><span class="ref">EB-2026-0141<small>soumise le 02/09</small></span></td>
+            <td><span class="site-name">Siège administratif<small>Demandeur : A. Traoré</small></span></td>
+            <td><span class="badge st-cdg_review"><span class="dot"></span>Validation CdG</span></td>
+            <td style="text-align:right"><span class="amount">860 000 FCFA<small>6 lignes · 1 fournisseur</small></span></td>
+          </tr>
+          <tr>
+            <td><span class="ref">EB-2026-0138<small>soumise le 01/09</small></span></td>
+            <td><span class="site-name">Chantier Bat Botic<small>Demandeur : S. Ouattara</small></span></td>
+            <td><span class="badge st-daf_review"><span class="dot"></span>Validé DAF</span></td>
+            <td style="text-align:right"><span class="amount">1 120 000 FCFA<small>9 lignes · 2 fournisseurs</small></span></td>
+          </tr>
+          <tr>
+            <td><span class="ref">EB-2026-0135<small>soumise le 30/08</small></span></td>
+            <td><span class="site-name">Chantier Résidence<small>Demandeur : F. Koné</small></span></td>
+            <td><span class="badge st-po_ready"><span class="dot"></span>BC émis</span></td>
+            <td style="text-align:right"><span class="amount">4 120 000 FCFA<small>22 lignes · 4 fournisseurs</small></span></td>
+          </tr>
+          <tr>
+            <td><span class="ref">EB-2026-0130<small>soumise le 28/08</small></span></td>
+            <td><span class="site-name">Résidence les Palmiers<small>Demandeur : M. Bamba</small></span></td>
+            <td><span class="badge st-delivery_scheduled"><span class="dot"></span>Livraison planifiée</span></td>
+            <td style="text-align:right"><span class="amount">1 275 000 FCFA<small>8 lignes · 2 fournisseurs</small></span></td>
+          </tr>
+          <tr>
+            <td><span class="ref">EB-2026-0127<small>soumise le 27/08</small></span></td>
+            <td><span class="site-name">Chantier Batic Licorne<small>Demandeur : J. Coré</small></span></td>
+            <td><span class="badge st-rejected"><span class="dot"></span>Rejetée</span></td>
+            <td style="text-align:right"><span class="amount">540 000 FCFA<small>Motif : budget dépassé</small></span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="table-footer">
+        <span>6 demandes · affiche 6</span>
+        <div class="pager"><button class="active">1</button><button>2</button><button>3</button></div>
+      </div>
+    </div>
+<!-- ============ Aperçu 2 : Suivi livraisons avec progression ============ -->
+    <h2 class="section-title">Aperçu — Suivi livraisons (avec progression)</h2>
+    <div class="tour-group">
+      <div class="tour-head">
+        <div>
+          <div class="driver">Mamadou SA</div>
+          <div class="meta">Dépôt Est · 3/4 livrés · planifiée le 02/09</div>
+        </div>
+        <div class="progress" style="flex:1"><div class="bar" style="width:75%"></div></div>
+        <span class="progress-label">3/4</span>
+        <button class="btn-primary">Modifier la tournée</button>
+      </div>
+      <div class="tour-body">
+        <div class="delivery-row"><span class="name">Chantier Batic Licorne</span><span class="qty">✔ Livré · 8 palettes</span></div>
+        <div class="delivery-row"><span class="name">Chantier Bat Botic</span><span class="qty">✔ Livré · 6 palettes</span></div>
+        <div class="delivery-row"><span class="name">Siège administratif</span><span class="qty">✔ Livré · 3 palettes</span></div>
+        <div class="delivery-row"><span class="name">Résidence les Palmiers</span><span class="qty">⏳ En cours · 2/4 palettes</span></div>
+      </div>
+    </div>
+    <div class="tour-group">
+      <div class="tour-head">
+        <div>
+          <div class="driver">Awa DAF</div>
+          <div class="meta">Dépôt Ouest · 0/2 livrés · planifiée le 03/09</div>
+        </div>
+        <div class="progress" style="flex:1"><div class="bar" style="width:0%"></div></div>
+        <span class="progress-label">0/2</span>
+        <button class="btn-primary">Modifier la tournée</button>
+      </div>
+      <div class="tour-body">
+        <div class="delivery-row"><span class="name">Logement sociaux Cocody</span><span class="qty">Planifiée · 12 palettes</span></div>
+        <div class="delivery-row"><span class="name">Marché de Yopougon</span><span class="qty">Planifiée · 5 palettes</span></div>
+      </div>
+    </div>
+
+    <p style="color:var(--text-faint);font-size:var(--fs-small);margin-top:2rem;">
+      Maquette statique — données fictives. Tokens, badges, table, progression et micro-interactions à transposer dans le code React.
+    </p>
+  </main>
+</div>
+
+</body>
+</html>

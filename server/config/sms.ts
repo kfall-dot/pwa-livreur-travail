@@ -16,7 +16,7 @@ export function getTwilioConfig() {
   return {
     sid: process.env.TWILIO_SID?.trim() || process.env.TWILIO_ACCOUNT_SID?.trim() || '',
     token: process.env.TWILIO_TOKEN?.trim() || process.env.TWILIO_AUTH_TOKEN?.trim() || '',
-    number: process.env.TWILIO_NUMBER?.trim() || process.env.TWILIO_FROM_NUMBER?.trim() || '',
+    number: process.env.TWILIO_NUMBER?.trim() || process.env.TWILIO_FROM_NUMBER?.trim() || process.env.TWILIO_PHONE_NUMBER?.trim() || '',
   }
 }
 
@@ -52,7 +52,7 @@ export function assertTwilioConfigured(): void {
   const missing: string[] = []
   if (!twilioCfg.sid) missing.push('TWILIO_SID (ou TWILIO_ACCOUNT_SID)')
   if (!twilioCfg.token) missing.push('TWILIO_TOKEN (ou TWILIO_AUTH_TOKEN)')
-  if (!twilioCfg.number) missing.push('TWILIO_NUMBER (ou TWILIO_FROM_NUMBER)')
+  if (!twilioCfg.number) missing.push('TWILIO_NUMBER (ou TWILIO_FROM_NUMBER ou TWILIO_PHONE_NUMBER)')
   if (missing.length) {
     throw new Error(`Configuration Twilio incomplète : ${missing.join(', ')}`)
   }
