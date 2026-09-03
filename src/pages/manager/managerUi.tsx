@@ -266,7 +266,16 @@ export function Toggle({ active, onChange }: { active: boolean; onChange: () => 
   )
 }
 
-export function StatCard({ label, value, testId }: { label: string; value: number; testId?: string }) {
+const TONE_COLORS: Record<string, string> = {
+  warn: '#d97706',
+  success: '#15803d',
+  info: '#1d4ed8',
+  brand: '#0b4a2c',
+  danger: '#dc2626',
+}
+
+export function StatCard({ label, value, testId, tone }: { label: string; value: number; testId?: string; tone?: string }) {
+  const valueColor = tone ? TONE_COLORS[tone] ?? 'var(--text)' : 'var(--text)'
   return (
     <div
       data-testid={testId}
@@ -280,7 +289,7 @@ export function StatCard({ label, value, testId }: { label: string; value: numbe
       }}
     >
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text)' }}>{value}</div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: valueColor }}>{value}</div>
     </div>
   )
 }

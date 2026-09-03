@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { toast } from '../../../lib/toast'
 import { defaultReplanDate } from '../../../lib/dates'
@@ -275,6 +275,28 @@ export function AchatsTab({
       : procurementRole === 'controle_gestion' && cdgFocus === 'pipeline'
         ? pipeline
         : requests
+
+  // Filtrage recherche + statut
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'pre_bc' | 'validated' | 'po_ready' | 'delivery_scheduled' | 'rejected'>('all')
+
+  const filteredRequests = useMemo(() => {
+    let result = visibleRequests
+    if (activeFilter === 'pre_bc') result = result.filter((r) => PRE_BC_STATUSES.has(r.status))
+    else if (activeFilter === 'validated') result = result.filter((r) => r.status === 'bt_pending')
+    else if (activeFilter === 'po_ready') result = result.filter((r) => r.status === 'po_ready')
+    else if (activeFilter === 'delivery_scheduled') result = result.filter((r) => r.status === 'delivery_scheduled')
+    else if (activeFilter === 'rejected') result = result.filter((r) => r.status === 'rejected')
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter((r) =>
+        (r.reference ?? '').toLowerCase().includes(q)
+        || (r.siteName ?? '').toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [visibleRequests, activeFilter, searchQuery])
 
   useEffect(() => {
     if (procurementRole && procurementRole !== 'technical_director') {
@@ -1095,6 +1117,82 @@ export function AchatsTab({
                   : 'Aucune demande d\'achat pour le moment.'}
             </EmptyHint>
           )}
+          {!loading && view === 'requests' && filteredRequests.length === 0 && (
+            <EmptyHint>
+              {searchQuery || activeFilter !== 'all'
+                ? 'Aucune demande ne correspond à votre recherche.'
+                : cdgFocus === 'validate'
+                  ? 'Aucune EB en validation CdG.'
+                  : cdgFocus === 'pipeline'
+                    ? 'Aucune EB en cours avant BC.'
+                    : 'Aucune demande d\'achat pour le moment.'}
+            </EmptyHint>
+          )}
+          {!loading && view === 'requests' && requests.length > 0 && (
+            <>
+              {/* ---- Cartes KPI ---- */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
+                <StatCard label="En attente" value={requests.filter((r) => PRE_BC_STATUSES.has(r.status)).length} tone="warn" />
+                <StatCard label="Validées" value={requests.filter((r) => r.status === 'bt_pending').length} tone="success" />
+                <StatCard label="BC émis" value={requests.filter((r) => r.status === 'po_ready').length} tone="info" />
+                <StatCard label="Livraison planifiée" value={requests.filter((r) => r.status === 'delivery_scheduled').length} tone="brand" />
+                <StatCard label="Rejetées" value={requests.filter((r) => r.status === 'rejected').length} tone="danger" />
+              </div>
+            </>
+          )}
+          {!loading && view === 'requests' && filteredRequests.length > 0 && (
+            <>
+              {/* ---- Barre d'outils : recherche + filtres ---- */}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 220, position: 'relative' }}>
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Recherche par référence, chantier…"
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 38px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      fontSize: 13,
+                      background: 'var(--bg-elevated)',
+                      color: 'var(--text)',
+                      outline: 'none',
+                      transition: 'border-color .15s',
+                    }}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--action)')}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                  />
+                  <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)', pointerEvents: 'none' }}>🔍</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {(['all', 'pre_bc', 'validated', 'po_ready', 'delivery_scheduled', 'rejected'] as const).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setActiveFilter(f)}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 20,
+                        border: '1px solid',
+                        borderColor: activeFilter === f ? 'var(--action)' : 'var(--border)',
+                        background: activeFilter === f ? 'var(--action)' : 'var(--bg-elevated)',
+                        color: activeFilter === f ? '#fff' : 'var(--text)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all .15s',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {f === 'all' ? 'Toutes' : f === 'pre_bc' ? 'En attente' : f === 'validated' ? 'Validées' : f === 'po_ready' ? 'BC émis' : f === 'delivery_scheduled' ? 'Livraison planifiée' : 'Rejetées'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
           {!loading && view === 'inbox' && drafts.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {drafts.map((d) => (
@@ -1149,7 +1247,7 @@ export function AchatsTab({
               ))}
             </div>
           )}
-          {!loading && view === 'requests' && visibleRequests.length > 0 && (
+          {!loading && view === 'requests' && filteredRequests.length > 0 && (
             <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
@@ -1161,7 +1259,7 @@ export function AchatsTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRequests.map((r, idx) => (
+                  {filteredRequests.map((r, idx) => (
                     <tr
                       key={r.id}
                       data-testid={`mgr-achats-request-${r.id}`}
@@ -1190,6 +1288,10 @@ export function AchatsTab({
                   ))}
                 </tbody>
               </table>
+              <div style={{ padding: '10px 12px', background: 'var(--bg)', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>{filteredRequests.length} demande{filteredRequests.length > 1 ? 's' : ''} affichée{filteredRequests.length > 1 ? 's' : ''}</span>
+                <span>{visibleRequests.length} au total</span>
+              </div>
             </div>
           )}
         </>
