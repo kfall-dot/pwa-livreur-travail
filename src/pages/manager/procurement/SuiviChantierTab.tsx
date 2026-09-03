@@ -366,6 +366,7 @@ export function SuiviChantierTab({
   const [indicatorsBySite, setIndicatorsBySite] = useState<Record<string, SiteIndicators>>({})
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
   const [openIndicator, setOpenIndicator] = useState<{ siteId: string; id: CdgIndicatorId } | null>(null)
+  const [openSynthese, setOpenSynthese] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   /**
@@ -530,9 +531,10 @@ export function SuiviChantierTab({
   }
 
   useEffect(() => {
-    if (!selectedSiteId) return
+    const siteId = selectedSiteId ?? openSynthese
+    if (!siteId) return
     let cancelled = false
-    void fetchSiteIndicators(selectedSiteId)
+    void fetchSiteIndicators(siteId)
       .then((snap) => {
         if (cancelled || !snap) return
         setIndicatorsBySite((prev) => ({ ...prev, [snap.siteId]: snap }))
@@ -541,7 +543,7 @@ export function SuiviChantierTab({
     return () => {
       cancelled = true
     }
-  }, [selectedSiteId])
+  }, [selectedSiteId, openSynthese])
 
   const selectedBudget = budgets.find((b) => b.siteId === selectedSiteId) ?? null
   const openSnapshot = openIndicator ? indicatorsBySite[openIndicator.siteId] : null
@@ -553,6 +555,34 @@ export function SuiviChantierTab({
           indicator={openIndicator.id}
           onBack={() => setOpenIndicator(null)}
         />
+      </div>
+    )
+  }
+  // Synthèse complète d'un chantier (bouton « Détails » du tableau de bord CdG) — réutilise la vue existante.
+  const syntheseSnapshot = openSynthese ? (indicatorsBySite[openSynthese] ?? null) : null
+  if (openSynthese && syntheseSnapshot) {
+    const syntheseBudget = budgets.find((b) => b.siteId === openSynthese) ?? null
+    return (
+      <div data-testid="mgr-suivi-chantier">
+        <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-cdg-synthese-page">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0 }}>
+              📊 Synthèse — {syntheseBudget?.siteName ?? syntheseSnapshot.siteName}
+            </h3>
+            <button
+              type="button"
+              style={css.btnOutline}
+              data-testid="mgr-cdg-synthese-back"
+              onClick={() => setOpenSynthese(null)}
+            >
+              ← Retour au suivi
+            </button>
+          </div>
+          <CdgSyntheseTable
+            snapshot={syntheseSnapshot}
+            onOpen={(id) => setOpenIndicator({ siteId: openSynthese, id })}
+          />
+        </div>
       </div>
     )
   }
@@ -666,8 +696,12 @@ export function SuiviChantierTab({
           budgets={budgets}
           indicators={selectedSiteId ? (indicatorsBySite[selectedSiteId] ?? null) : null}
           selectedSiteId={selectedSiteId}
-          onOpenIndicator={(id) => {
-            if (selectedSiteId) setOpenIndicator({ siteId: selectedSiteId, id })
+          onOpenDetails={() => {
+            const siteId =
+              selectedSiteId ?? budgets.find((b) => b.engagedFcfa > 0)?.siteId ?? budgets[0]?.siteId ?? null
+            if (!siteId) return
+            setSelectedSiteId(siteId)
+            setOpenSynthese(siteId)
           }}
         />
       )}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ebSpendCategoryLabel } from '../../../../shared/ebSpendCategory'
 import { css, formatFcfa, formatPct } from './procurementUi'
-import type { CdgIndicatorId, SiteBudget, SiteIndicators } from './procurementTypes'
+import type { SiteBudget, SiteIndicators } from './procurementTypes'
 
 /** Émoji par poste matériaux (tableau Koestrem 5.1) — tooltip = libellé au survol. */
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -84,12 +84,12 @@ export function CdgOverviewHeader({
   budgets,
   indicators,
   selectedSiteId,
-  onOpenIndicator,
+  onOpenDetails,
 }: {
   budgets: SiteBudget[]
   indicators: SiteIndicators | null
   selectedSiteId: string | null
-  onOpenIndicator: (id: CdgIndicatorId) => void
+  onOpenDetails: () => void
 }) {
   const agg = useCdgAggregates(budgets)
   const [activityFilter, setActivityFilter] = useState<'all' | 'alerts' | 'amendments'>('all')
@@ -206,8 +206,8 @@ export function CdgOverviewHeader({
               type="button"
               style={css.btnOutline}
               data-testid="mgr-cdg-focus-open"
-              onClick={() => onOpenIndicator('budget')}
-              title="Ouvre le journal quotidien CdG : budget, réalisé, écart, matériaux, top 3"
+              onClick={onOpenDetails}
+              title="Ouvre la synthèse complète du chantier : 5 indicateurs Koestrem, journal quotidien, top 3 matériaux"
             >
               📊 Détails
             </button>
