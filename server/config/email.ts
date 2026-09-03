@@ -2,7 +2,7 @@ export type EmailProvider = 'mock' | 'smtp'
 
 export const emailConfig = {
   provider: (process.env.EMAIL_PROVIDER ?? 'mock') as EmailProvider,
-  from: process.env.EMAIL_FROM ?? 'livraisons@ferme-dupont.fr',
+  from: process.env.EMAIL_FROM ?? 'support@btp-pilote.ci',
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: parseInt(process.env.SMTP_PORT ?? '587', 10),
