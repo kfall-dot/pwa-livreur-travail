@@ -65,6 +65,23 @@ import { saFinanceIncompleteMessage } from '../../../../shared/saFinanceGate'
 
 type AchatsView = 'inbox' | 'requests'
 
+const thStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  textAlign: 'left',
+  fontSize: 11,
+  fontWeight: 700,
+  color: 'var(--text-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  borderBottom: '2px solid var(--border-strong)',
+}
+
+const tdStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  borderBottom: '1px solid var(--border)',
+  verticalAlign: 'middle',
+}
+
 const PRE_BC_STATUSES = new Set([
   'submitted',
   'cdg_review',
@@ -1133,26 +1150,46 @@ export function AchatsTab({
             </div>
           )}
           {!loading && view === 'requests' && visibleRequests.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {visibleRequests.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  data-testid={`mgr-achats-request-${r.id}`}
-                  onClick={() => setSelectedRequestId(r.id)}
-                  style={{ ...css.cardClickable, textAlign: 'left', width: '100%' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: 700, marginBottom: 4 }}>{r.reference}</div>
-                      <div style={css.meta}>
-                        {r.siteName ?? 'Chantier'} · {formatFcfa(r.totalAmountFcfa)}
-                      </div>
-                    </div>
-                    <ProcurementStatusBadge status={r.status} />
-                  </div>
-                </button>
-              ))}
+            <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg)' }}>
+                    <th style={thStyle}>Référence</th>
+                    <th style={thStyle}>Chantier</th>
+                    <th style={thStyle}>Statut</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRequests.map((r, idx) => (
+                    <tr
+                      key={r.id}
+                      data-testid={`mgr-achats-request-${r.id}`}
+                      onClick={() => setSelectedRequestId(r.id)}
+                      style={{
+                        cursor: 'pointer',
+                        background: idx % 2 === 0 ? 'var(--bg-elevated)' : '#faf9f7',
+                        transition: 'background .15s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--brand-light)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? 'var(--bg-elevated)' : '#faf9f7')}
+                    >
+                      <td style={tdStyle}>
+                        <span style={{ fontWeight: 700 }}>{r.reference}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ color: 'var(--text)' }}>{r.siteName ?? 'Chantier'}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <ProcurementStatusBadge status={r.status} />
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
+                        {formatFcfa(r.totalAmountFcfa)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </>
