@@ -112,9 +112,9 @@ export async function managerApiLogin(request: APIRequestContext): Promise<void>
   throw new Error('Connexion manager impossible (e-mail démo et pilote refusés)')
 }
 
-/** Compte SA (Service Achats) créé par seedBtpPilot — peut modifier les tournées. */
+/** Compte SA (Service Achats) du seed démo (co-demo) — peut modifier les tournées. */
 export const DEMO_SA_MANAGER = {
-  email: 'sa@btp-pilote.ci',
+  email: 'sa@demo.fr',
   password: 'admin1234',
 } as const
 
@@ -138,7 +138,9 @@ export async function loginManagerWithEmail(page: Page, candidates: string[]): P
     await page.getByTestId('mgr-login-password').fill(DEMO_MANAGER.password)
     await page.getByTestId('mgr-login-submit').click()
     try {
-      await page.waitForURL('/manager', { timeout: isLast ? UI_READY_TIMEOUT : 8_000 })
+      // La page de login peut rediriger vers /manager?tab=achats selon le rôle
+      // (deep-link onglet Achats pour les rôles procurement) → match par regex.
+      await page.waitForURL(/\/manager/, { timeout: isLast ? UI_READY_TIMEOUT : 8_000 })
       return
     } catch (err) {
       if (isLast) throw err

@@ -26,6 +26,8 @@ function yesterdayIso(): string {
  */
 export const DEMO = {
   MANAGER_ID: 'mgr-demo-1',
+  SA_MANAGER_ID: 'mgr-demo-sa',
+  SA_MANAGER_EMAIL: 'sa@demo.fr',
   MANAGER_EMAIL: 'manager@demo.fr',
   DRIVER_ID: 'drv-demo-1',
   DRIVER_PHONE: '+2250701234567',
@@ -367,6 +369,31 @@ export async function seedDemoData(): Promise<{ driverId: string; tourId: string
     .onConflictDoUpdate({
       target: managers.id,
       set: managerConflictSet,
+    })
+
+  // SA démo (Service Achats) dans la compagnie démo — les tests e2e
+  // « modification réservée au SA » exigent un gestionnaire `purchasing`
+  // voyant les tournées démo (isolation par compagnie).
+  await db
+    .insert(managers)
+    .values({
+      id: DEMO.SA_MANAGER_ID,
+      companyId: DEMO_COMPANY_ID,
+      email: DEMO.SA_MANAGER_EMAIL,
+      passwordHash: managerPasswordHash,
+      name: 'SA Démo',
+      role: 'manager',
+      procurementRole: 'purchasing',
+    })
+    .onConflictDoUpdate({
+      target: managers.id,
+      set: {
+        passwordHash: managerPasswordHash,
+        name: 'SA Démo',
+        companyId: DEMO_COMPANY_ID,
+        role: 'manager' as const,
+        procurementRole: 'purchasing' as const,
+      },
     })
 
   await db

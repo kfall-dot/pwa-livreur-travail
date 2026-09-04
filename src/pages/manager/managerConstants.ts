@@ -1,3 +1,5 @@
+import { appTodayString } from '../../lib/appDate'
+
 export const UNIT_TYPES = [
   { value: 'palette', label: 'Palette' },
   { value: 'kg',      label: 'Kg' },
@@ -61,5 +63,7 @@ export function tourLifecycleLabel(delivered: number, total: number): string {
 }
 
 export function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  // Fuseau métier (Africa/Abidjan) — aligné sur le serveur (server/utils/dates.ts)
+  // pour que le dashboard demande bien la date des tournées créées par le seed.
+  return appTodayString()
 }

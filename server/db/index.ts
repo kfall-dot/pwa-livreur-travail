@@ -48,6 +48,7 @@ function createDb() {
   const netlifyUrl = process.env.NETLIFY_DB_URL?.trim()
   if (netlifyUrl && isRemoteNeonUrl(netlifyUrl)) {
     const pool = new Pool({ connectionString: netlifyUrl, ...poolOptions })
+    guardPoolAgainstNeonIdleErrors(pool)
     return drizzle({ client: pool, schema } as unknown as DrizzleConfigArg)
   }
 
@@ -55,6 +56,7 @@ function createDb() {
   const e2eUrl = process.env.E2E_DATABASE_URL?.trim()
   if (e2eUrl && isRemoteNeonUrl(e2eUrl)) {
     const pool = new Pool({ connectionString: e2eUrl, ...poolOptions })
+    guardPoolAgainstNeonIdleErrors(pool)
     return drizzle({ client: pool, schema } as unknown as DrizzleConfigArg)
   }
 
@@ -78,5 +80,35 @@ export const db = new Proxy({} as ReturnType<typeof createDb>, {
 })
 
 let cachedDb: ReturnType<typeof createDb> | undefined
+
+/**
+ * Les WebSockets du driver Neon en idle peuvent émettre un événement 'error'
+ * sans listener (déconnexion réseau transitoire) → `Unhandled error` → crash
+ * du process. On logue et on laisse le pool recycler la connexion au lieu de
+ * tuer le serveur (constaté en e2e comme en prod Railway).
+ */
+function guardPoolAgainstNeonIdleErrors(pool: Pool): void {
+  pool.on('error', (err: Error) => {
+    console.error('[db] erreur pool Neon (non fatale):', err instanceof Error ? err.message : err)
+  })
+  pool.on('connect', (client: { on: (event: string, cb: (err: Error) => void) => void }) => {
+    client.on('error', (err: Error) => {
+      console.error('[db] erreur client Neon (non fatale):', err instanceof Error ? err.message : err)
+    })
+  })
+}
+
+process.on('uncaughtException', (err) => {
+  const fromNeon =
+    err.stack?.includes('@neondatabase/serverless') ||
+    err.message?.includes('WebSocket') ||
+    err.message === 'Unhandled error. ()'
+  if (fromNeon) {
+    console.error('[db] erreur WebSocket Neon ignorée (process maintenu):', err.message)
+    return
+  }
+  console.error('[server] uncaughtException fatale:', err)
+  process.exit(1)
+})
 
 export * from './schema.js'

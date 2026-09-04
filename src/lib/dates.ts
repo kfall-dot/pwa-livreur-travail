@@ -1,10 +1,9 @@
-/** Date locale au format AAAA-MM-JJ (alignée sur le calendrier UI). */
+import { appTodayString } from './appDate'
+
+/** Date du jour au format AAAA-MM-JJ dans le fuseau métier (Africa/Abidjan),
+ * alignée sur le seed et les rapports serveur — pas sur le fuseau du navigateur. */
 export function todayIso(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return appTodayString()
 }
 
 /** Date proposée à la replanification : jour source si futur/aujourd'hui, sinon aujourd'hui. */

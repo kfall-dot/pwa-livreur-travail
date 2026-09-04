@@ -44,7 +44,8 @@ test.describe('Manager invite & roles', () => {
     await page.getByTestId('mgr-invite-password').fill('secret1234')
     await page.getByTestId('mgr-invite-confirm').fill('secret1234')
     await page.getByTestId('mgr-invite-submit').click()
-    await page.waitForURL('/manager', { timeout: UI_READY_TIMEOUT })
+    // Redirection possible vers /manager?tab=achats selon le rôle invité
+    await page.waitForURL(/\/manager/, { timeout: UI_READY_TIMEOUT })
 
     await page.getByTestId('mgr-tab-livreurs').click()
     await expect(page.getByTestId('mgr-tab-gestionnaires')).toHaveCount(0)
@@ -67,6 +68,6 @@ test.describe('Manager invite & roles', () => {
     await page.getByTestId('mgr-login-email').fill(DEMO_MANAGER.email)
     await page.getByTestId('mgr-login-password').fill('newpass1234')
     await page.getByTestId('mgr-login-submit').click()
-    await page.waitForURL('/manager', { timeout: UI_READY_TIMEOUT })
+    await page.waitForURL(/\/manager/, { timeout: UI_READY_TIMEOUT })
   })
 })

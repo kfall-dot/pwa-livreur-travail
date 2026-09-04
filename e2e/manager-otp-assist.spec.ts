@@ -3,8 +3,10 @@ import {
   resetAndSeed,
   prepareDriverLogin,
   loginDriver,
+  loginManagerWithEmail,
   loginManager,
   bringDeliveryDel1ToOtpSent,
+  DEMO_SA_MANAGER,
   DEMO_DRIVER,
 } from './helpers'
 
@@ -18,7 +20,10 @@ test.describe('Assistance OTP manager', () => {
 
   test('renvoi OTP affiche le code pour relai vocal', async ({ page }) => {
     await page.context().clearCookies()
-    await loginManager(page)
+    // Seule la SA (purchasing) peut agir sur les livraisons (canModify).
+    // Le SA atterrit sur l'onglet Achats → basculer sur Suivi livraisons.
+    await loginManagerWithEmail(page, [DEMO_SA_MANAGER.email])
+    await page.getByTestId('mgr-tab-suivi').click()
     await page.getByText('Carrefour City République').click()
     await expect(page.getByTestId('otp-assist-panel')).toBeVisible()
     await page.getByTestId('mgr-resend-otp').click()
@@ -27,7 +32,10 @@ test.describe('Assistance OTP manager', () => {
 
   test('validation manuelle sans OTP finalise la livraison', async ({ page }) => {
     await page.context().clearCookies()
-    await loginManager(page)
+    // Seule la SA (purchasing) peut valider manuellement une livraison.
+    // Le SA atterrit sur l'onglet Achats → basculer sur Suivi livraisons.
+    await loginManagerWithEmail(page, [DEMO_SA_MANAGER.email])
+    await page.getByTestId('mgr-tab-suivi').click()
     await page.getByText('Carrefour City République').click()
     await expect(page.getByTestId('otp-assist-panel')).toBeVisible()
 
