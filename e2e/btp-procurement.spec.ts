@@ -1566,6 +1566,9 @@ test.describe('Achats chantier BTP (procurement)', () => {
 
     await loginBtpManager(page, 'cdg')
     await page.getByTestId('mgr-tab-suivi-chantier').click()
+    // La synthèse (et enveloppe / ventilation / historique / photos) est désormais
+    // dans la page « détails » du chantier — on l'ouvre depuis le board.
+    await page.getByTestId(`mgr-cdg-row-details-${BTP_PILOT.SITE_ID}`).click()
     await expect(page.getByTestId('mgr-cdg-synthese')).toBeVisible({ timeout: UI_READY_TIMEOUT })
     await page.getByTestId('mgr-cdg-synthese-realized').click()
     await expect(page.getByTestId('mgr-cdg-indicator-page')).toBeVisible()

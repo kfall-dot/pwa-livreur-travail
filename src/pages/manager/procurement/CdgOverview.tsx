@@ -79,6 +79,52 @@ function useCdgAggregates(budgets: SiteBudget[]) {
   }, [budgets])
 }
 
+/** Ventilation par catégorie (top postes matériaux, tableau 5.1) — affichée dans la page détails d'un chantier. */
+export function CdgCategoriesCard({ indicators }: { indicators: SiteIndicators | null }) {
+  const byCategory = useMemo(() => {
+    if (!indicators) return []
+    return [...indicators.byCategory]
+      .sort((a, b) => b.amountFcfa - a.amountFcfa)
+      .slice(0, 6)
+  }, [indicators])
+  const maxCategory = byCategory[0]?.amountFcfa ?? 0
+  return (
+    <div style={css.card} data-testid="mgr-cdg-categories">
+      <h4 style={{ margin: '0 0 10px', fontSize: 13 }}>
+        Ventilation par catégorie{indicators ? '' : ' — indisponible (choisissez un chantier)'}
+      </h4>
+      {byCategory.length === 0 ? (
+        <p style={{ ...css.meta, margin: 0 }}>Aucune donnée de catégorie pour le chantier sélectionné.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {byCategory.map((c) => (
+            <div key={c.category}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <span title={catLabel(c.category)} style={{ cursor: 'help' }}>
+                  {catEmoji(c.category)} {catLabel(c.category)}
+                </span>
+                <span style={{ fontWeight: 600 }}>
+                  {formatFcfa(c.amountFcfa)} · {formatPct(c.shareOfBudgetPct)}
+                </span>
+              </div>
+              <div style={{ height: 8, background: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: maxCategory > 0 ? `${Math.max(3, Math.round((c.amountFcfa / maxCategory) * 100))}%` : '0%',
+                    background: '#1e3a5f',
+                    borderRadius: 4,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** En-tête de tableau de bord CdG — cartes KPI + focus chantier + ventilation + activité. */
 export function CdgOverviewHeader({
   budgets,
@@ -94,14 +140,6 @@ export function CdgOverviewHeader({
   const agg = useCdgAggregates(budgets)
   const [activityFilter, setActivityFilter] = useState<'all' | 'alerts' | 'amendments'>('all')
   const budget = budgets.find((b) => b.siteId === selectedSiteId) ?? null
-// ── Ventilation par catégorie (chantier sélectionné) ──
-  const byCategory = useMemo(() => {
-    if (!indicators) return []
-    return [...indicators.byCategory]
-      .sort((a, b) => b.amountFcfa - a.amountFcfa)
-      .slice(0, 6)
-  }, [indicators])
-  const maxCategory = byCategory[0]?.amountFcfa ?? 0
 
   // ── Activité récente (dérivée de données réelles : alertes + avenants) ──
   const activity = useMemo(() => {
@@ -254,42 +292,9 @@ export function CdgOverviewHeader({
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12, marginTop: 12 }} data-testid="mgr-cdg-overview-bottom">
-        {/* Ventilation par catégorie — principales seulement */}
-        <div style={css.card} data-testid="mgr-cdg-categories">
-          <h4 style={{ margin: '0 0 10px', fontSize: 13 }}>
-            Ventilation par catégorie{indicators ? '' : ' — indisponible (choisissez un chantier)'}
-          </h4>
-          {byCategory.length === 0 ? (
-            <p style={{ ...css.meta, margin: 0 }}>Aucune donnée de catégorie pour le chantier sélectionné.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {byCategory.map((c) => (
-                <div key={c.category}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                    <span title={catLabel(c.category)} style={{ cursor: 'help' }}>
-                      {catEmoji(c.category)} {catLabel(c.category)}
-                    </span>
-                    <span style={{ fontWeight: 600 }}>
-                      {formatFcfa(c.amountFcfa)} · {formatPct(c.shareOfBudgetPct)}
-                    </span>
-                  </div>
-                  <div style={{ height: 8, background: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        height: '100%',
-                        width: maxCategory > 0 ? `${Math.max(3, Math.round((c.amountFcfa / maxCategory) * 100))}%` : '0%',
-                        background: '#1e3a5f',
-                        borderRadius: 4,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-{/* Activité récente — filtrable par type */}
+      {/* Activité récente — filtrable par type (la ventilation par catégorie
+          est désormais affichée dans la page détails du chantier). */}
+      <div style={{ marginTop: 12 }} data-testid="mgr-cdg-overview-bottom">
         <div style={css.card} data-testid="mgr-cdg-activity">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <h4 style={{ margin: 0, fontSize: 13 }}>Activité récente</h4>

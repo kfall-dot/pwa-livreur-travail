@@ -16,7 +16,7 @@ import {
 import type { BudgetTrafficLight, SuiviChantierBlock } from './procurementUi'
 import type { CdgIndicatorId, ProcurementRole, SiteBudget, SiteIndicators } from './procurementTypes'
 import { CdgIndicateurPage, CdgSyntheseTable } from './CdgIndicateurs'
-import { CdgOverviewHeader } from './CdgOverview'
+import { CdgCategoriesCard, CdgOverviewHeader } from './CdgOverview'
 import { EB_SPEND_CATEGORIES } from '../../../../shared/ebSpendCategory'
 
 const CDG_TAB_LABELS: Record<CdgTab, string> = {
@@ -541,16 +541,17 @@ export function SuiviChantierTab({
     }
   }, [histMonth, procurementRole, handleAuth])
 
-  // Photos récentes du chantier sélectionné — un 403 n'entraîne pas de déconnexion.
+  // Photos récentes du chantier ouvert dans la page détails — un 403 n'entraîne pas de déconnexion.
   useEffect(() => {
-    if (!selectedSiteId || !canSee('photos')) return
+    const siteId = openSynthese
+    if (!siteId || !canSee('photos')) return
     // CDC : ne jamais interroger un chantier hors de sa responsabilité.
-    if (isChef && chantierSites.length > 0 && !chantierSites.some((s) => s.id === selectedSiteId)) {
+    if (isChef && chantierSites.length > 0 && !chantierSites.some((s) => s.id === siteId)) {
       return
     }
     let cancelled = false
     void (async () => {
-      const res = await authFetch(`/daily-reports/site-photos?siteId=${encodeURIComponent(selectedSiteId)}`)
+      const res = await authFetch(`/daily-reports/site-photos?siteId=${encodeURIComponent(siteId)}`)
       if (res.status === 401 && handleAuth(res.status)) return
       if (!res.ok) {
         if (!cancelled) setSitePhotos([])
@@ -562,7 +563,7 @@ export function SuiviChantierTab({
     return () => {
       cancelled = true
     }
-  }, [selectedSiteId, procurementRole, handleAuth])
+  }, [openSynthese, procurementRole, handleAuth])
 
   // Sélection automatique du premier chantier de la liste (pour tous les rôles).
   useEffect(() => {
@@ -606,11 +607,16 @@ export function SuiviChantierTab({
       </div>
     )
   }
-  // Synthèse complète d'un chantier (bouton « Détails » du tableau de bord CdG) — réutilise la vue existante.
+  // Page « détails » d'un chantier (clic sur une ligne du board ou bouton « Détails » CdG) :
+  // regroupe synthèse des indicateurs, ventilation par catégorie, enveloppe, historique
+  // des rapports et photos — la page Suivi reste un tableau de bord multi-chantiers.
   const syntheseSnapshot = openSynthese ? (indicatorsBySite[openSynthese] ?? null) : null
   if (openSynthese) {
     const syntheseBudget = budgets.find((b) => b.siteId === openSynthese) ?? null
-    if (!syntheseSnapshot) {
+    const showEnveloppeDetail = showEnveloppe || showIndicateurs || procurementRole === 'technical_director'
+    // La synthèse/ventilation n'existe que pour les rôles avec accès aux indicateurs ;
+    // pour les autres (DT, CDC…) on entre directement dans la page détails.
+    if (showIndicateurs && !syntheseSnapshot) {
       return (
         <div data-testid="mgr-suivi-chantier">
           <div style={css.card}>
@@ -622,12 +628,62 @@ export function SuiviChantierTab({
         </div>
       )
     }
+    // Détail d'un rapport journalier — au-dessus de la page détails pour que le
+    // bouton « Voir » de l'historique (désormais dans les détails) fonctionne.
+    if (openReport) {
+      return (
+        <div data-testid="mgr-suivi-chantier">
+          <div style={css.card} data-testid="mgr-suivi-report-detail">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>
+                📄 Rapport du {new Date(openReport.report.reportDate).toLocaleDateString('fr-FR')} —{' '}
+                {openReport.report.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'}
+              </h3>
+              <button type="button" onClick={() => setOpenReport(null)} style={css.btnOutline}>
+                ← Retour
+              </button>
+            </div>
+            {openReport.report.globalProgressPct != null && (
+              <p style={css.meta}>📈 Avancement : {Number(openReport.report.globalProgressPct)}%</p>
+            )}
+            {openReport.report.comment && <p style={css.meta}>💬 {openReport.report.comment}</p>}
+            <h4>📋 Tâches</h4>
+            {openReport.tasks.length === 0 ? (
+              <p style={css.meta}>Aucune tâche.</p>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0 }}>
+                {openReport.tasks.map((t) => (
+                  <li key={t.id} style={{ padding: '0.3rem 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                    {t.done ? '✅' : '⬜'} {t.label}
+                    {t.usages.map((u) => (
+                      <div key={u.id} style={{ fontSize: 12, color: 'var(--muted, #667)' }}>
+                        🔩 {formatQuantityWithUnit(u.quantity, u.unit)} — {u.productLabel}
+                      </div>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <h4>📷 Photos</h4>
+            {(openReport.photos ?? []).length === 0 ? (
+              <p style={{ ...css.meta, marginBottom: 0 }}>Aucune photo.</p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {(openReport.photos ?? []).map((p) => (
+                  <img key={p.id} src={p.url} alt="Photo chantier" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
     return (
       <div data-testid="mgr-suivi-chantier">
         <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-cdg-synthese-page">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <h3 style={{ margin: 0 }}>
-              📊 Synthèse — {syntheseBudget?.siteName ?? syntheseSnapshot.siteName}
+              📊 Synthèse — {syntheseBudget?.siteName ?? syntheseSnapshot?.siteName ?? ''}
             </h3>
             <button
               type="button"
@@ -638,11 +694,91 @@ export function SuiviChantierTab({
               ← Retour au suivi
             </button>
           </div>
-          <CdgSyntheseTable
-            snapshot={syntheseSnapshot}
-            onOpen={(id) => setOpenIndicator({ siteId: openSynthese, id })}
-          />
+          {syntheseSnapshot && (
+            <CdgSyntheseTable
+              snapshot={syntheseSnapshot}
+              onOpen={(id) => setOpenIndicator({ siteId: openSynthese, id })}
+            />
+          )}
         </div>
+        {syntheseBudget && showEnveloppeDetail && (
+          <EnvelopeBanner
+            key={syntheseBudget.siteId}
+            budget={syntheseBudget}
+            // La synthèse CdG est déjà affichée ci-dessus → on ne la repasse pas au bandeau.
+            indicators={null}
+            role={procurementRole}
+            onChanged={() => void load()}
+            onOpenIndicator={(id) => setOpenIndicator({ siteId: openSynthese, id })}
+          />
+        )}
+        {showIndicateurs && <CdgCategoriesCard indicators={syntheseSnapshot} />}
+        {canSee('historique') && (
+          <div style={css.card} data-testid="mgr-suivi-historique">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h4 style={{ margin: 0 }}>
+                📅 Historique des rapports{syntheseBudget ? ` — ${syntheseBudget.siteName}` : ''}
+              </h4>
+              <input
+                type="month"
+                value={histMonth}
+                onChange={(e) => setHistMonth(e.target.value)}
+                data-testid="mgr-suivi-hist-month"
+                style={{ padding: '0.3rem' }}
+              />
+            </div>
+            {histReports.length === 0 ? (
+              <p style={{ ...css.meta, marginBottom: 0 }}>Aucun rapport ce mois.</p>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
+                {histReports
+                  .filter((r) => r.siteId === openSynthese)
+                  .map((r) => (
+                    <li
+                      key={r.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.35rem 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}
+                    >
+                      <span style={{ minWidth: 92 }}>{new Date(r.reportDate).toLocaleDateString('fr-FR')}</span>
+                      <span style={{ flex: 1 }}>
+                        {r.siteName} · {r.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'}
+                        {r.progressPct != null && ` · 📈 ${r.progressPct}%`}
+                        {` · 📋 ${r.tasksDone}/${r.tasksTotal} tâches`}
+                        {` · 🔩 ${r.usagesCount} consommation(s)`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void openReportById(r.id)}
+                        style={{ padding: '0.15rem 0.6rem' }}
+                        data-testid={`mgr-suivi-hist-open-${r.id}`}
+                      >
+                        Voir
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
+        )}
+        {canSee('photos') && (
+          <div style={css.card} data-testid="mgr-suivi-photos">
+            <h4 style={{ marginTop: 0 }}>📷 Photos — {syntheseBudget?.siteName ?? openSynthese}</h4>
+            {sitePhotos.length === 0 ? (
+              <p style={{ ...css.meta, marginBottom: 0 }}>Aucune photo pour ce chantier.</p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {sitePhotos.map((p) => (
+                  <img
+                    key={p.photoId}
+                    src={`/api/v1/daily-reports/photos/${encodeURIComponent(p.photoId)}`}
+                    alt={`Photo chantier ${p.reportDate}`}
+                    title={new Date(p.reportDate).toLocaleDateString('fr-FR')}
+                    style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -891,7 +1027,11 @@ export function SuiviChantierTab({
                     <tr
                       key={b.siteId}
                       data-testid={`mgr-suivi-board-row-${b.siteId}`}
-                      onClick={() => setSelectedSiteId(b.siteId)}
+                      onClick={() => {
+                        setSelectedSiteId(b.siteId)
+                        // Ouvre la page détails (enveloppe, ventilation, historique, photos).
+                        setOpenSynthese(b.siteId)
+                      }}
                       style={{
                         cursor: 'pointer',
                         background: b.siteId === selectedSiteId ? 'var(--bg-muted, #f8fafc)' : undefined,
@@ -983,84 +1123,8 @@ export function SuiviChantierTab({
           </div>
         )
       })()}
-      {selectedBudget && (showEnveloppe || showIndicateurs || procurementRole === 'technical_director') && (
-        <EnvelopeBanner
-          key={selectedBudget.siteId}
-          budget={selectedBudget}
-          indicators={indicatorsBySite[selectedBudget.siteId] ?? null}
-          role={procurementRole}
-          onChanged={() => void load()}
-          onOpenIndicator={(id) => setOpenIndicator({ siteId: selectedBudget.siteId, id })}
-        />
-      )}
       {selectedBudget && canSee('affectation') && (
         <SiteAssignmentCard siteId={selectedBudget.siteId} siteName={selectedBudget.siteName} />
-      )}
-      {canSee('historique') && (
-        <div style={css.card} data-testid="mgr-suivi-historique">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h4 style={{ margin: 0 }}>
-              📅 Historique des rapports{selectedBudget ? ` — ${selectedBudget.siteName}` : ''}
-            </h4>
-            <input
-              type="month"
-              value={histMonth}
-              onChange={(e) => setHistMonth(e.target.value)}
-              data-testid="mgr-suivi-hist-month"
-              style={{ padding: '0.3rem' }}
-            />
-          </div>
-          {histReports.length === 0 ? (
-            <p style={{ ...css.meta, marginBottom: 0 }}>Aucun rapport ce mois.</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
-              {histReports
-                .filter((r) => !selectedSiteId || r.siteId === selectedSiteId)
-                .map((r) => (
-                  <li
-                    key={r.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.35rem 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}
-                  >
-                    <span style={{ minWidth: 92 }}>{new Date(r.reportDate).toLocaleDateString('fr-FR')}</span>
-                    <span style={{ flex: 1 }}>
-                      {r.siteName} · {r.status === 'submitted' ? '🟢 Soumis' : '🟡 En cours'}
-                      {r.progressPct != null && ` · 📈 ${r.progressPct}%`}
-                      {` · 📋 ${r.tasksDone}/${r.tasksTotal} tâches`}
-                      {` · 🔩 ${r.usagesCount} consommation(s)`}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => void openReportById(r.id)}
-                      style={{ padding: '0.15rem 0.6rem' }}
-                      data-testid={`mgr-suivi-hist-open-${r.id}`}
-                    >
-                      Voir
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          )}
-        </div>
-      )}
-      {canSee('photos') && selectedBudget && (
-        <div style={css.card} data-testid="mgr-suivi-photos">
-          <h4 style={{ marginTop: 0 }}>📷 Photos — {selectedBudget.siteName}</h4>
-          {sitePhotos.length === 0 ? (
-            <p style={{ ...css.meta, marginBottom: 0 }}>Aucune photo pour ce chantier.</p>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              {sitePhotos.map((p) => (
-                <img
-                  key={p.photoId}
-                  src={`/api/v1/daily-reports/photos/${encodeURIComponent(p.photoId)}`}
-                  alt={`Photo chantier ${p.reportDate}`}
-                  title={new Date(p.reportDate).toLocaleDateString('fr-FR')}
-                  style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
       )}
         </>
       )}
