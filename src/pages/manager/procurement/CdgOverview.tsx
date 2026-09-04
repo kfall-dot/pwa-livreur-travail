@@ -24,7 +24,7 @@ const CATEGORY_EMOJI: Record<string, string> = {
   autres_materiaux: '📦',
 }
 
-function catEmoji(value?: string | null): string {
+export function catEmoji(value?: string | null): string {
   return CATEGORY_EMOJI[value ?? ''] ?? '📦'
 }
 

@@ -16,16 +16,20 @@ import {
 import type { BudgetTrafficLight, SuiviChantierBlock } from './procurementUi'
 import type { CdgIndicatorId, ProcurementRole, SiteBudget, SiteIndicators } from './procurementTypes'
 import { CdgIndicateurPage, CdgSyntheseTable } from './CdgIndicateurs'
-import { CdgCategoriesCard, CdgOverviewHeader } from './CdgOverview'
+import { CdgCategoriesCard, CdgOverviewHeader, catEmoji } from './CdgOverview'
 import { EB_SPEND_CATEGORIES } from '../../../../shared/ebSpendCategory'
 
 const CDG_TAB_LABELS: Record<CdgTab, string> = {
-  all: 'Tous',
+  all: 'Tous les chantiers',
   with: 'Avec dépenses',
   without: 'Sans dépense',
   alert: 'En alerte',
 }
 type CdgTab = 'all' | 'with' | 'without' | 'alert'
+
+function top3Sum(products: { amountFcfa: number }[]): number {
+  return products.reduce((s, p) => s + p.amountFcfa, 0)
+}
 
 type HistReport = {
   id: string
@@ -435,6 +439,23 @@ export function SuiviChantierTab({
     const [y, m] = base.split('-').map(Number)
     const d = new Date(y, m - 1 + delta, 1)
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+  // Libellé du mois pour le sous-titre (maquette : « Suivi des dépenses chantier — Août 2026 »).
+  const monthLabel =
+    month === ''
+      ? 'Tous les mois'
+      : (() => {
+          const [y, m] = month.split('-').map(Number)
+          if (!y || !m) return month
+          const s = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+          return s.charAt(0).toUpperCase() + s.slice(1)
+        })()
+  // Compteurs des onglets CdG (maquette : « Tous les chantiers (5) », « En alerte (1) »…).
+  const cdgTabCounts: Record<CdgTab, number> = {
+    all: budgets.length,
+    with: budgets.filter((b) => b.engagedFcfa > 0).length,
+    without: budgets.filter((b) => b.engagedFcfa === 0).length,
+    alert: budgets.filter((b) => b.overBudget || b.trafficLight === 'alert').length,
   }
 
   useEffect(() => {
@@ -858,10 +879,14 @@ export function SuiviChantierTab({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
         <div>
           <h2 style={{ ...css.sectionTitle, margin: 0 }}>
-            Suivi chantier{procurementRole ? ` — vue ${PROCUREMENT_ROLE_LABELS[procurementRole] ?? procurementRole}` : ''}
+            {procurementRole === 'controle_gestion'
+              ? '📊 Contrôle de Gestion'
+              : `Suivi chantier${procurementRole ? ` — vue ${PROCUREMENT_ROLE_LABELS[procurementRole] ?? procurementRole}` : ''}`}
           </h2>
           <p style={css.meta}>
-            Enveloppe CdG : budget, % d’engagement, écart, feux 2 % / 5 %, avenant manquant. Dépenses filtrées par mois.
+            {procurementRole === 'controle_gestion'
+              ? `Suivi des dépenses chantier — ${monthLabel}`
+              : 'Enveloppe CdG : budget, % d’engagement, écart, feux 2 % / 5 %, avenant manquant. Dépenses filtrées par mois.'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
@@ -923,7 +948,7 @@ export function SuiviChantierTab({
               }}
               data-testid={`mgr-cdg-tab-${t}`}
             >
-              {CDG_TAB_LABELS[t]}
+              {`${CDG_TAB_LABELS[t]} (${cdgTabCounts[t]})`}
             </button>
           ))}
           <select
@@ -1006,6 +1031,7 @@ export function SuiviChantierTab({
                     <>
                       <th style={css.lineTh}>Budget</th>
                       <th style={css.lineTh}>Engagé (total)</th>
+                      {showIndicateurs && <th style={css.lineTh}>Réalisé</th>}
                       <th style={css.lineTh}>Progression</th>
                       <th style={css.lineTh}>Écart</th>
                       <th style={css.lineTh}>Top 3 matériaux</th>
@@ -1043,6 +1069,11 @@ export function SuiviChantierTab({
                         <>
                           <td style={css.lineTd}>{formatFcfa(b.budgetTotalFcfa)}</td>
                           <td style={css.lineTd}>{formatFcfa(b.engagedFcfa)}</td>
+                          {showIndicateurs && (
+                            <td style={css.lineTd}>
+                              {ind?.realizedFcfa != null ? formatFcfa(ind.realizedFcfa) : '—'}
+                            </td>
+                          )}
                           <td style={css.lineTd}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 120 }}>
                               <div style={{ flex: 1, height: 8, background: 'var(--border, #e2e8f0)', borderRadius: 4, overflow: 'hidden' }}>
@@ -1060,39 +1091,80 @@ export function SuiviChantierTab({
                           <td
                             style={{
                               ...css.lineTd,
-                              color: variance != null && variance > 0 ? '#dc2626' : '#166534',
-                              fontWeight: 600,
-                              whiteSpace: 'nowrap',
+                              color: variance != null && variance > 0 ? '#b91c1c' : '#166534',
+                              textAlign: 'center',
                             }}
                           >
-                            {variance == null ? '—' : variance > 0 ? `-${formatFcfa(variance)}` : `+${formatFcfa(-variance)}`}
+                            {variance == null ? (
+                              '—'
+                            ) : (
+                              <>
+                                <div style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}>
+                                  {variance > 0 ? `-${formatFcfa(variance)}` : `+${formatFcfa(-variance)}`}
+                                </div>
+                                <div style={{ fontSize: 10 }}>
+                                  {b.budgetTotalFcfa == null
+                                    ? ''
+                                    : variance > 0
+                                      ? `-${Math.abs(Math.round((variance / b.budgetTotalFcfa) * 100))}% dépassement`
+                                      : `+${Math.round((-variance / b.budgetTotalFcfa) * 100)}% marge`}
+                                </div>
+                              </>
+                            )}
                           </td>
                           <td style={css.lineTd}>
                             {top3.length === 0 ? (
-                              <span style={{ color: 'var(--muted, #667)' }}>—</span>
+                              <span style={{ fontSize: 11, color: 'var(--muted, #667)' }}>
+                                {ind ? 'Pas encore de livraison confirmée' : '—'}
+                              </span>
                             ) : (
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <div style={{ fontSize: 11, lineHeight: 1.6 }}>
                                 {top3.map((p) => (
-                                  <span
-                                    key={p.label}
-                                    title={`${p.label} — ${formatFcfa(p.amountFcfa)}${p.shareOfInitialPct != null ? ` (${p.shareOfInitialPct}% du budget)` : ''}`}
+                                  <div key={p.label} title={p.label} style={{ cursor: 'default', whiteSpace: 'nowrap' }}>
+                                    {catEmoji(ind?.byCategory?.find((c) => c.label === p.label)?.category)}{' '}
+                                    <strong>{formatFcfa(p.amountFcfa)}</strong>{' '}
+                                    <span style={{ color: 'var(--muted, #667)' }}>
+                                      ({p.shareOfInitialPct != null ? `${p.shareOfInitialPct}%` : '—'})
+                                    </span>
+                                  </div>
+                                ))}
+                                {b.budgetTotalFcfa != null && b.budgetTotalFcfa > 0 && (
+                                  <div
                                     style={{
-                                      background: 'var(--bg-muted, #f1f5f9)',
-                                      borderRadius: 999,
-                                      padding: '2px 8px',
-                                      fontSize: 12,
-                                      cursor: 'default',
+                                      borderTop: '1px solid var(--border, #e5e7eb)',
+                                      marginTop: 2,
+                                      paddingTop: 2,
+                                      fontWeight: 600,
                                       whiteSpace: 'nowrap',
                                     }}
                                   >
-                                    {p.label.length > 16 ? `${p.label.slice(0, 15)}…` : p.label} · {formatFcfa(p.amountFcfa)}
-                                  </span>
-                                ))}
+                                    Total : {formatFcfa(top3Sum(top3))} / {formatFcfa(b.budgetTotalFcfa)}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </td>
-                          <td style={{ ...css.lineTd, color: TRAFFIC_LIGHT_STYLE[light].color }}>
-                            {b.budgetFrozenAt ? TRAFFIC_LIGHT_LABEL[light] : 'Non gelée'}
+                          <td style={css.lineTd}>
+                            {b.budgetFrozenAt ? (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '4px 10px',
+                                  borderRadius: 999,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  whiteSpace: 'nowrap',
+                                  background: TRAFFIC_LIGHT_STYLE[light].bg,
+                                  color: TRAFFIC_LIGHT_STYLE[light].color,
+                                }}
+                              >
+                                {light === 'alert' ? '🔴' : light === 'watch' ? '🟡' : '🟢'} {TRAFFIC_LIGHT_LABEL[light]}
+                              </span>
+                            ) : (
+                              'Non gelée'
+                            )}
                           </td>
                           <td style={css.lineTd}>
                             {b.missingAmendment ? 'Manquant' : b.overBudget ? 'À surveiller' : '—'}
