@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { ebSpendCategoryLabel } from '../../../../shared/ebSpendCategory'
+import { fetchRequests } from './procurementApi'
 import { css, formatFcfa, formatPct } from './procurementUi'
-import type { SiteBudget, SiteIndicators } from './procurementTypes'
+import type { PurchaseRequestRow, SiteBudget, SiteIndicators } from './procurementTypes'
 
 /** Émoji par poste matériaux (tableau Koestrem 5.1) — tooltip = libellé au survol. */
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -44,7 +46,7 @@ function KpiCard({
   bg: string
   color: string
   label: string
-  value: string
+  value: ReactNode
   detail: string
 }) {
   return (
@@ -54,7 +56,7 @@ function KpiCard({
           <div style={{ ...css.meta, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>
             {label}
           </div>
-          <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color }}>{value}</div>
           <div style={{ ...css.meta, marginTop: 4 }}>{detail}</div>
         </div>
         <div style={{ width: 38, height: 38, borderRadius: 10, background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>
@@ -73,9 +75,10 @@ function useCdgAggregates(budgets: SiteBudget[]) {
     const frozen = budgets.filter((b) => b.budgetFrozenAt)
     const alerts = budgets.filter((b) => b.trafficLight === 'alert').length
     const watch = budgets.filter((b) => b.trafficLight === 'watch').length
+    const ok = budgets.filter((b) => b.trafficLight === 'ok').length
     const missing = budgets.filter((b) => b.missingAmendment).length
     const active = budgets.filter((b) => b.engagedFcfa > 0).length
-    return { engaged, total, frozen: frozen.length, alerts, watch, missing, active }
+    return { engaged, total, frozen: frozen.length, alerts, watch, ok, missing, active }
   }, [budgets])
 }
 
@@ -125,70 +128,55 @@ export function CdgCategoriesCard({ indicators }: { indicators: SiteIndicators |
   )
 }
 
-/** En-tête de tableau de bord CdG — cartes KPI + focus chantier + ventilation + activité. */
-export function CdgOverviewHeader({
-  budgets,
-  indicators,
-  selectedSiteId,
-  onOpenDetails,
-}: {
-  budgets: SiteBudget[]
-  indicators: SiteIndicators | null
-  selectedSiteId: string | null
-  onOpenDetails: () => void
-}) {
+/** Tableau de bord CdG — cartes KPI (maquette cdg-dashboard : KPI → onglets → tableau). */
+export function CdgOverviewHeader({ budgets }: { budgets: SiteBudget[] }) {
   const agg = useCdgAggregates(budgets)
-  const [activityFilter, setActivityFilter] = useState<'all' | 'alerts' | 'amendments'>('all')
-  const budget = budgets.find((b) => b.siteId === selectedSiteId) ?? null
+  // BC en cours = demandes avec BC émis, livraison pas encore confirmée (po_ready
+  // + delivery_scheduled). Détail par statut, comme la tuile « BC en cours » maquette.
+  const [bcCounts, setBcCounts] = useState<{ poReady: number; scheduled: number } | null>(null)
 
-  // ── Activité récente (dérivée de données réelles : alertes + avenants) ──
-  const activity = useMemo(() => {
-    const items: { id: string; kind: 'alert' | 'amendment'; title: string; meta: string; ts: string }[] = []
-    for (const b of budgets) {
-      if (b.overBudget || b.trafficLight === 'alert') {
-        items.push({
-          id: `alert-${b.siteId}`,
-          kind: 'alert',
-          title: 'Budget dépassé',
-          meta: `${b.siteName} — ${formatFcfa(Math.max(0, -(b.varianceFcfa ?? b.engagedFcfa - (b.budgetTotalFcfa ?? 0))))} de dépassement`,
-          ts: b.overrunSinceAt ?? '',
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const rows = await fetchRequests()
+        if (cancelled) return
+        setBcCounts({
+          poReady: rows.filter((r: PurchaseRequestRow) => r.status === 'po_ready').length,
+          scheduled: rows.filter((r: PurchaseRequestRow) => r.status === 'delivery_scheduled').length,
         })
+      } catch {
+        if (!cancelled) setBcCounts(null)
       }
-      if (b.missingAmendment) {
-        items.push({
-          id: `missing-${b.siteId}`,
-          kind: 'alert',
-          title: 'Avenant manquant',
-          meta: b.siteName,
-          ts: b.overrunSinceAt ?? '',
-        })
-      }
-      for (const a of b.amendments) {
-        items.push({
-          id: `amd-${a.id}`,
-          kind: 'amendment',
-          title: a.status === 'approved' ? 'Avenant approuvé' : a.status === 'rejected' ? 'Avenant rejeté' : 'Avenant en attente',
-          meta: `${b.siteName} — ${formatFcfa(a.signedAmountFcfa)}${a.createdByName ? ` — ${a.createdByName}` : ''}`,
-          ts: a.createdAt,
-        })
-      }
+    })()
+    return () => {
+      cancelled = true
     }
-    return items
-      .filter((i) => {
-        if (activityFilter === 'all') return true
-        if (activityFilter === 'alerts') return i.kind === 'alert'
-        return i.kind === 'amendment'
-      })
-      .sort((a, b) => (a.ts < b.ts ? 1 : -1))
-      .slice(0, 6)
-  }, [budgets, activityFilter])
+  }, [])
 
   if (budgets.length === 0) return null
 
-  const feuxLabel =
-    agg.alerts + agg.watch === 0
-      ? 'Aucune alerte'
-      : `${agg.alerts ? `${agg.alerts} 🔴` : ''}${agg.alerts && agg.watch ? ' · ' : ''}${agg.watch ? `${agg.watch} 🟡` : ''}`
+  const feuxPill = (emoji: string, count: number, bg: string, color: string, label: string) => (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        background: bg,
+        color,
+        borderRadius: 999,
+        padding: '2px 9px',
+        fontSize: 13,
+        fontWeight: 700,
+        width: 'fit-content',
+      }}
+      title={emoji === '🔴' ? 'Chantiers en alerte' : emoji === '🟡' ? 'Chantiers en vigilance' : 'Chantiers neutres'}
+    >
+      {emoji} {count} {label}
+    </span>
+  )
+  // Accord en nombre : « 1 neutre » / « 5 neutres ».
+  const plural = (count: number, singular: string) => (count > 1 ? `${singular}s` : singular)
 
   return (
     <div data-testid="mgr-cdg-overview" style={{ marginBottom: 16 }}>
@@ -210,126 +198,31 @@ export function CdgOverviewHeader({
           detail={`${agg.frozen} enveloppe(s) gelée(s)`}
         />
         <KpiCard
-          icon="🏗️"
-          bg="#f5f3ff"
-          color="#8b5cf6"
-          label="Chantiers suivis"
-          value={String(agg.active)}
-          detail={`avec dépense(s) sur ${budgets.length}`}
-        />
-        <KpiCard
           icon="🚦"
-          bg={agg.alerts > 0 ? '#fef2f2' : '#fffbeb'}
-          color={agg.alerts > 0 ? '#dc2626' : '#d97706'}
+          bg="#fffbeb"
+          color="#d97706"
           label="Feux"
-          value={feuxLabel}
-          detail="🟢 OK / 🟡 vigilance / 🔴 alerte"
+          value={
+            <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+              {feuxPill('🔴', agg.alerts, '#fef2f2', '#dc2626', plural(agg.alerts, 'Alerte'))}
+              {feuxPill('🟡', agg.watch, '#fffbeb', '#d97706', plural(agg.watch, 'Vigilance'))}
+              {feuxPill('🟢', agg.ok, '#f0fdf4', '#16a34a', plural(agg.ok, 'Neutre'))}
+            </span>
+          }
+          detail={`${agg.alerts + agg.watch + agg.ok} ${plural(agg.alerts + agg.watch + agg.ok, 'chantier actif')}`}
         />
         <KpiCard
-          icon="⚠️"
+          icon="📦"
           bg="#fef2f2"
           color="#dc2626"
-          label="Avenants manquants"
-          value={String(agg.missing)}
-          detail="engagé > budget sans avenant approuvé"
+          label="BC en cours"
+          value={bcCounts ? String(bcCounts.poReady + bcCounts.scheduled) : '—'}
+          detail={
+            bcCounts
+              ? `${bcCounts.poReady} BC émis — ${bcCounts.scheduled} livraison(s) planifiée(s)`
+              : 'chargement…'
+          }
         />
-      </div>
-      {budget && (
-        <div style={{ ...css.card, marginTop: 12 }} data-testid="mgr-cdg-focus">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h4 style={{ margin: 0, fontSize: 14 }}>
-              📍 Focus — {budget.siteName}
-            </h4>
-            <button
-              type="button"
-              style={css.btnOutline}
-              data-testid="mgr-cdg-focus-open"
-              onClick={onOpenDetails}
-              title="Ouvre la synthèse complète du chantier : 5 indicateurs Koestrem, journal quotidien, top 3 matériaux"
-            >
-              📊 Détails
-            </button>
-          </div>
-          {indicators ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10 }}>
-              <div>
-                <div style={css.meta}>Budget total</div>
-                <strong>{formatFcfa(indicators.budgetTotalFcfa)}</strong>
-              </div>
-              <div>
-                <div style={css.meta}>Réalisé</div>
-                <strong>{formatFcfa(indicators.realizedFcfa)} · {formatPct(indicators.realizedPct)}</strong>
-              </div>
-              <div>
-                <div style={css.meta}>Écart (réalisé − budget)</div>
-                <strong style={{ color: (indicators.varianceFcfa ?? 0) < 0 ? '#b91c1c' : '#166534' }}>
-                  {indicators.varianceFcfa == null ? '—' : `${indicators.varianceFcfa > 0 ? '+' : ''}${formatFcfa(indicators.varianceFcfa)} · ${formatPct(indicators.variancePct)}`}
-                </strong>
-              </div>
-              <div>
-                <div style={css.meta}>Part des matériaux</div>
-                <strong>{formatFcfa(indicators.materialsFcfa)} · {formatPct(indicators.materialsSharePct)}</strong>
-              </div>
-              <div>
-                <div style={css.meta}>Poids des 3 premiers postes</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
-                  {indicators.top3.map((p) => (
-                    <span
-                      key={p.label}
-                      title={`${p.label} — ${formatFcfa(p.amountFcfa)} (${formatPct(p.shareOfInitialPct)} du budget initial)`}
-                      style={{ cursor: 'help', background: '#f5f3ff', color: '#7c3aed', borderRadius: 6, padding: '2px 8px', fontSize: 13, fontWeight: 600 }}
-                      data-testid="mgr-cdg-focus-top3"
-                    >
-                      {p.label} · {formatFcfa(p.amountFcfa)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <p style={{ ...css.meta, margin: '8px 0 0' }}>Chargement des indicateurs…</p>
-          )}
-        </div>
-      )}
-
-      {/* Activité récente — filtrable par type (la ventilation par catégorie
-          est désormais affichée dans la page détails du chantier). */}
-      <div style={{ marginTop: 12 }} data-testid="mgr-cdg-overview-bottom">
-        <div style={css.card} data-testid="mgr-cdg-activity">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <h4 style={{ margin: 0, fontSize: 13 }}>Activité récente</h4>
-            <select
-              value={activityFilter}
-              onChange={(e) => setActivityFilter(e.target.value as typeof activityFilter)}
-              style={{ padding: '4px 8px', fontSize: 11 }}
-              data-testid="mgr-cdg-activity-filter"
-            >
-              <option value="all">Tous</option>
-              <option value="alerts">Alertes</option>
-              <option value="amendments">Avenants</option>
-            </select>
-          </div>
-          {activity.length === 0 ? (
-            <p style={{ ...css.meta, margin: 0 }}>Aucune activité récente pour ce filtre.</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {activity.map((a) => (
-                <li key={a.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                  <span style={{ flexShrink: 0, fontSize: 15 }}>
-                    {a.kind === 'alert' ? (a.title.includes('dépassé') ? '🔴' : '⚠️') : a.title.includes('approuvé') ? '✅' : a.title.includes('rejeté') ? '❌' : '🟡'}
-                  </span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600 }}>{a.title}</div>
-                    <div style={{ color: 'var(--text-muted)' }}>{a.meta}</div>
-                  </div>
-                  <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    {a.ts ? new Date(a.ts).toLocaleDateString('fr-FR') : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       </div>
     </div>
   )

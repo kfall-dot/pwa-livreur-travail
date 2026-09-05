@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Suivi Achats (SA) — TraceO — maquette</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f8f9fb; color: #1a1a2e; padding: 24px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .header h1 { font-size: 22px; font-weight: 700; }
+    .subtitle { font-size: 13px; color: #6b7280; margin-top: 2px; }
+    .btn { padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+    .btn-primary { background: #1e3a5f; color: white; }
+    .btn-outline { background: white; color: #1e3a5f; border: 1.5px solid #d1d5db; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; white-space: nowrap; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpi-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb; }
+    .kpi-card .label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .kpi-card .value { font-size: 26px; font-weight: 700; }
+    .kpi-card .detail { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .kpi-head { display: flex; justify-content: space-between; align-items: flex-start; }
+    .icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .icon-blue { background: #eff6ff; color: #3b82f6; }
+    .icon-green { background: #f0fdf4; color: #22c55e; }
+    .icon-amber { background: #fffbeb; color: #f59e0b; }
+    .icon-red { background: #fef2f2; color: #ef4444; }
+    .pill-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; }
+    .tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-select, .filter-input { padding: 8px 12px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 13px; font-family: inherit; background: white; color: #1a1a2e; }
+    .filter-input { flex: 1; min-width: 220px; }
+    .table-container { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb; overflow: hidden; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { background: #f9fafb; padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; }
+    tbody td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    tbody tr:hover { background: #f9fafb; }
+    tbody tr:last-child td { border-bottom: none; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-gray { background: #f3f4f6; color: #4b5563; }
+    .site-name { font-weight: 600; }
+    .site-address { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .amount-total { font-size: 11px; color: #9ca3af; }
+    .pipeline { display: flex; align-items: center; min-width: 170px; }
+    .dot { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: #f3f4f6; color: #9ca3af; border: 1.5px solid #e5e7eb; flex-shrink: 0; }
+    .dot.done { background: #1e3a5f; color: white; border-color: #1e3a5f; }
+    .dot.current { background: white; color: #1e3a5f; border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,0.12); }
+    .link { width: 14px; height: 2px; background: #e5e7eb; }
+    .link.done { background: #1e3a5f; }
+    .step-label { font-size: 11px; color: #6b7280; margin-left: 8px; white-space: nowrap; }
+    .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .panel { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb; }
+    .panel h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+    .activity { list-style: none; }
+    .activity li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+    .activity li:last-child { border-bottom: none; }
+    .activity .a-title { font-weight: 600; }
+    .activity .a-meta { color: #6b7280; }
+    .activity .a-date { color: #9ca3af; white-space: nowrap; margin-left: auto; }
+    @media (max-width: 900px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .bottom-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- En-tête -->
+  <div class="header">
+    <div>
+      <h1>🛒 Suivi Achats — Service Achats</h1>
+      <div class="subtitle">Pipeline EB → BC → Livraison · vue du jour, filtrable par chantier et fournisseur</div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-outline">Actualiser</button>
+      <button class="btn btn-primary">＋ Nouvelle demande</button>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-head">
+        <div>
+          <div class="label">Dossiers à traiter</div>
+          <div class="value">6</div>
+          <div class="detail">en attente d'action SA</div>
+        </div>
+        <div class="icon icon-amber">📥</div>
+      </div>
+      <div class="pill-row">
+        <span class="badge badge-amber">3 à chiffrer</span>
+        <span class="badge badge-blue">2 BC à émettre</span>
+        <span class="badge badge-red">1 retard</span>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-head">
+        <div>
+          <div class="label">BC en cours</div>
+          <div class="value">9</div>
+          <div class="detail">émis, en attente de livraison</div>
+        </div>
+        <div class="icon icon-blue">📄</div>
+      </div>
+      <div class="pill-row">
+        <span class="badge badge-gray">4 fournisseurs</span>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-head">
+        <div>
+          <div class="label">Livraisons semaine</div>
+          <div class="value">12</div>
+          <div class="detail">3 aujourd'hui · 9 à venir</div>
+        </div>
+        <div class="icon icon-green">🚚</div>
+      </div>
+      <div class="pill-row">
+        <span class="badge badge-green">8 confirmées</span>
+        <span class="badge badge-amber">1 à replanifier</span>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-head">
+        <div>
+          <div class="label">Engagé semaine</div>
+          <div class="value">4,2 M</div>
+          <div class="detail">montant des BC émis</div>
+        </div>
+        <div class="icon icon-blue">💰</div>
+      </div>
+      <div class="pill-row">
+        <span class="badge badge-gray">vs 3,6 M semaine −1</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onglets -->
+  <div class="tabs">
+    <div class="tab active">Tous (6)</div>
+    <div class="tab">À chiffrer (3)</div>
+    <div class="tab">BC à émettre (2)</div>
+    <div class="tab">Livraisons (9)</div>
+    <div class="tab">Problèmes (1)</div>
+  </div>
+
+  <!-- Filtres -->
+  <div class="filter-bar">
+    <select class="filter-select"><option>Tous chantiers</option><option>Tour Ivoire — Villa 12</option><option>Cité Scientifique</option><option>Lycée Technique</option></select>
+    <select class="filter-select"><option>Tous fournisseurs</option><option>Sotra Matériaux</option><option>Ciments du Golfe</option><option>Électro Abidjan</option></select>
+    <input class="filter-input" placeholder="🔍 Rechercher un dossier, un produit…">
+  </div>
+
+  <!-- Tableau pipeline -->
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Dossier EB</th>
+          <th>Fournisseur</th>
+          <th>Montant</th>
+          <th>Statut</th>
+          <th>Pipeline</th>
+          <th>Livraison</th>
+          <th style="text-align:right">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="site-name">EB-0139 · Peinture + pinceaux</div>
+            <div class="site-address">Cité Scientifique · demandé par CDC A.</div>
+          </td>
+          <td>—</td>
+          <td><div class="amount">—</div><div class="amount-total">à chiffrer</div></td>
+          <td><span class="badge badge-amber">À chiffrer</span></td>
+          <td>
+            <div class="pipeline">
+              <span class="dot current">1</span><span class="link"></span>
+              <span class="dot">2</span><span class="link"></span>
+              <span class="dot">3</span>
+              <span class="step-label">Chiffrage</span>
+            </div>
+          </td>
+          <td><div class="amount-total">—</div></td>
+          <td style="text-align:right"><button class="btn btn-outline btn-sm" title="Chiffrer les produits puis émettre le BC">✏️ Chiffrer</button></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="site-name">EB-0138 · Carburant engin</div>
+            <div class="site-address">Lycée Technique · demandé par CDC M.</div>
+          </td>
+          <td>—</td>
+          <td><div class="amount">—</div><div class="amount-total">à chiffrer</div></td>
+          <td><span class="badge badge-amber">À chiffrer</span></td>
+          <td>
+            <div class="pipeline">
+              <span class="dot current">1</span><span class="link"></span>
+              <span class="dot">2</span><span class="link"></span>
+              <span class="dot">3</span>
+              <span class="step-label">Chiffrage</span>
+            </div>
+          </td>
+          <td><div class="amount-total">—</div></td>
+          <td style="text-align:right"><button class="btn btn-outline btn-sm">✏️ Chiffrer</button></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="site-name">EB-0142 · Ciment + fer à béton</div>
+            <div class="site-address">Tour Ivoire — Villa 12 · demandé par Chef chantier K.</div>
+          </td>
+          <td>Ciments du Golfe</td>
+          <td><div class="amount">820 000</div><div class="amount-total">chiffré</div></td>
+          <td><span class="badge badge-blue">BC à émettre</span></td>
+          <td>
+            <div class="pipeline">
+              <span class="dot done">✓</span><span class="link done"></span>
+              <span class="dot current">2</span><span class="link"></span>
+              <span class="dot">3</span>
+              <span class="step-label">BC</span>
+            </div>
+          </td>
+          <td><div class="amount-total">—</div></td>
+          <td style="text-align:right"><button class="btn btn-outline btn-sm" title="Émet le BC puis ouvre Planifier préremplie">📄 Émettre BC</button></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="site-name">EB-0135 · Agglos + sable</div>
+            <div class="site-address">Lycée Technique · demandé par CDC M.</div>
+          </td>
+          <td>Sotra Matériaux</td>
+          <td><div class="amount">1 070 000</div><div class="amount-total">BC-0088 émis</div></td>
+          <td><span class="badge badge-amber">Tournée à planifier</span></td>
+          <td>
+            <div class="pipeline">
+              <span class="dot done">✓</span><span class="link done"></span>
+              <span class="dot done">✓</span><span class="link"></span>
+              <span class="dot current">3</span>
+              <span class="step-label">Livraison</span>
+            </div>
+          </td>
+          <td><div class="amount-total">non planifiée</div></td>
+          <td style="text-align:right"><button class="btn btn-outline btn-sm" title="Ouvre Planifier préremplie — 1 tournée par BC">🚚 Planifier tournée</button></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="site-name">EB-0131 · Électricité — câbles</div>
+            <div class="site-address">Cité Scientifique · demandé par CDC A.</div>
+          </td>
+          <td>Électro Abidjan</td>
+          <td><div class="amount">640 000</div><div class="amount-total">BC-0085 émis</div></td>
+          <td><span class="badge badge-blue">Livraison planifiée</span></td>
+          <td>
+            <div class="pipeline">
+              <span class="dot done">✓</span><span class="link done"></span>
+              <span class="dot done">✓</span><span class="link"></span>
+              <span class="dot current">3</span>
+              <span class="step-label">Livraison</span>
+            </div>
+          </td>
+          <td><div class="amount-total">demain · tournée T-12</div></td>
+          <td style="text-align:right"><button class="btn btn-outline btn-sm">👁️ Détails</button></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="site-name">EB-0128 · Plomberie — raccords</div>
+            <div class="site-address">Tour Ivoire — Villa 12 · demandé par Chef chantier K.</div>
+          </td>
+          <td>Sotra Matériaux</td>
+          <td><div class="amount">315 000</div><div class="amount-total">BC-0081 émis</div></td>
+          <td><span class="badge badge-red">Livraison en retard</span></td>
+          <td>
+            <div class="pipeline">
+              <span class="dot done">✓</span><span class="link done"></span>
+              <span class="dot done">✓</span><span class="link"></span>
+              <span class="dot current">3</span>
+              <span class="step-label">Livraison</span>
+            </div>
+          </td>
+          <td><div class="amount-total" style="color:#991b1b">en retard de 2 j</div></td>
+          <td style="text-align:right"><button class="btn btn-outline btn-sm">🔁 Replanifier</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Grille basse -->
+  <div class="bottom-grid">
+    <div class="panel">
+      <h3>🕒 Activité récente</h3>
+      <ul class="activity">
+        <li><span>✅</span><div><div class="a-title">BC-0088 émis — Sotra Matériaux</div><div class="a-meta">EB-0135 · Agglos + sable · 1 070 000</div></div><span class="a-date">09:42</span></li>
+        <li><span>🚚</span><div><div class="a-title">Tournée T-11 confirmée par le livreur</div><div class="a-meta">2 livraisons · Cité Scientifique</div></div><span class="a-date">09:15</span></li>
+        <li><span>📄</span><div><div class="a-title">BC-0087 émis — Électro Abidjan</div><div class="a-meta">EB-0131 · Électricité — câbles · 640 000</div></div><span class="a-date">hier</span></li>
+        <li><span>⚠️</span><div><div class="a-title">Livraison signalée en retard</div><div class="a-meta">EB-0128 · Plomberie — raccords · BC-0081</div></div><span class="a-date">hier</span></li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>🚨 Alertes &amp; blocages</h3>
+      <ul class="activity">
+        <li><span>🔴</span><div><div class="a-title">Livraison en retard de 2 jours</div><div class="a-meta">EB-0128 · Tour Ivoire — Villa 12 · à replanifier avec le fournisseur</div></div><span class="a-date">—</span></li>
+        <li><span>🟡</span><div><div class="a-title">3 dossiers sans chiffrage depuis 48 h</div><div class="a-meta">EB-0139, EB-0138, EB-0136 · relance conseillée</div></div><span class="a-date">—</span></li>
+        <li><span>🟢</span><div><div class="a-title">Aucun BC hors enveloppe cette semaine</div><div class="a-meta">tous les BC émis tiennent dans les enveloppes chantiers</div></div><span class="a-date">—</span></li>
+      </ul>
+    </div>
+  </div>
+
+</body>
+</html>
+
+

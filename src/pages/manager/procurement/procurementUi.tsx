@@ -7,18 +7,18 @@ export const css = {
   subnav: managerCss.catalogueSubnav,
   card: {
     background: 'var(--bg-elevated)',
-    border: '1px solid var(--border)',
-    borderRadius: 10,
-    padding: '1rem 1.25rem',
-    boxShadow: '0 1px 3px rgba(11, 74, 44, 0.05)',
+    border: '1px solid #e5e7eb',
+    borderRadius: 12,
+    padding: '1.25rem',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
   } as CSSProperties,
   cardClickable: {
     background: 'var(--bg-elevated)',
-    border: '1px solid var(--border)',
-    borderRadius: 10,
-    padding: '1rem 1.25rem',
+    border: '1px solid #e5e7eb',
+    borderRadius: 12,
+    padding: '1.25rem',
     cursor: 'pointer',
-    boxShadow: '0 1px 3px rgba(11, 74, 44, 0.05)',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
   } as CSSProperties,
   messageBox: {
     background: '#f0fdf4',
@@ -43,16 +43,64 @@ export const css = {
   } as CSSProperties,
   lineTh: {
     textAlign: 'left' as const,
-    padding: '6px 8px',
-    borderBottom: '2px solid var(--border)',
+    padding: '12px 16px',
+    background: '#f9fafb',
+    borderBottom: '1px solid #e5e7eb',
     fontSize: 11,
-    fontWeight: 700,
-    color: 'var(--text-muted)',
+    fontWeight: 600,
+    color: '#6b7280',
+    textTransform: 'uppercase' as const,
   } as CSSProperties,
   lineTd: {
-    padding: '6px 8px',
-    borderBottom: '1px solid var(--border)',
+    padding: '14px 16px',
+    borderBottom: '1px solid #f3f4f6',
     verticalAlign: 'top' as const,
+    fontSize: 13,
+  } as CSSProperties,
+  // Boutons — style maquette cdg-dashboard (.btn-outline / .btn-primary)
+  btnOutline: {
+    padding: '10px 18px',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    background: '#ffffff',
+    color: '#1e3a5f',
+    border: '1.5px solid #d1d5db',
+    cursor: 'pointer',
+  } as CSSProperties,
+  btnPrimary: {
+    padding: '10px 18px',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    background: '#1e3a5f',
+    color: '#ffffff',
+    border: 'none',
+    cursor: 'pointer',
+  } as CSSProperties,
+  // Onglets — style maquette (.tabs / .tab / .tab.active)
+  tabsBar: {
+    display: 'flex',
+    gap: 4,
+    borderBottom: '2px solid #e5e7eb',
+    marginBottom: 16,
+    flexWrap: 'wrap' as const,
+  } as CSSProperties,
+  tab: {
+    padding: '10px 16px',
+    fontSize: 13,
+    fontWeight: 500,
+    color: '#6b7280',
+    background: 'transparent',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    marginBottom: -2,
+    cursor: 'pointer',
+  } as CSSProperties,
+  tabActive: {
+    color: '#1e3a5f',
+    borderBottomColor: '#1e3a5f',
+    fontWeight: 600,
   } as CSSProperties,
   ficheWrap: {
     border: '2px solid #1e3a5f',
@@ -260,7 +308,8 @@ export function ProcurementStatusBadge({ status }: { status: PurchaseRequestStat
 
 export function formatFcfa(amount?: number | null): string {
   if (amount == null) return '—'
-  return `${amount.toLocaleString('fr-FR')} FCFA`
+  if (amount === 0) return '--'
+  return amount.toLocaleString('fr-FR')
 }
 
 export function formatPct(value?: number | null): string {

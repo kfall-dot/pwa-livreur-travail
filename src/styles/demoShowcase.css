@@ -1,7 +1,7 @@
 .demo-showcase {
   --demo-green: #0b4a2c;
   --demo-orange: #e85d04;
-  --demo-paper: #f6f5f2;
+  --demo-paper: #f8f9fb;
   position: fixed;
   inset: 0;
   z-index: 200;

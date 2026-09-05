@@ -1574,7 +1574,7 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByTestId('mgr-cdg-indicator-page')).toBeVisible()
     await expect(page.getByTestId('mgr-cdg-indicator-page')).toHaveAttribute('data-indicator', 'realized')
     await expect(page.getByTestId('mgr-cdg-indicator-daily')).toBeVisible()
-    await expect(page.getByTestId('mgr-cdg-indicator-value')).toContainText(/FCFA/)
+    await expect(page.getByTestId('mgr-cdg-indicator-value')).toContainText(/\d/)
     await page.getByTestId('mgr-cdg-indicator-back').click()
     await page.getByTestId('mgr-cdg-synthese-variance').click()
     await expect(page.getByTestId('mgr-cdg-indicator-page')).toHaveAttribute('data-indicator', 'variance')

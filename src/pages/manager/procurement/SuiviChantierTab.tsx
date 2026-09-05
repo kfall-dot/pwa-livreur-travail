@@ -204,7 +204,7 @@ function EnvelopeBanner({
       {role === 'controle_gestion' && budget.budgetFrozenAt == null && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'end', marginTop: 8 }}>
           <label style={css.meta}>
-            Montant FCFA
+            Montant
             <input
               data-testid="mgr-suivi-enveloppe-amount"
               type="number"
@@ -246,7 +246,7 @@ function EnvelopeBanner({
         <div style={{ marginTop: 10 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'end' }}>
             <label style={css.meta}>
-              Avenant (FCFA, signé)
+              Avenant (montant signé)
               <input
                 data-testid="mgr-suivi-avenant-amount"
                 type="number"
@@ -920,32 +920,15 @@ export function SuiviChantierTab({
         </div>
       </div>
       {error && <AlertBox>{error}</AlertBox>}
+      {procurementRole === 'controle_gestion' && <CdgOverviewHeader budgets={budgets} />}
       {procurementRole === 'controle_gestion' && (
-        <CdgOverviewHeader
-          budgets={budgets}
-          indicators={selectedSiteId ? (indicatorsBySite[selectedSiteId] ?? null) : null}
-          selectedSiteId={selectedSiteId}
-          onOpenDetails={() => {
-            const siteId =
-              selectedSiteId ?? budgets.find((b) => b.engagedFcfa > 0)?.siteId ?? budgets[0]?.siteId ?? null
-            if (!siteId) return
-            setSelectedSiteId(siteId)
-            setOpenSynthese(siteId)
-          }}
-        />
-      )}
-      {procurementRole === 'controle_gestion' && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }} data-testid="mgr-cdg-filters">
+        <div style={css.tabsBar} data-testid="mgr-cdg-filters">
           {(Object.keys(CDG_TAB_LABELS) as CdgTab[]).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setCdgTab(t)}
-              style={{
-                ...css.btnOutline,
-                background: cdgTab === t ? 'var(--bg-muted, #e2e8f0)' : undefined,
-                fontWeight: cdgTab === t ? 700 : 400,
-              }}
+              style={{ ...css.tab, ...(cdgTab === t ? css.tabActive : {}) }}
               data-testid={`mgr-cdg-tab-${t}`}
             >
               {`${CDG_TAB_LABELS[t]} (${cdgTabCounts[t]})`}
@@ -976,11 +959,13 @@ export function SuiviChantierTab({
       )}
       {(() => {
         const allMonths = month === ''
+        // Le tableau liste toujours les mêmes chantiers que les compteurs d'onglets
+        // (maquette : « Tous les chantiers (5) » ↔ 5 lignes). Le mois sélectionné
+        // n'alimente que la colonne « Dépenses du mois » (— si aucune dépense),
+        // il ne masque pas de lignes.
         const base = isChef
           ? budgets.filter((b) => chefSiteIds.size === 0 || chefSiteIds.has(b.siteId))
-          : allMonths
-            ? budgets.filter((b) => b.engagedFcfa > 0)
-            : budgets.filter((b) => (monthExpenses[b.siteId] ?? 0) > 0)
+          : budgets
         const visible = (() => {
           let filtered = base
           if (procurementRole === 'controle_gestion') {

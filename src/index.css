@@ -4,7 +4,7 @@
   --brand-deep: #083821;
   --action: #e85d04;
   --action-hover: #d45303;
-  --bg: #f7f5f2;
+  --bg: #f8f9fb;
   --bg-elevated: #ffffff;
   --text: #1a1a1a;
   --text-muted: #5c6570;
@@ -17,7 +17,7 @@
   --radius: 12px;
   --touch: 48px;
   --nav-h: 64px;
-  --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-brand: 'Fraunces', Georgia, 'Times New Roman', serif;
   font-family: var(--font-sans);
   line-height: 1.5;
@@ -118,7 +118,7 @@ body {
   padding: 0.75rem 0.9rem;
   border-radius: 12px;
   border: 1px solid rgba(11, 74, 44, 0.14);
-  background: linear-gradient(135deg, #e8f2ec 0%, #f6f5f2 100%);
+  background: linear-gradient(135deg, #e8f2ec 0%, #f8f9fb 100%);
   color: #062617;
 }
 .manager-shell > .demo-banner {
@@ -1060,7 +1060,7 @@ body:has(.driver-nav) .demo-autoplay {
 .auth-shell--driver-hero {
   background:
     radial-gradient(ellipse 80% 60% at 70% 20%, rgba(11, 74, 44, 0.14), transparent 55%),
-    linear-gradient(165deg, #f3f1ed 0%, #e8efe9 45%, #f7f5f2 100%);
+    linear-gradient(165deg, #f3f1ed 0%, #e8efe9 45%, #f8f9fb 100%);
 }
 
 .auth-shell__stage {

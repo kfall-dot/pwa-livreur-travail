@@ -61,6 +61,7 @@ import {
   ProcurementStatusBadge,
   StatCard,
 } from './procurementUi'
+import { SaOverview } from './SaOverview'
 import { saFinanceIncompleteMessage } from '../../../../shared/saFinanceGate'
 
 type AchatsView = 'inbox' | 'requests'
@@ -917,6 +918,17 @@ export function AchatsTab({
                 : 'Circuit EB : DT soumet au SA → SA chiffre → CdG → DAF / PDG selon montant → BC → livraison.'}
         {' '}Profil actif : <strong>{roleLabel}</strong>.
       </p>
+
+      {/* Dashboard SA (maquette sa-dashboard) — uniquement pour le Service achats. */}
+      {procurementRole === 'purchasing' && (
+        <SaOverview
+          requests={requests}
+          onOpenRequest={(id) => {
+            setView('requests')
+            setSelectedRequestId(id)
+          }}
+        />
+      )}
 
       {procurementRole === 'controle_gestion' ? (
         <div data-testid="mgr-cdg-file" style={{ display: 'flex', gap: 12, marginBottom: '1.25rem', flexWrap: 'wrap' }}>
@@ -2459,7 +2471,7 @@ function RequestDetailPanel({
               : 'Un BC par fournisseur présent sur l’EB.'}
             {' '}Montant total : <strong>{total.toLocaleString('fr-FR')} XOF</strong>
             {siteBudget?.remainingFcfa != null
-              ? ` — reste à engager : ${siteBudget.remainingFcfa.toLocaleString('fr-FR')} FCFA`
+              ? ` — reste à engager : ${siteBudget.remainingFcfa.toLocaleString('fr-FR')}`
               : ''}
           </p>
           {wouldExceedBudget && (
