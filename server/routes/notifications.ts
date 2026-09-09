@@ -24,7 +24,7 @@ notificationRouter.get('/', requireManager, async (req, res) => {
 // Marque une notification comme lue
 notificationRouter.patch('/:id/read', requireManager, async (req, res) => {
   try {
-    await markNotificationRead(req.params.id)
+    await markNotificationRead(String(req.params.id))
     res.json({ ok: true })
   } catch (err) {
     console.error('[notifications] erreur mark read:', err)
