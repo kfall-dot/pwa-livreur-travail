@@ -148,7 +148,7 @@ export function DossiersPanel({
                       {r.productLabel}
                     </td>
                     <td style={{ padding: '0.35rem' }}>{formatQuantityWithUnit(r.onHand, r.unit)}</td>
-                    <td style={{ padding: '0.35rem' }}>−{formatQuantityWithUnit(r.consumed, r.unit)}</td>
+                    <td style={{ padding: '0.35rem' }}>{r.consumed > 0 ? `−${formatQuantityWithUnit(r.consumed, r.unit)}` : formatQuantityWithUnit(r.consumed, r.unit)}</td>
                     <td style={{ padding: '0.35rem', fontWeight: r.alert !== 'ok' ? 700 : 400 }}>
                       {formatQuantityWithUnit(r.available, r.unit)}
                     </td>

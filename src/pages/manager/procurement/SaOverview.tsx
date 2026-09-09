@@ -176,7 +176,7 @@ export function SaOverview({
   }
 
   const actionLabel = (r: PurchaseRequestRow): string => {
-    if (r.status === 'po_ready') return 'Émettre BC'
+    if (r.status === 'po_ready') return 'Planifier la tournée'
     if (r.status === 'sa_review' && r.totalAmountFcfa == null) return 'Chiffrer'
     if (r.status === 'submitted') return 'Chiffrer'
     return 'Voir'

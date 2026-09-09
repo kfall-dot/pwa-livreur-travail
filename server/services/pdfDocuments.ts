@@ -76,7 +76,7 @@ function renderTemplate(html: string, data: Record<string, string>, rawKeys: str
 }
 
 function formatFcfa(n: number): string {
-  return `${Math.round(n).toLocaleString('fr-FR')} F`
+  return `${Math.round(n).toLocaleString('fr-FR').replace(/u202F/g, ' ').replace(/\u202F/g, ' ')} F`
 }
 
 function formatDateFr(isoDate: string): string {

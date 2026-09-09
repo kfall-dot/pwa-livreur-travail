@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { TraceOMark } from '../components/brand/TraceOMark'
 import { DemoBanner } from '../components/DemoBanner'
@@ -8,15 +8,13 @@ import { defaultReplanDate } from '../lib/dates'
 import { toast } from '../lib/toast'
 import { isValidContactEmail, normalizeContactEmail } from '../../shared/email'
 import { authFetch, fetchSupermarkets, setSupermarketActiveState } from './manager/managerApi'
-import { FournisseursTab } from './manager/FournisseursTab'
+import { CatalogueTab } from './manager/CatalogueTab'
 import { SITE_TYPES, isSiteType } from '../../shared/catalogEnums'
-import { STATUSES, todayIso, tourLifecycleLabel } from './manager/managerConstants'
+import { todayIso, tourLifecycleLabel } from './manager/managerConstants'
 import {
   emptyStop,
   type DeliveryRow,
   type DriverRow,
-  type ManagerRow,
-  type ManagerInviteRow,
   type ProductRow,
   type UnitRow,
   type StopDraft,
@@ -31,21 +29,17 @@ import {
 import {
   AlertBox,
   css,
-  DashboardStatusBadge,
   EmptyHint,
   Field,
   LoadingHint,
   Row,
-  StatCard,
   Toggle,
 } from './manager/managerUi'
-import { formatPartialTaskLine, ProductQuantityList, suiviQuantityDisplay } from './manager/productHelpers'
+import { formatPartialTaskLine, suiviQuantityDisplay, formatProductQuantityLine } from './manager/productHelpers'
 import { buildStopApiPayload, matchSupermarketId, validateStopProducts } from './manager/stopFormHelpers'
 import { useCompanyUnits } from './manager/useCompanyUnits'
 import { ReplanBanner, StopsValidationHint, TourStopFormCard } from './manager/TourStopFormCard'
 import { DeliveryDetailModal } from './manager/modals/DeliveryDetailModal'
-import { EditDriverModal } from './manager/modals/EditDriverModal'
-import { EditManagerModal } from './manager/modals/EditManagerModal'
 import { EditProductModal } from './manager/modals/EditProductModal'
 import { EditUnitModal } from './manager/modals/EditUnitModal'
 import { EditSupermarketModal } from './manager/modals/EditSupermarketModal'
@@ -57,8 +51,28 @@ import { MaJourneeTab } from './manager/procurement/MaJourneeTab'
 import { fetchDraftInboxCount } from './manager/procurement/procurementApi'
 import type { ProcurementRole, ProcurementTourPrefill } from './manager/procurement/procurementTypes'
 import { PROCUREMENT_ROLE_LABELS, canSeeSuiviChantier, isProcurementWorkspaceRole, isSiteManagerRole } from './manager/procurement/procurementUi'
+import EquipeTab from './manager/EquipeTab'
 
 type Tab = 'suivi' | 'suiviBc' | 'suiviChantier' | 'planifier' | 'livreurs' | 'gestionnaires' | 'points' | 'produits' | 'unites' | 'fournisseurs' | 'taches' | 'achats' | 'maJournee'
+/* Icônes et sections de la sidebar — reproduit la maquette docs/mockups/sidebar-manager-v1.html */
+const SIDEBAR_ICONS: Partial<Record<string, string>> = {
+  maJournee: '🗓️',
+  achats: '🛒',
+  suiviChantier: '🏗️',
+  suiviBc: '📋',
+  suivi: '🚚',
+  planifier: '📅',
+  catalogue: '📦',
+  livreurs: '👥',
+  gestionnaires: '👥',
+  taches: '✅',
+}
+const SIDEBAR_SECTIONS = ['Général', 'Gestion', 'Planification'] as const
+function sidebarSectionOf(id: string): string {
+  if (id === 'maJournee') return 'Général'
+  if (id === 'planifier' || id === 'catalogue' || id === 'livreurs' || id === 'gestionnaires' || id === 'taches') return 'Planification'
+  return 'Gestion'
+}
 
 const TAB_FROM_QUERY = new Set<Tab>([
   'suivi',
@@ -250,6 +264,13 @@ export function ManagerDashboardPage() {
 
   const procurementWorkspace = isProcurementWorkspaceRole(procurementRole)
   const sidebarRoleLabel = procurementRole ? PROCUREMENT_ROLE_LABELS[procurementRole] : 'Manager'
+  const managerInitials =
+    (managerName || 'G')
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => (w[0] || '').toUpperCase())
+      .join('')
+      .slice(0, 2) || 'G'
 
   const sidebarItems: { id: Tab | 'catalogue'; label: string; tab?: Tab; badge?: number }[] = isSiteManagerRole(procurementRole)
     ? [
@@ -298,7 +319,7 @@ export function ManagerDashboardPage() {
 
   const openSidebarItem = (item: (typeof sidebarItems)[number]) => {
     if (item.id === 'catalogue') {
-      setTab(isCatalogueTab ? tab : 'points')
+      setTab(isCatalogueTab ? tab : 'produits')
       return
     }
     if (item.id === 'livreurs') {
@@ -390,41 +411,53 @@ export function ManagerDashboardPage() {
       <aside className="manager-sidebar" style={css.sidebar} aria-label="Navigation gestionnaire">
         <div className="manager-sidebar__brand" style={css.sidebarBrand}>
           <TraceOMark onBrand layout="badge" withMotto={false} />
-          <div className="manager-sidebar__role" data-testid="mgr-sidebar-role">
-            {sidebarRoleLabel}
-          </div>
+          <div className="manager-sidebar__subtitle" style={css.sidebarSubtitle}>Gestion de chantier</div>
         </div>
         <nav style={css.sidebarNav}>
-          {sidebarItems.map((item) => {
-            const active = isSidebarActive(item)
-            const label =
-              item.badge && item.badge > 0 ? `${item.label} (${item.badge})` : item.label
+          {SIDEBAR_SECTIONS.map((section) => {
+            const items = sidebarItems.filter((item) => sidebarSectionOf(item.id) === section)
+            if (items.length === 0) return null
             return (
-              <button
-                key={item.id}
-                type="button"
-                data-testid={
-                  item.tab === 'suiviBc'
-                    ? 'mgr-tab-suivi-bc'
-                    : item.tab === 'suiviChantier'
-                      ? 'mgr-tab-suivi-chantier'
-                      : item.tab
-                        ? `mgr-tab-${item.tab}`
-                        : 'mgr-tab-catalogue'
-                }
-                onClick={() => openSidebarItem(item)}
-                className={active ? 'manager-sidebar__item manager-sidebar__item--active' : 'manager-sidebar__item'}
-                style={active ? css.sidebarItemActive : css.sidebarItem}
-              >
-                {label}
-              </button>
+              <Fragment key={section}>
+                <div className="manager-sidebar__section" style={css.sidebarSection}>{section}</div>
+                {items.map((item) => {
+                  const active = isSidebarActive(item)
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      data-testid={
+                        item.tab === 'suiviBc'
+                          ? 'mgr-tab-suivi-bc'
+                          : item.tab === 'suiviChantier'
+                            ? 'mgr-tab-suivi-chantier'
+                            : item.tab
+                              ? `mgr-tab-${item.tab}`
+                              : 'mgr-tab-catalogue'
+                      }
+                      onClick={() => openSidebarItem(item)}
+                      className={active ? 'manager-sidebar__item manager-sidebar__item--active' : 'manager-sidebar__item'}
+                      style={active ? css.sidebarItemActive : css.sidebarItem}
+                    >
+                      <span className="manager-sidebar__icon" style={css.sidebarIcon} aria-hidden="true">
+                        {SIDEBAR_ICONS[item.id] ?? '•'}
+                      </span>
+                      <span className="manager-sidebar__item-label">{item.label}</span>
+                      {item.badge && item.badge > 0 && (
+                        <span className="manager-sidebar__badge" style={css.sidebarBadge}>{item.badge}</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </Fragment>
             )
           })}
         </nav>
-        <div className="manager-sidebar__footer">
-          <div className="manager-sidebar__footer-label">Connecté</div>
-          <div className="manager-sidebar__footer-name">
-            {managerName || 'Gestionnaire'}
+        <div className="manager-sidebar__footer" style={css.sidebarUser}>
+          <div className="manager-sidebar__avatar" style={css.sidebarAvatar}>{managerInitials}</div>
+          <div className="manager-sidebar__user-info" style={css.sidebarUserInfo}>
+            <div className="manager-sidebar__footer-name">{managerName || 'Gestionnaire'}</div>
+            <div className="manager-sidebar__role" data-testid="mgr-sidebar-role">{sidebarRoleLabel}</div>
           </div>
         </div>
       </aside>
@@ -571,14 +604,14 @@ export function ManagerDashboardPage() {
             onTasksChanged={bumpTasks}
           />
         )}
-        {tab === 'livreurs' && <LivreursTab handleAuth={handleAuth} onTasksChanged={bumpTasks} />}
-        {tab === 'gestionnaires' && isAdmin && (
-          <GestionnairesTab handleAuth={handleAuth} currentManagerId={currentManagerId} />
+        {tab === 'livreurs' && <EquipeTab handleAuth={handleAuth} isAdmin={isAdmin} canInviteManagers={isAdmin} initialChip="livreurs" />}
+          {tab === 'gestionnaires' && isAdmin && (
+          <EquipeTab handleAuth={handleAuth} isAdmin={isAdmin} canInviteManagers={isAdmin} currentManagerId={currentManagerId} initialChip="gestionnaires" />
         )}
         {tab === 'points'   && <PointsTab handleAuth={handleAuth} onPointsChanged={bumpCatalog} />}
-        {tab === 'fournisseurs' && <FournisseursTab handleAuth={handleAuth} />}
-        {tab === 'produits' && <ProduitsTab handleAuth={handleAuth} onCatalogChanged={bumpCatalog} catalogRefreshKey={catalogRefreshKey} />}
-        {tab === 'unites'   && <UnitesTab handleAuth={handleAuth} onCatalogChanged={bumpCatalog} />}
+        {(tab === 'produits' || tab === 'unites' || tab === 'fournisseurs') && (
+          <CatalogueTab initialChip={tab === 'fournisseurs' ? 'fournisseurs' : tab === 'unites' ? 'unites' : 'produits'} />
+        )}
         {tab === 'taches'   && (
           <TachesTab
             handleAuth={handleAuth}
@@ -649,6 +682,79 @@ function groupDeliveriesByTour(deliveries: DeliveryRow[]): SuiviTourGroup[] {
   }
   return groups
 }
+// CSS maquette livraison-manager-v1 (copié tel quel, sélecteurs scopés sous .lvm)
+const LM_CSS = `
+.lvm{font-family:'Inter',-apple-system,'Segoe UI',sans-serif;color:#1e293b}
+.lvm .page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.lvm .page-header h1{font-size:22px;font-weight:800;color:#1e3a5f;margin:0}
+.lvm .page-header .sub{font-size:13px;color:#64748b;margin-top:4px}
+.lvm .role-pill{background:#1e3a5f;color:#fff;border-radius:999px;padding:5px 14px;font-size:12px;font-weight:600;white-space:nowrap}
+.lvm .header-actions{display:flex;gap:8px}
+.lvm .btn{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.lvm .btn-primary{background:#1e3a5f;border-color:#1e3a5f;color:#fff}
+.lvm .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.lvm .kpi{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px}
+.lvm .kpi .label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748b;font-weight:600}
+.lvm .kpi .value{font-size:24px;font-weight:800;margin-top:4px;color:#1e3a5f}
+.lvm .kpi .value.warn{color:#b45309}
+.lvm .kpi .value.ok{color:#15803d}
+.lvm .kpi .detail{font-size:12px;color:#64748b;margin-top:2px}
+.lvm .kpi .icon{float:right;font-size:17px}
+.lvm .filters{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.lvm .filters select,.lvm .filters input{border:1px solid #cbd5e1;border-radius:8px;padding:7px 10px;font-size:13px;color:#334155;background:#fff;font-family:inherit}
+.lvm .filters .spacer{flex:1}
+.lvm .chip{border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;background:#f1f5f9;color:#475569;cursor:pointer;border:none;font-family:inherit}
+.lvm .chip.active{background:#1e3a5f;color:#fff}
+.lvm .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
+.lvm .card-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #e2e8f0}
+.lvm .card-head h2{font-size:14px;font-weight:700;color:#1e3a5f;margin:0}
+.lvm table{width:100%;border-collapse:collapse;font-size:13px}
+.lvm thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#64748b;font-weight:700;padding:10px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+.lvm tbody td{padding:12px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.lvm tbody tr:hover{background:#f8fafc;cursor:pointer}
+.lvm .ref{font-weight:700;color:#1e3a5f}
+.lvm .muted{color:#94a3b8;font-size:12px}
+.lvm .mono{font-variant-numeric:tabular-nums}
+.lvm .badge{border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700;white-space:nowrap;display:inline-block}
+.lvm .b-pending{background:#fef3c7;color:#92400e}
+.lvm .b-progress{background:#dbeafe;color:#1d4ed8}
+.lvm .b-otp{background:#ede9fe;color:#6d28d9}
+.lvm .b-delivered{background:#dcfce7;color:#15803d}
+.lvm .b-failed{background:#fee2e2;color:#b91c1c}
+.lvm .qty-bar{width:110px;height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden;margin-top:4px}
+.lvm .qty-bar>div{height:100%;background:#1e3a5f;border-radius:4px}
+.lvm .qty-bar>div.partial{background:#f59e0b}
+.lvm .row-actions{display:flex;gap:6px}
+.lvm .btn-sm{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:4px 10px;font-size:12px;font-weight:600;color:#334155;cursor:pointer;white-space:nowrap;font-family:inherit}
+.lvm .btn-sm.gold{background:#b45309;border-color:#b45309;color:#fff}
+.lvm .btn-sm.danger{background:#b91c1c;border-color:#b91c1c;color:#fff}
+.lvm .tourbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.lvm .tour-chip{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:6px 8px 6px 14px;font-size:12.5px;font-weight:600;color:#334155}
+.lvm .tour-chip .mini{border:none;background:#f1f5f9;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:#334155;cursor:pointer;font-family:inherit}
+.lvm .note{margin-top:18px;font-size:12.5px;color:#64748b;line-height:1.6}
+.lvm .note b{color:#334155}
+`
+
+// Statuts maquette livraison-manager-v1 : classes badge + libellés
+function lmStatusClass(status: string | null | undefined, declarationOutcome?: string | null): string {
+  const s = (status ?? '').toLowerCase()
+  if (s.includes('deliver') || s.includes('validat')) return 'b-delivered'
+  if (declarationOutcome === 'partial' || declarationOutcome === 'refused' || s.includes('partial') || s.includes('fail') || s.includes('refus')) return 'b-failed'
+  if (s.includes('otp')) return 'b-otp'
+  if (s.includes('progress')) return 'b-progress'
+  return 'b-pending'
+}
+
+function lmStatusLabel(status: string | null | undefined, declarationOutcome?: string | null): string {
+  const s = (status ?? '').toLowerCase()
+  if (s.includes('deliver') || s.includes('validat')) return 'Livrée'
+  if (declarationOutcome === 'refused' || s.includes('refus')) return 'Refusée'
+  if (declarationOutcome === 'partial' || s.includes('partial') || s.includes('fail')) return 'Écart'
+  if (s.includes('otp')) return 'OTP envoyé'
+  if (s.includes('progress')) return 'En cours'
+  return 'En attente'
+}
+
 
 function SuiviTab({
   handleAuth,
@@ -685,15 +791,24 @@ function SuiviTab({
   const [status, setStatus] = useState('all')
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([])
   const [total, setTotal] = useState(0)
-  const [validated, setValidated] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [collapsedTours, setCollapsedTours] = useState<Set<string>>(() => new Set())
 
   const tourGroups = useMemo(() => groupDeliveriesByTour(deliveries), [deliveries])
-  const allTourIds = useMemo(() => tourGroups.map((g) => g.tourId), [tourGroups])
-  const statusFiltered = status !== 'all'
+
+  const kpi = useMemo(() => {
+    let pending = 0, progress = 0, otp = 0, delivered = 0, failed = 0
+    for (const d of deliveries) {
+      const s = (d.status ?? '').toLowerCase()
+      if (s.includes('deliver') || s.includes('validat')) delivered++
+      else if (s.includes('partial') || s.includes('fail') || s.includes('refus') || d.declarationOutcome === 'partial' || d.declarationOutcome === 'refused') failed++
+      else if (s.includes('otp')) otp++
+      else if (s.includes('progress')) progress++
+      else pending++
+    }
+    return { pending, progress, otp, delivered, failed }
+  }, [deliveries])
 
   const fetch_ = useCallback(async () => {
     setLoading(true); setError(null)
@@ -702,22 +817,8 @@ function SuiviTab({
     const data = await res.json() as { deliveries: DeliveryRow[]; total: number; validated: number }
     setDeliveries(data.deliveries ?? [])
     setTotal(data.total ?? 0)
-    setValidated(data.validated ?? 0)
-    setCollapsedTours(new Set())
     setLoading(false)
   }, [date, status, handleAuth])
-
-  const toggleTour = (tourId: string) => {
-    setCollapsedTours((prev) => {
-      const next = new Set(prev)
-      if (next.has(tourId)) next.delete(tourId)
-      else next.add(tourId)
-      return next
-    })
-  }
-
-  const expandAllTours = () => setCollapsedTours(new Set())
-  const collapseAllTours = () => setCollapsedTours(new Set(allTourIds))
 
   const deleteTour = async (tourId: string, driverName: string, deliveredCount: number) => {
     if (deliveredCount > 0) {
@@ -754,188 +855,126 @@ function SuiviTab({
   useEffect(() => {
     if (pendingDeliveryId) {
       setSelectedId(pendingDeliveryId)
-      const tourId = deliveries.find((d) => d.deliveryId === pendingDeliveryId)?.tourId
-      if (tourId) {
-        setCollapsedTours((prev) => {
-          const next = new Set(prev)
-          next.delete(tourId)
-          return next
-        })
-      }
       onPendingDeliveryConsumed?.()
     }
   }, [pendingDeliveryId, onPendingDeliveryConsumed, deliveries])
 
   return (
-    <div>
-      {(pendingTaskCount ?? 0) > 0 && (
+    <div className="lvm">
+      <style>{LM_CSS}</style>
+
+      {(pendingTaskCount ?? 0) > 0 && procurementRole !== 'technical_director' && (
         <div style={{ background: '#f3faf6', border: '1px solid #c5d9cc', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <p style={{ margin: 0, fontSize: 14 }}>
             <strong>{pendingTaskCount}</strong> tâche(s) en attente (confirmations, partielles, non effectuées…).
           </p>
-          <button type="button" onClick={onGoToTasks} style={css.btnGold}>Voir les tâches</button>
+          <button type="button" onClick={onGoToTasks} className="btn-sm gold">Voir les tâches</button>
         </div>
       )}
 
-      {/* Stats */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        <StatCard label="Livraisons" value={total} />
-        <StatCard label="Validées" value={validated} />
-        <StatCard label="En attente" value={total - validated} />
+      <div className="page-header">
+        <div>
+          <h1>🚚 Livraisons</h1>
+          <div className="sub">Suivi en temps réel des livraisons — photos, quantités déclarées, OTP.</div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="header-actions">
+            <button type="button" className="btn" onClick={() => toast.info('Export CSV : bientôt disponible')}>Exporter CSV</button>
+            <button type="button" className="btn btn-primary" onClick={() => void fetch_()}>Actualiser</button>
+          </div>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        <label style={css.label}>Date</label>
-        <input type="date" data-testid="mgr-suivi-date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...css.inputCompact, width: 150 }} />
-        <label style={css.label}>Statut</label>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...css.inputCompact, width: 160 }}>
-          {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-        <button onClick={() => void fetch_()} style={css.btnGold}>Filtrer</button>
+      <div className="kpi-row">
+        <div className="kpi"><span className="icon">📦</span><div className="label">En attente</div><div className="value">{kpi.pending}</div><div className="detail">planifiées, non démarrées</div></div>
+        <div className="kpi"><span className="icon">🛣️</span><div className="label">En cours</div><div className="value warn">{kpi.progress}</div><div className="detail">livreur parti du dépôt</div></div>
+        <div className="kpi"><span className="icon">🔐</span><div className="label">OTP envoyé</div><div className="value warn">{kpi.otp}</div><div className="detail">en attente de saisie client</div></div>
+        <div className="kpi"><span className="icon">✅</span><div className="label">Livrées</div><div className="value ok">{kpi.delivered}</div><div className="detail">sur {total} prévues</div></div>
+        <div className="kpi"><span className="icon">⚠️</span><div className="label">Échecs / écarts</div><div className="value warn">{kpi.failed}</div><div className="detail">quantité ≠ attendue</div></div>
+      </div>
+
+      <div className="filters">
+        <button type="button" className={status === 'all' ? 'chip active' : 'chip'} onClick={() => setStatus('all')}>Toutes</button>
+        <button type="button" className={status === 'otp_sent' ? 'chip active' : 'chip'} onClick={() => setStatus('otp_sent')}>OTP bloqué</button>
+        <button type="button" className={status === 'partial' ? 'chip active' : 'chip'} onClick={() => setStatus('partial')}>Écarts</button>
+        <button type="button" className={status === 'delivered' ? 'chip active' : 'chip'} onClick={() => setStatus('delivered')}>Livrées</button>
+        <span className="spacer" />
+        <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Date</label>
+        <input type="date" data-testid="mgr-suivi-date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <button type="button" className="btn btn-primary" onClick={() => void fetch_()}>Filtrer</button>
       </div>
 
       {error && <AlertBox>{error}</AlertBox>}
-
       {loading && <LoadingHint />}
+      {!loading && deliveries.length === 0 && <EmptyHint>Aucune livraison pour ce filtre.</EmptyHint>}
 
-      {!loading && deliveries.length === 0 && (
-        <EmptyHint>Aucune livraison pour ce filtre.</EmptyHint>
+      {tourGroups.length > 0 && (
+        <div className="tourbar">
+          {tourGroups.map((group) => (
+            <span key={group.tourId} className="tour-chip">
+              🛣️ {group.driverName} · {group.deliveries.length} livraison{group.deliveries.length > 1 ? 's' : ''}
+              {canModify && (
+                <>
+                  <button type="button" data-testid={`mgr-suivi-edit-${group.tourId}`} className="mini" onClick={() => onEditTour?.(group.tourId, group.tourDate)}>Modifier</button>
+                  {group.deliveredCount === 0 && (
+                    <button type="button" data-testid={`mgr-suivi-delete-${group.tourId}`} className="mini" onClick={() => void deleteTour(group.tourId, group.driverName, group.deliveredCount)}>Supprimer</button>
+                  )}
+                </>
+              )}
+            </span>
+          ))}
+        </div>
       )}
 
       {deliveries.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-            <span style={{ fontSize: 13, color: '#6b7280' }}>
-              {tourGroups.length} tournée{tourGroups.length > 1 ? 's' : ''} · {deliveries.length} livraison{deliveries.length > 1 ? 's' : ''}
-              {statusFiltered ? ' (filtre statut actif)' : ''}
-            </span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={expandAllTours} style={css.btnOutline}>Tout déplier</button>
-              <button type="button" onClick={collapseAllTours} style={css.btnOutline}>Tout replier</button>
-            </div>
+        <div className="card">
+          <div className="card-head">
+            <h2>Livraisons du {date.split('-').reverse().join('/')}</h2>
+            <span className="muted">{deliveries.length} livraison{deliveries.length > 1 ? 's' : ''} · {tourGroups.length} tournée{tourGroups.length > 1 ? 's' : ''} · clic sur une ligne pour le détail</span>
           </div>
-
-          {tourGroups.map((group) => {
-            const collapsed = collapsedTours.has(group.tourId)
-            // REPLAN DÉSACTIVÉ — bouton « Replanifier » retiré (on garde « Modifier »).
-            // const canReplan = group.deliveredCount < group.deliveries.length
-            const progressLabel = statusFiltered
-              ? `${group.deliveries.length} arrêt${group.deliveries.length > 1 ? 's' : ''} affiché${group.deliveries.length > 1 ? 's' : ''}`
-              : `${group.deliveredCount}/${group.deliveries.length} livré${group.deliveries.length > 1 ? 's' : ''}`
-
-            return (
-              <div
-                key={group.tourId}
-                style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '12px 14px',
-                    background: '#faf8f5',
-                    borderBottom: collapsed ? 'none' : '1px solid var(--border)',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggleTour(group.tourId)}
-                    style={{
-                      flex: 1,
-                      display: 'block',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      padding: 0,
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>
-                      <span style={{ marginRight: 8, color: '#6b7280' }}>{collapsed ? '▸' : '▾'}</span>
-                      {group.driverName}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, paddingLeft: 22 }}>
-                      {group.depotName} · {progressLabel}
-                      {' · '}
-                      <span data-testid={`mgr-suivi-tour-status-${group.tourId}`}>
-                        {tourLifecycleLabel(group.deliveredCount, group.deliveries.length)}
-                      </span>
-                    </div>
-                  </button>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {/* REPLAN DÉSACTIVÉ — bouton « Replanifier » retiré (on garde « Modifier »).
-                    {canModify && canReplan && (
-                      <button
-                        type="button"
-                        data-testid={`mgr-suivi-replan-${group.tourId}`}
-                        onClick={() => onReplanTour?.(group.tourId, group.tourDate)}
-                        style={css.btnOutline}
-                      >
-                        Replanifier
-                      </button>
-                    )}
-                    */}
-                    {canModify && (
-                      <button
-                        type="button"
-                        data-testid={`mgr-suivi-edit-${group.tourId}`}
-                        onClick={() => onEditTour?.(group.tourId, group.tourDate)}
-                        style={css.btnOutline}
-                      >
-                        Modifier la tournée
-                      </button>
-                    )}
-                    {canModify && group.deliveredCount === 0 && (
-                      <button
-                        type="button"
-                        data-testid={`mgr-suivi-delete-${group.tourId}`}
-                        onClick={() => void deleteTour(group.tourId, group.driverName, group.deliveredCount)}
-                        style={css.btnDanger}
-                      >
-                        Supprimer
-                      </button>
-                    )}
-                    {!canModify && (
-                      <span style={{ fontSize: 12, color: 'var(--muted, #667)' }}>
-                        Consultation — seule la Direction des Achats (SA) peut modifier.
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {!collapsed && (
-                  <div style={css.deliveryCardGrid}>
-                    {group.deliveries.map((d) => (
-                      <button
-                        key={d.deliveryId}
-                        type="button"
-                        onClick={() => setSelectedId(d.deliveryId)}
-                        style={{ ...css.deliveryCard, textAlign: 'left' }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{d.deliveryName}</div>
-                          <DashboardStatusBadge status={d.status} declarationOutcome={d.declarationOutcome} />
-                        </div>
-                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{d.deliveryAddress}</div>
-                        <ProductQuantityList
-                          compact
-                          lines={suiviQuantityDisplay(d.products, d.units, d.unitType)}
-                        />
-                        <div style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: '#0b4a2c' }}>
-                          Voir détail ›
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+          <table data-testid="mgr-suivi-deliveries-table">
+            <thead>
+              <tr>
+                <th>Référence</th><th>Chantier / Magasin</th><th>Livreur</th><th>Statut</th><th>Quantités</th><th>Dépôt</th><th aria-hidden="true"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {deliveries.map((d) => {
+                const cls = lmStatusClass(d.status, d.declarationOutcome)
+                const label = lmStatusLabel(d.status, d.declarationOutcome)
+                const q = suiviQuantityDisplay(d.products, d.units, d.unitType)
+                return (
+                  <tr key={d.deliveryId} onClick={() => setSelectedId(d.deliveryId)}>
+                    <td className="ref">{d.deliveryId.slice(0, 8).toUpperCase()}</td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#1e3a5f' }}>{d.deliveryName}</div>
+                      <div className="muted">{d.deliveryAddress}</div>
+                    </td>
+                    <td>{d.driverName}</td>
+                    <td><span className={`badge ${cls}`}>{label}</span></td>
+                    <td className="mono">
+                      {q[0] ? (
+                        <>
+                          {formatProductQuantityLine(q[0])}
+                          <div className="qty-bar"><div className={d.declarationOutcome && d.declarationOutcome !== 'complete' ? 'partial' : ''} /></div>
+                        </>
+                      ) : <span className="muted">—</span>}
+                    </td>
+                    <td className="muted">{d.depotName}</td>
+                    <td>
+                      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                        <button type="button" className="btn-sm gold" onClick={() => setSelectedId(d.deliveryId)}>Détail</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
+
+      <p className="note"><b>Astuce :</b> cliquez sur une ligne pour ouvrir le détail complet — photos reçues, quantités déclarées vs attendues, assistance OTP et historique.</p>
 
       {selectedId && (
         <DeliveryDetailModal
@@ -948,8 +987,43 @@ function SuiviTab({
     </div>
   )
 }
-
 // ─── Tab: Planifier une tournée ───────────────────────────────────────────────
+
+const PL_CSS = `
+.pl{max-width:1180px}
+.pl h1{font-size:22px;font-weight:800;color:#1e3a5f;margin:0}
+.pl-sub{color:#64748b;font-size:13px;margin:4px 0 0}
+.pl-topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:6px;flex-wrap:wrap}
+.pl-actions{display:flex;gap:8px}
+.pl-btn{border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;color:#1e3a5f;cursor:pointer;font-family:inherit}
+.pl-btn-primary{background:#1e3a5f;border-color:#1e3a5f;color:#fff}
+.pl-btn-gold{background:#fdf3e0;border-color:#ecd9b0;color:#b7791f}
+.pl-btn:disabled{opacity:.55;cursor:not-allowed}
+.pl-alert{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px 16px;font-size:13px;color:#b45309;margin:16px 0}
+.pl-cols{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
+.pl-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:16px}
+.pl-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
+.pl-card-head h2,.pl-card-head h3{font-size:14px;font-weight:700;color:#1e3a5f;margin:0}
+.pl-card-body{padding:16px}
+.pl-field{margin-bottom:14px}
+.pl-field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:6px}
+.pl-field input,.pl-field select{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;color:#334155;background:#fff;box-sizing:border-box}
+.pl-pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+.pl-pill-amber{background:#fffbeb;color:#b45309}
+.pl-pill-navy{background:#eef3f8;color:#1e3a5f}
+.pl-tour{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #f1f5f9}
+.pl-tour:last-child{border-bottom:none}
+.pl-tour .nm{font-weight:700;font-size:13px;color:#1e3a5f}
+.pl-tour .meta{font-size:12px;color:#64748b}
+.pl-summary{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:#1e3a5f;color:#fff;border-radius:12px;padding:14px 18px;margin-top:16px}
+.pl-summary .big{font-size:17px;font-weight:800}
+.pl-summary .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.75}
+.pl-summary .sep{width:1px;height:26px;background:rgba(255,255,255,.25)}
+.pl-summary .spacer{flex:1}
+.pl-summary .pl-btn-primary{background:#fff;color:#1e3a5f;border-color:#fff}
+.pl-hint{font-size:11.5px;color:#64748b;margin-top:5px}
+@media (max-width: 900px){.pl-cols{grid-template-columns:1fr}}
+`
 
 function PlanifierTab({
   handleAuth,
@@ -1021,7 +1095,7 @@ function PlanifierTab({
   const [replanSessionActive, setReplanSessionActive] = useState(false)
   const replanLoadRef = useRef(0)
   const replanIntentRef = useRef<{ tourId?: string; hintSourceDate?: string | null } | null>(null)
-  const createFormRef = useRef<HTMLElement | null>(null)
+  const createFormRef = useRef<HTMLFormElement | null>(null)
   // Lien BC du brouillon en cours — en state (lu pendant le rendu pour les
   // verrous produits ; un ref déclencherait react-hooks/refs).
   const [procurementRequestId, setProcurementRequestId] = useState<string | null>(null)
@@ -1392,22 +1466,145 @@ function PlanifierTab({
   const dateFr = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
-    <div>
-      <Row>
-        <Field label="Date à planifier">
-          <input type="date" data-testid="mgr-planifier-date" value={date} onChange={(e) => setDate(e.target.value)} style={css.input} />
-        </Field>
-      </Row>
+    <div className="pl">
+      <style>{PL_CSS}</style>
+      <div className="pl-topbar">
+        <div>
+          <h1>Planifier une tournée</h1>
+          <p className="pl-sub">Créez la tournée d'un livreur : dépôt de départ, arrêts, produits et créneau horaire — 06:00 → 18:00.</p>
+        </div>
+        <div className="pl-actions">
+          <button type="button" data-testid="mgr-replan-cancel" onClick={cancelReplan} className="pl-btn">
+            {isReplanActive ? 'Annuler la replanification' : 'Annuler'}
+          </button>
+          <button type="submit" form="pl-form" data-testid="mgr-create-tour" className="pl-btn pl-btn-primary" disabled={creating}>
+            {creating ? 'Création…' : '💾 Enregistrer la tournée'}
+          </button>
+        </div>
+      </div>
 
-      <section style={css.section}>
-        <h2 style={css.sectionTitle}>Tournées du {dateFr}</h2>
+      {createError && <div className="pl-alert"><span>⚠️ {createError}</span></div>}
+      {isReplanActive && (
+        <ReplanBanner
+          sourceDate={replanSourceDate ?? initialReplanHintDate ?? date}
+          targetDate={newTour.date}
+          kind={replanKind}
+          loading={replanLoading}
+          onDismiss={cancelReplan}
+        />
+      )}
+
+      <form ref={createFormRef} id="pl-form" onSubmit={(e) => void handleCreate(e)} data-testid="mgr-planifier-form">
+        <div className="pl-cols">
+          <div className="pl-col">
+            <div className="pl-card">
+              <div className="pl-card-head">
+                <h2 data-testid="mgr-planifier-form-title">Paramètres de la tournée</h2>
+                {replanSourceDate ? <span className="pl-pill pl-pill-amber">Replanification</span> : <span className="pl-pill pl-pill-navy">Brouillon</span>}
+              </div>
+              <div className="pl-card-body">
+                <div className="pl-field">
+                  <label>Date de la tournée *</label>
+                  <input type="date" data-testid="mgr-planifier-date" value={newTour.date} required onChange={(e) => setNewTour((p) => ({ ...p, date: e.target.value }))} />
+                  <div className="pl-hint">La tournée apparaîtra dans le dashboard du livreur à cette date.</div>
+                </div>
+                <div className="pl-field">
+                  <label>Créneau horaire</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input type="time" value={newTour.tourStart} onChange={(e) => setNewTour((p) => ({ ...p, tourStart: e.target.value }))} />
+                    <span style={{ color: '#94a3b8' }}>→</span>
+                    <input type="time" value={newTour.tourEnd} onChange={(e) => setNewTour((p) => ({ ...p, tourEnd: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="pl-field">
+                  <label>Livreur *</label>
+                  <select
+                    data-testid="mgr-create-driver"
+                    value={newTour.driverId}
+                    required
+                    disabled={driversLoading || drivers.filter((d) => d.status === 'active').length === 0}
+                    onChange={(e) => setNewTour((p) => ({ ...p, driverId: e.target.value }))}
+                  >
+                    <option value="">
+                      {driversLoading
+                        ? 'Chargement des livreurs…'
+                        : drivers.filter((d) => d.status === 'active').length === 0
+                          ? 'Aucun livreur actif'
+                          : 'Choisir un livreur'}
+                    </option>
+                    {drivers.filter((d) => d.status === 'active').map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                  {driversError && (
+                    <p style={{ margin: '6px 0 0', fontSize: 13, color: '#b91c1c' }}>
+                      {driversError}{' '}
+                      <button type="button" onClick={() => void loadDrivers()} className="pl-btn" style={{ padding: '2px 8px', fontSize: 12 }}>Réessayer</button>
+                    </p>
+                  )}
+                  {!driversLoading && !driversError && drivers.filter((d) => d.status === 'active').length === 0 && (
+                    <p className="pl-hint">Ajoutez ou réactivez un livreur dans l'onglet Équipe.</p>
+                  )}
+                </div>
+                <div className="pl-field">
+                  <label>{useFournisseurLabels ? 'Fournisseur *' : 'Nom du dépôt *'}</label>
+                  <input type="text" data-testid="mgr-create-depot" value={newTour.depotName} required placeholder={useFournisseurLabels ? 'Ex: CimIvoire' : 'Ex: Entrepôt Nord'} onChange={(e) => setNewTour((p) => ({ ...p, depotName: e.target.value }))} />
+                </div>
+                <div className="pl-field">
+                  <label>{useFournisseurLabels ? 'Adresse du fournisseur *' : 'Adresse du dépôt *'}</label>
+                  <input type="text" data-testid="mgr-create-depot-address" value={newTour.depotAddress} required placeholder={useFournisseurLabels ? 'Adresse du fournisseur' : '12 Rue des Logistiques, Abidjan…'} onChange={(e) => setNewTour((p) => ({ ...p, depotAddress: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+            <div className="pl-col">
+              <div className="pl-card">
+                <div className="pl-card-head">
+                  <h2>Arrêts de la tournée ({stops.length})</h2>
+                  <button type="button" onClick={addStop} className="pl-btn pl-btn-gold">+ Ajouter un arrêt</button>
+                </div>
+                <div className="pl-card-body">
+                  {replanSourceDate && <StopsValidationHint stops={stops} />}
+                  {stops.map((s, idx) => (
+                    <TourStopFormCard
+                      key={`${formVersion}-${idx}`}
+                      stop={s}
+                      index={idx}
+                      supermarkets={supermarkets}
+                      catalogRefreshKey={catalogRefreshKey}
+                      canRemove={stops.length > 1}
+                      productsLocked={!!procurementRequestId}
+                      onRemove={() => removeStop(idx)}
+                      onChange={(next) => setStops((prev) => prev.map((st, i) => i === idx ? next : st))}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="pl-summary">
+                <div><div className="lbl">Livreur</div><div className="big">{drivers.find((d) => d.id === newTour.driverId)?.name ?? '—'}</div></div>
+                <div className="sep" />
+                <div><div className="lbl">Date</div><div className="big">{new Date(newTour.date + 'T12:00:00').toLocaleDateString('fr-FR')}</div></div>
+                <div className="sep" />
+                <div><div className="lbl">Arrêts</div><div className="big">{stops.length}</div></div>
+                <div className="sep" />
+                <div><div className="lbl">Créneau</div><div className="big">{newTour.tourStart} → {newTour.tourEnd}</div></div>
+                <div className="spacer" />
+              </div>
+            </div>
+        </div>
+      </form>
+
+      <div className="pl-card">
+        <div className="pl-card-head"><h2>Tournées du {dateFr}</h2></div>
+        <div className="pl-card-body">
         {tours.length === 0
           ? <EmptyHint>Aucune tournée planifiée pour cette date.</EmptyHint>
           : tours.map((t) => (
-            <div key={t.tourId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)', gap: 8, flexWrap: 'wrap' }}>
+            <div key={t.tourId} className="pl-tour">
               <div>
-                <div style={{ fontWeight: 700 }}>{t.driverName}</div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>{t.totalStops} arrêt(s) · {t.delivered} livré(s) · {t.depotName}</div>
+                <div className="nm">{t.driverName}</div>
+                <div className="meta">{t.totalStops} arrêt(s) · {t.delivered} livré(s) · {t.depotName}</div>
                 <div style={{ fontSize: 11, color: 'var(--brand)', marginTop: 2 }} data-testid={`mgr-planifier-tour-status-${t.tourId}`}>
                   {tourLifecycleLabel(t.delivered, t.totalStops)}
                 </div>
@@ -1474,490 +1671,13 @@ function PlanifierTab({
           }}
         />
       )}
-      </section>
-
-      <section ref={createFormRef} style={css.section}>
-        <h2 style={css.sectionTitle} data-testid="mgr-planifier-form-title">Planifier une tournée</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 0, marginBottom: '1rem' }}>
-          Crée une tournée, assigne les livraisons au livreur et lui envoie un SMS. Les chantiers viennent de l’onglet « Chantiers » ; les quantités se saisissent dans « Produits attendus ». Après création, redirection vers Suivi livraisons.
-        </p>
-
-        {(isReplanActive) && (
-          <ReplanBanner
-            sourceDate={replanSourceDate ?? initialReplanHintDate ?? date}
-            targetDate={newTour.date}
-            kind={replanKind}
-            loading={replanLoading}
-            onDismiss={cancelReplan}
-          />
-        )}
-        {createError && <AlertBox>{createError}</AlertBox>}
-        {replanSourceDate && <StopsValidationHint stops={stops} />}
-
-        <form onSubmit={(e) => void handleCreate(e)} data-testid="mgr-planifier-form">
-          <Row>
-            <Field label="Date de tournée *" style={{ flex: 1 }}>
-              <input type="date" value={newTour.date} required style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, date: e.target.value }))} />
-            </Field>
-            <Field label="Livreur *" style={{ flex: 2 }}>
-              <select
-                data-testid="mgr-create-driver"
-                value={newTour.driverId}
-                required
-                disabled={driversLoading || drivers.filter((d) => d.status === 'active').length === 0}
-                style={css.input}
-                onChange={(e) => setNewTour((p) => ({ ...p, driverId: e.target.value }))}
-              >
-                <option value="">
-                  {driversLoading
-                    ? 'Chargement des livreurs…'
-                    : drivers.filter((d) => d.status === 'active').length === 0
-                      ? 'Aucun livreur actif'
-                      : 'Choisir un livreur'}
-                </option>
-                {drivers.filter((d) => d.status === 'active').map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-              {driversError && (
-                <p style={{ margin: '0.35rem 0 0', fontSize: 13, color: 'var(--color-danger, #b91c1c)' }}>
-                  {driversError}{' '}
-                  <button
-                    type="button"
-                    onClick={() => void loadDrivers()}
-                    style={{ ...css.btnOutline, padding: '2px 8px', fontSize: 13 }}
-                  >
-                    Réessayer
-                  </button>
-                </p>
-              )}
-              {!driversLoading && !driversError && drivers.filter((d) => d.status === 'active').length === 0 && (
-                <p style={{ margin: '0.35rem 0 0', fontSize: 13, color: 'var(--color-muted, #64748b)' }}>
-                  Ajoutez ou réactivez un livreur dans l’onglet Équipe.
-                </p>
-              )}
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Créneau début">
-              <input type="time" value={newTour.tourStart} style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, tourStart: e.target.value }))} />
-            </Field>
-            <Field label="Créneau fin">
-              <input type="time" value={newTour.tourEnd} style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, tourEnd: e.target.value }))} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label={useFournisseurLabels ? 'Fournisseur *' : 'Nom du dépôt *'} style={{ flex: 1 }}>
-              <input type="text" data-testid="mgr-create-depot" value={newTour.depotName} required placeholder={useFournisseurLabels ? 'Ex: CimIvoire' : 'Ex: Entrepôt Nord'} style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, depotName: e.target.value }))} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label={useFournisseurLabels ? 'Adresse du fournisseur *' : 'Adresse du dépôt *'} style={{ flex: 1 }}>
-              <input type="text" data-testid="mgr-create-depot-address" value={newTour.depotAddress} required placeholder={useFournisseurLabels ? 'Adresse du fournisseur' : '12 Rue des Logistiques, Abidjan…'} style={css.input} onChange={(e) => setNewTour((p) => ({ ...p, depotAddress: e.target.value }))} />
-            </Field>
-          </Row>
-
-          <div style={{ marginTop: '1.5rem' }}>
-            <h3 style={{ margin: '0 0 0.75rem', fontSize: 15, fontWeight: 700 }}>Arrêts / livraisons</h3>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>Plusieurs produits par arrêt. Chaque arrêt = un magasin, un OTP à la livraison.</p>
-
-            {stops.map((s, idx) => (
-              <TourStopFormCard
-                key={`${formVersion}-${idx}`}
-                stop={s}
-                index={idx}
-                supermarkets={supermarkets}
-                catalogRefreshKey={catalogRefreshKey}
-                canRemove={stops.length > 1}
-                productsLocked={!!procurementRequestId}
-                onRemove={() => removeStop(idx)}
-                onChange={(next) => setStops((prev) => prev.map((st, i) => i === idx ? next : st))}
-              />
-            ))}
-            <button type="button" onClick={addStop} style={{ ...css.btnOutline, marginBottom: '1rem' }}>+ Ajouter un arrêt</button>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button type="submit" data-testid="mgr-create-tour" disabled={creating} style={css.btnGold}>
-              {creating ? 'Création…' : replanSourceDate
-                ? (replanKind === 'partial' ? 'Créer la tournée pour le reliquat' : 'Créer la tournée replanifiée')
-                : 'Créer la tournée et notifier le livreur'}
-            </button>
-            <button type="button" data-testid="mgr-replan-cancel" onClick={cancelReplan} style={css.btnGhost}>
-              {isReplanActive ? 'Annuler la replanification' : 'Annuler'}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  )
-}
-
-// ─── Tab: Livreurs ────────────────────────────────────────────────────────────
-
-function LivreursTab({ handleAuth, onTasksChanged }: { handleAuth: (s: number) => boolean; onTasksChanged?: () => void }) {
-  const [drivers, setDrivers] = useState<DriverRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState({ name: '', phone: '', pin: '' })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [editId, setEditId] = useState<string | null>(null)
-
-  const fetchDrivers = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await authFetch('/dashboard/drivers')
-      if (handleAuth(res.status)) return
-      const data = await res.json() as { drivers: DriverRow[] }
-      setDrivers(data.drivers ?? [])
-    } finally {
-      setLoading(false)
-    }
-  }, [handleAuth])
-
-  useEffect(() => { void fetchDrivers() }, [fetchDrivers])
-
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault(); setError(null); setSaving(true)
-    try {
-      const res = await authFetch('/dashboard/drivers', { method: 'POST', body: JSON.stringify(form) })
-      const data = await res.json() as { ok?: boolean; message?: string }
-      if (!res.ok) throw new Error(data.message ?? 'Erreur')
-      setForm({ name: '', phone: '', pin: '' })
-      toast.success('Livreur ajouté avec succès.')
-      await fetchDrivers()
-    } catch (err) { setError(err instanceof Error ? err.message : 'Erreur') }
-    finally { setSaving(false) }
-  }
-
-  const toggleStatus = async (d: DriverRow) => {
-    const newStatus = d.status === 'active' ? 'suspended' : 'active'
-    if (newStatus === 'suspended') {
-      if (!confirmDeletion(`Désactiver le livreur « ${d.name} » ? Il ne pourra plus se connecter.`)) return
-    }
-    await authFetch(`/dashboard/drivers/${d.id}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) })
-    await fetchDrivers()
-    if (newStatus === 'suspended') onTasksChanged?.()
-  }
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '2rem', alignItems: 'start' }}>
-      <section style={css.section}>
-        <h2 style={css.sectionTitle}>Ajouter un livreur</h2>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1rem' }}>Créez un compte livreur (téléphone + PIN pour la PWA) ou modifiez un livreur existant.</p>
-        {error && <AlertBox>{error}</AlertBox>}
-        <form onSubmit={(e) => void handleAdd(e)}>
-          <h3 style={{ fontSize: 14, margin: '0 0 0.75rem' }}>Nouveau livreur</h3>
-          <Field label="Nom *"><input type="text" value={form.name} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></Field>
-          <div style={{ marginBottom: 8 }} />
-          <Field label="Téléphone *">
-            <input
-              type="tel"
-              name="new-driver-phone"
-              autoComplete="off"
-              value={form.phone}
-              required
-              placeholder={CI_PHONE_PLACEHOLDER}
-              title={CI_PHONE_INPUT_TITLE}
-              style={css.input}
-              onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-            />
-          </Field>
-          <div style={{ marginBottom: 8 }} />
-          <Field label="PIN *">
-            <input
-              type="password"
-              name="new-driver-pin"
-              autoComplete="new-password"
-              value={form.pin}
-              required
-              minLength={4}
-              maxLength={8}
-              style={css.input}
-              onChange={(e) => setForm((p) => ({ ...p, pin: e.target.value }))}
-            />
-          </Field>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} style={css.btnGold}>{saving ? 'Ajout…' : 'Ajouter le livreur'}</button>
-            <button type="button" onClick={() => setForm({ name: '', phone: '', pin: '' })} style={css.btnGhost}>Annuler</button>
-          </div>
-        </form>
-      </section>
-
-      <section style={css.section}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 1rem' }}>Livreurs enregistrés</h3>
-        {loading && <LoadingHint>Chargement des livreurs…</LoadingHint>}
-        {!loading && drivers.length === 0 && (
-          <EmptyHint>Aucun livreur enregistré. Ajoutez-en un à gauche.</EmptyHint>
-        )}
-        {!loading && drivers.length > 0 && (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead><tr style={{ background: '#f5f0e8' }}>
-              {['Nom', 'Téléphone', 'Statut', ''].map((h) => <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>)}
-            </tr></thead>
-            <tbody>{drivers.map((d, i) => (
-              <tr key={d.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
-                <td style={css.td}>{d.name}</td>
-                <td style={css.td}>{d.phone}</td>
-                <td style={css.td}><Toggle active={d.status === 'active'} onChange={() => void toggleStatus(d)} /></td>
-                <td style={css.td}><button type="button" onClick={() => setEditId(d.id)} style={css.btnOutline}>Modifier</button></td>
-              </tr>
-            ))}</tbody>
-          </table>
-        )}
-        {editId && <EditDriverModal id={editId} drivers={drivers} onClose={() => { setEditId(null); void fetchDrivers() }} />}
-      </section>
-    </div>
-  )
-}
-
-// ─── Tab: Gestionnaires ───────────────────────────────────────────────────────
-
-function GestionnairesTab({
-  handleAuth,
-  currentManagerId,
-}: {
-  handleAuth: (s: number) => boolean
-  currentManagerId: string
-}) {
-  const [managers, setManagers] = useState<ManagerRow[]>([])
-  const [invites, setInvites] = useState<ManagerInviteRow[]>([])
-  const [form, setForm] = useState({ name: '', email: '', procurementRole: '' })
-  const [lastInviteLink, setLastInviteLink] = useState<{ url: string; email: string } | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [editId, setEditId] = useState<string | null>(null)
-
-  const fetchManagers = useCallback(async () => {
-    const res = await authFetch('/dashboard/managers')
-    if (handleAuth(res.status)) return
-    const data = await res.json() as { managers: ManagerRow[] }
-    setManagers(data.managers ?? [])
-  }, [handleAuth])
-
-  const fetchInvites = useCallback(async () => {
-    const res = await authFetch('/dashboard/managers/invites')
-    if (handleAuth(res.status)) return
-    const data = await res.json() as { invites: ManagerInviteRow[] }
-    setInvites(data.invites ?? [])
-  }, [handleAuth])
-
-  const refreshAll = useCallback(async () => {
-    await Promise.all([fetchManagers(), fetchInvites()])
-  }, [fetchManagers, fetchInvites])
-
-  useEffect(() => { void refreshAll() }, [refreshAll])
-
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSaving(true)
-    try {
-      const res = await authFetch('/dashboard/managers/invite', { method: 'POST', body: JSON.stringify(form) })
-      const data = await res.json() as { ok?: boolean; message?: string; inviteUrl?: string }
-      if (!res.ok) throw new Error(data.message ?? 'Erreur')
-      setForm({ name: '', email: '', procurementRole: '' })
-      if (data.inviteUrl) setLastInviteLink({ url: data.inviteUrl, email: form.email })
-      toast.success('Invitation créée. Si l’e-mail n’arrive pas, copiez le lien affiché ci-dessous.')
-      await refreshAll()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const cancelInvite = async (invite: ManagerInviteRow) => {
-    if (!confirmDeletion(`Annuler l'invitation pour « ${invite.email} » ?`)) return
-    const res = await authFetch(`/dashboard/managers/invites/${encodeURIComponent(invite.id)}`, { method: 'DELETE' })
-    if (handleAuth(res.status)) return
-    await refreshAll()
-  }
-
-  const resendInvite = async (invite: ManagerInviteRow) => {
-    const res = await authFetch(`/dashboard/managers/invites/${encodeURIComponent(invite.id)}/resend`, { method: 'POST' })
-    if (handleAuth(res.status)) return
-    const data = (await res.json()) as { message?: string; inviteUrl?: string }
-    if (!res.ok) {
-      toast.error(data.message ?? 'Renvoi impossible')
-      return
-    }
-    if (data.inviteUrl) setLastInviteLink({ url: data.inviteUrl, email: invite.email })
-    toast.success('Invitation renvoyée. Lien affiché ci-dessous si besoin.')
-    await refreshAll()
-  }
-
-  const removeManager = async (m: ManagerRow) => {
-    if (m.id === currentManagerId) {
-      window.alert('Vous ne pouvez pas supprimer votre propre compte.')
-      return
-    }
-    if (!confirmDeletion(`Supprimer le gestionnaire « ${m.name} » (${m.email}) ?`)) return
-    const res = await authFetch(`/dashboard/managers/${encodeURIComponent(m.id)}`, { method: 'DELETE' })
-    if (handleAuth(res.status)) return
-    const data = (await res.json()) as { message?: string }
-    if (!res.ok) {
-      toast.error(data.message ?? 'Suppression impossible')
-      return
-    }
-    toast.success('Gestionnaire supprimé.')
-    await refreshAll()
-  }
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '2rem', alignItems: 'start' }}>
-      <section style={css.section}>
-        <h2 style={css.sectionTitle}>Inviter un gestionnaire</h2>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1rem' }}>
-          Un e-mail d&apos;invitation sera envoyé. Le collègue choisira son mot de passe via un lien sécurisé (valable 72 h).
-        </p>
-        {error && <AlertBox>{error}</AlertBox>}
-        <form onSubmit={(e) => void handleInvite(e)}>
-          <Field label="Nom *">
-            <input type="text" value={form.name} required style={css.input} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} data-testid="mgr-invite-name" />
-          </Field>
-          <div style={{ marginBottom: 8 }} />
-          <Field label="E-mail *">
-            <input
-              type="email"
-              value={form.email}
-              required
-              autoComplete="off"
-              style={css.input}
-              data-testid="mgr-invite-email"
-              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-            />
-          </Field>
-          <div style={{ marginBottom: 8 }} />
-          <Field label="Rôle (optionnel)">
-            <select
-              value={form.procurementRole}
-              style={css.input}
-              data-testid="mgr-invite-role"
-              onChange={(e) => setForm((p) => ({ ...p, procurementRole: e.target.value }))}
-            >
-              <option value="">— Gestionnaire général —</option>
-              <option value="site_manager">Chef de chantier</option>
-              <option value="technical_director">Directeur technique (DT)</option>
-              <option value="site_controller">Conducteur de travaux</option>
-              <option value="purchasing">Service achats</option>
-              <option value="controle_gestion">Contrôle de gestion</option>
-              <option value="daf">DAF</option>
-              <option value="pdg">PDG</option>
-            </select>
-          </Field>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={saving} style={css.btnGold} data-testid="mgr-invite-send">{saving ? 'Envoi…' : 'Envoyer l\'invitation'}</button>
-            <button type="button" onClick={() => setForm({ name: '', email: '', procurementRole: '' })} style={css.btnGhost}>Annuler</button>
-          </div>
-        </form>
-        {lastInviteLink && (
-          <div style={{ marginTop: 16, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.75rem', fontSize: 13 }}>
-            <strong>Lien d'invitation pour {lastInviteLink.email}</strong>
-            <p style={{ margin: '0.5rem 0', wordBreak: 'break-all' }}>
-              Si l'e-mail n'arrive pas (configuration e-mail incomplète), copiez ce lien et envoyez-le à la personne (WhatsApp, SMS…) :
-            </p>
-            <code style={{ display: 'block', fontSize: 12, wordBreak: 'break-all', background: '#fff', padding: 6, borderRadius: 4 }}>{lastInviteLink.url}</code>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button
-                type="button"
-                style={css.btnGhost}
-                onClick={() => {
-                  void navigator.clipboard.writeText(lastInviteLink.url)
-                  toast.success('Lien copié')
-                }}
-              >
-                Copier le lien
-              </button>
-              <button type="button" style={css.btnGhost} onClick={() => setLastInviteLink(null)}>Masquer</button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        {invites.length > 0 && (
-          <section style={css.section}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 1rem' }}>Invitations en attente</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#f5f0e8' }}>
-                  {['Nom', 'E-mail', 'Expire', ''].map((h) => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {invites.map((inv, i) => (
-                  <tr key={inv.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
-                    <td style={css.td}>{inv.name}</td>
-                    <td style={css.td}>{inv.email}</td>
-                    <td style={css.td}>{new Date(inv.expiresAt).toLocaleString('fr-FR')}</td>
-                    <td style={css.td}>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button type="button" onClick={() => void resendInvite(inv)} style={css.btnOutline}>Renvoyer</button>
-                        <button type="button" onClick={() => void cancelInvite(inv)} style={css.btnDanger}>Annuler</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        )}
-
-        <section style={css.section}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 1rem' }}>Gestionnaires de l&apos;entreprise</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: '#f5f0e8' }}>
-                {['Nom', 'E-mail', 'Rôle', ''].map((h) => (
-                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {managers.map((m, i) => (
-                <tr key={m.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
-                  <td style={css.td}>
-                    {m.name}
-                    {m.id === currentManagerId && (
-                      <span style={{ marginLeft: 8, fontSize: 11, color: '#0b4a2c', fontWeight: 700 }}>(vous)</span>
-                    )}
-                  </td>
-                  <td style={css.td}>{m.email}</td>
-                  <td style={css.td}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: m.role === 'admin' ? '#0b4a2c' : '#6b7280' }}>
-                      {m.role === 'admin' ? 'Admin' : 'Gestionnaire'}
-                    </span>
-                  </td>
-                  <td style={css.td}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button type="button" onClick={() => setEditId(m.id)} style={css.btnOutline}>Modifier</button>
-                      {m.id !== currentManagerId && (
-                        <button type="button" onClick={() => void removeManager(m)} style={css.btnDanger}>Supprimer</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {managers.length === 0 && <EmptyHint>Aucun gestionnaire enregistré.</EmptyHint>}
-          {editId && (
-            <EditManagerModal
-              id={editId}
-              managers={managers}
-              onClose={() => { setEditId(null); void refreshAll() }}
-            />
-          )}
-        </section>
+        </div>
       </div>
     </div>
   )
 }
 
-// ─── Tab: Chantiers ───────────────────────────────────────────────────────────
+// ─── Tab: Livreurs ────────────────────────────────────────────────────────────
 
 function PointsTab({
   handleAuth,
@@ -2196,7 +1916,7 @@ function PointsTab({
 
 // ─── Tab: Catalogue produits ──────────────────────────────────────────────────
 
-function ProduitsTab({
+export function ProduitsTab({
   handleAuth,
   onCatalogChanged,
   catalogRefreshKey = 0,
@@ -2309,7 +2029,7 @@ function ProduitsTab({
 
 // ─── Tab: Unités de mesure ────────────────────────────────────────────────────
 
-function UnitesTab({
+export function UnitesTab({
   handleAuth,
   onCatalogChanged,
 }: {
@@ -2436,20 +2156,27 @@ function TachesTab({
   onTasksChanged?: () => void
 }) {
   const [view, setView] = useState<'pending' | 'resolved'>('pending')
-  const [tasks, setTasks] = useState<TaskRow[]>([])
+  const [filter, setFilter] = useState('all')
+  const [pendingTasks, setPendingTasks] = useState<TaskRow[]>([])
+  const [resolvedTasks, setResolvedTasks] = useState<TaskRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const fetchStatus = useCallback(async (status: 'pending' | 'resolved') => {
+    const query = status === 'resolved' ? '?status=resolved' : ''
+    const res = await authFetch(`/dashboard/manager-tasks${query}`)
+    if (handleAuth(res.status)) return
+    const data = await res.json() as { tasks: TaskRow[]; count: number }
+    if (status === 'resolved') setResolvedTasks(data.tasks ?? [])
+    else setPendingTasks(data.tasks ?? [])
+  }, [handleAuth])
 
   const fetchTasks = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const query = view === 'resolved' ? '?status=resolved' : ''
-    const res = await authFetch(`/dashboard/manager-tasks${query}`)
-    if (handleAuth(res.status)) return
-    const data = await res.json() as { tasks: TaskRow[]; count: number }
-    setTasks(data.tasks ?? [])
+    await Promise.all([fetchStatus('pending'), fetchStatus('resolved')])
     setLoading(false)
-  }, [handleAuth, view])
+  }, [fetchStatus])
 
   useEffect(() => { void fetchTasks() }, [fetchTasks])
 
@@ -2468,51 +2195,220 @@ function TachesTab({
 
   const taskType = (t: TaskRow) => t.type === 'delivery_partial' ? 'partial_delivery' : t.type === 'delivery_failed' ? 'missed_delivery' : t.type
 
-  const formatResolvedAt = (value?: string | null) => {
+  const formatWhen = (value?: string | null) => {
     if (!value) return null
     const d = new Date(value)
     if (Number.isNaN(d.getTime())) return null
     return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
   }
+  const resolvedLabel = (t: TaskRow) => formatWhen(t.resolvedAt)
+  const createdLabel = (t: TaskRow) => formatWhen(t.createdAt) ?? ''
+
+  const isToday = (value?: string | null) => {
+    if (!value) return false
+    const d = new Date(value)
+    return !Number.isNaN(d.getTime()) && d.toDateString() === new Date().toDateString()
+  }
+
+  const tasks = view === 'resolved' ? resolvedTasks : pendingTasks
+  const visibleTasks = filter === 'all' ? tasks : tasks.filter((t) => taskType(t) === filter)
+
+  const pendingCount = pendingTasks.length
+  const resolvedToday = resolvedTasks.filter((t) => isToday(t.resolvedAt)).length
+  const urgentCount = pendingTasks.filter((t) => taskType(t) === 'missed_delivery').length
+  const resolveRate = pendingCount + resolvedToday > 0 ? Math.round((resolvedToday / (pendingCount + resolvedToday)) * 100) : 0
+
+  const typeCounts = pendingTasks.reduce((acc, t) => {
+    const k = taskType(t)
+    acc[k] = (acc[k] ?? 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  const KPIS = [
+    { label: 'En attente', value: pendingCount, detail: `${urgentCount} urgence(s) à traiter`, icon: '🕐' },
+    { label: "Traitées aujourd'hui", value: resolvedToday, detail: 'clôturées depuis minuit', icon: '✅' },
+    { label: 'Taux de traitement', value: `${resolveRate}%`, detail: `${resolvedToday} traitées · ${pendingCount} restantes`, icon: '📈', bar: true },
+    { label: 'Urgentes', value: urgentCount, detail: 'non effectuée(s)', icon: '⚠️', tone: '#dc2626' },
+  ]
+
+  const TASK_META: Record<string, { label: string; tagBg: string; tagColor: string; iconBg: string; iconColor: string; icon: string }> = {
+    partial_delivery: { label: 'Livraison partielle', tagBg: '#fef3c7', tagColor: '#b45309', iconBg: '#fef3c7', iconColor: '#b45309', icon: '📦' },
+    missed_delivery: { label: 'Non effectuée', tagBg: '#fee2e2', tagColor: '#b91c1c', iconBg: '#fee2e2', iconColor: '#dc2626', icon: '🚚' },
+    reassign_tour: { label: 'Réaffectation', tagBg: '#dbeafe', tagColor: '#1e40af', iconBg: '#dbeafe', iconColor: '#2563eb', icon: '🔁' },
+    otp_manager_assist: { label: 'OTP requise', tagBg: '#ede9fe', tagColor: '#6b21a8', iconBg: '#ede9fe', iconColor: '#7c3aed', icon: '🛡️' },
+    delivery_cancelled: { label: 'Annulée', tagBg: '#f1f5f9', tagColor: '#475569', iconBg: '#e5e7eb', iconColor: '#4b5563', icon: '⛔' },
+    delivery_confirmed: { label: 'Livraison confirmée', tagBg: '#dcfce7', tagColor: '#166534', iconBg: '#dcfce7', iconColor: '#16a34a', icon: '✅' },
+  }
+  const DEFAULT_META = { label: 'Tâche', tagBg: '#f1f5f9', tagColor: '#475569', iconBg: '#e5e7eb', iconColor: '#4b5563', icon: '📋' }
+  const FILTER_CHIPS = [
+    { key: 'all', label: 'Toutes' },
+    { key: 'partial_delivery', label: 'Partielle' },
+    { key: 'missed_delivery', label: 'Non effectuée' },
+    { key: 'delivery_cancelled', label: 'Annulée' },
+    { key: 'reassign_tour', label: 'Réaffectation' },
+    { key: 'otp_manager_assist', label: 'OTP' },
+  ]
+  const FILTER_COLORS: Record<string, string> = {
+    all: '#1e3a5f',
+    partial_delivery: '#b45309',
+    missed_delivery: '#dc2626',
+    delivery_cancelled: '#6b7280',
+    reassign_tour: '#2563eb',
+    otp_manager_assist: '#7c3aed',
+  }
 
   return (
     <div>
-      <h2 style={{ ...css.sectionTitle, marginBottom: '0.25rem' }}>Tâches gestionnaire</h2>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        Actions générées automatiquement : livraison confirmée, livraison partielle, livraison annulée par le livreur,
-        livraison non effectuée, réaffectation de tournée.
-      </p>
+      <div style={{ fontSize: 12.5, color: '#6b7280', marginBottom: 6 }}>
+        TraceO / Gestion / <span style={{ color: '#1a1a2e', fontWeight: 600 }}>Tâches</span>
+      </div>
+      <h1 style={{ fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
+        Tâches gestionnaire
+        {pendingCount > 0 && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 10.5,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: 0.3,
+              padding: '2px 9px',
+              borderRadius: 99,
+              background: '#fee2e2',
+              color: '#b91c1c',
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: 99, background: '#b91c1c' }} />
+            {pendingCount} en attente
+          </span>
+        )}
+      </h1>
+      <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>
+        Actions générées automatiquement à partir des livraisons : partielle, non effectuée, annulée, réaffectation de tournée, OTP de confirmation.
+      </div>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: '1.25rem', borderBottom: '1px solid var(--border)' }}>
+      {/* Rangée KPI */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginTop: 18 }}>
+        {KPIS.map((k) => (
+          <div key={k.label} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12 }}>{k.icon}</span> {k.label}
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 800, marginTop: 4, color: k.tone ?? '#1a1a2e' }}>{k.value}</div>
+            {k.bar ? (
+              <span style={{ display: 'block', height: 6, background: '#e5e7eb', borderRadius: 99, marginTop: 10 }}>
+                <span style={{ display: 'block', height: 6, width: `${resolveRate}%`, background: 'linear-gradient(90deg, #22c55e, #16a34a)', borderRadius: 99 }} />
+              </span>
+            ) : (
+              <div style={{ fontSize: 11.5, color: '#9ca3af', marginTop: 2 }}>{k.detail}</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Onglets */}
+      <div style={{ display: 'inline-flex', gap: 6, marginTop: 20, background: '#eef1f5', borderRadius: 10, padding: 4 }}>
         <button
           type="button"
           data-testid="mgr-tasks-pending"
-          onClick={() => setView('pending')}
-          style={view === 'pending' ? css.tabActive : css.tab}
+          onClick={() => { setView('pending'); setFilter('all') }}
+          style={{
+            border: 0,
+            background: view === 'pending' ? '#1e3a5f' : 'transparent',
+            padding: '8px 18px',
+            borderRadius: 7,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            color: view === 'pending' ? '#fff' : '#4b5563',
+            fontFamily: 'inherit',
+          }}
         >
           En attente
         </button>
         <button
           type="button"
           data-testid="mgr-tasks-resolved"
-          onClick={() => setView('resolved')}
-          style={view === 'resolved' ? css.tabActive : css.tab}
+          onClick={() => { setView('resolved'); setFilter('all') }}
+          style={{
+            border: 0,
+            background: view === 'resolved' ? '#1e3a5f' : 'transparent',
+            padding: '8px 18px',
+            borderRadius: 7,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            color: view === 'resolved' ? '#fff' : '#4b5563',
+            fontFamily: 'inherit',
+          }}
         >
           Traitées
         </button>
       </div>
 
+      {/* Filtres par type (vue en attente uniquement) */}
+      {view === 'pending' && pendingCount > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+          {FILTER_CHIPS.map((chip) => {
+            const count = chip.key === 'all' ? pendingCount : (typeCounts[chip.key] ?? 0)
+            const active = filter === chip.key
+            return (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => setFilter(chip.key)}
+                style={{
+                  border: `1px solid ${active ? '#1e3a5f' : '#e5e7eb'}`,
+                  background: active ? '#eef6ff' : '#fff',
+                  borderRadius: 99,
+                  padding: '5px 12px',
+                  fontSize: 12,
+                  fontWeight: active ? 600 : 500,
+                  cursor: 'pointer',
+                  color: active ? '#1e3a5f' : '#4b5563',
+                  fontFamily: 'inherit',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {chip.label}
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 18,
+                    height: 18,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: '#fff',
+                    borderRadius: 99,
+                    background: active ? '#1e3a5f' : (FILTER_COLORS[chip.key] ?? '#1e3a5f'),
+                  }}
+                >
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {error && <AlertBox>{error}</AlertBox>}
-      {loading && tasks.length === 0 && <LoadingHint />}
-      {!loading && tasks.length === 0 && (
+      {loading && visibleTasks.length === 0 && <LoadingHint />}
+      {!loading && visibleTasks.length === 0 && (
         <EmptyHint>
           {view === 'pending' ? 'Aucune tâche en attente.' : 'Aucune tâche traitée pour le moment.'}
         </EmptyHint>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {tasks.map((t) => {
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 18 }}>
+        {visibleTasks.map((t) => {
           const type = taskType(t)
+          const meta = TASK_META[type] ?? DEFAULT_META
           const payload = (t.payload ?? {}) as TaskPayload
           const deliveryId = payload.deliveryId ?? t.deliveryId ?? undefined
           const tourDate = payload.tourDate ?? t.deliveryDate
@@ -2520,19 +2416,7 @@ function TachesTab({
             type === 'partial_delivery' && payload.refusedLines?.length
               ? payload.refusedLines.map((l) => `• ${formatPartialTaskLine(l)}`).join('\n')
               : null
-          const resolvedLabel = formatResolvedAt(t.resolvedAt)
-
-          // REPLAN DÉSACTIVÉ — bouton « Replanifier » retiré (on garde « Marquer traitée » / « Modifier »).
-          // const showReplanBtn =
-          //   view === 'pending' &&
-          //   (type === 'partial_delivery' ||
-          //     type === 'missed_delivery' ||
-          //     type === 'delivery_cancelled' ||
-          //     type === 'reassign_tour') &&
-          //   t.relatedTourId &&
-          //   onReplanTour &&
-          //   t.canReplan === true &&
-          //   (type !== 'partial_delivery' || !!deliveryId)
+          const resAt = resolvedLabel(t)
 
           const showDeliveryBtn =
             (type === 'partial_delivery' ||
@@ -2553,65 +2437,95 @@ function TachesTab({
               key={t.id}
               data-testid={`mgr-task-${t.id}`}
               style={{
+                display: 'grid',
+                gridTemplateColumns: '44px 1fr auto',
+                gap: 16,
+                alignItems: 'start',
                 background: '#fff',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                padding: '1rem 1.25rem',
+                border: '1px solid #e5e7eb',
+                borderLeft: '4px solid transparent',
+                borderRadius: 12,
+                padding: '16px 18px',
                 boxShadow: '0 1px 3px rgba(0,0,0,.04)',
-                opacity: view === 'resolved' ? 0.95 : 1,
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 4 }}>
-                <div style={{ fontWeight: 700 }}>{t.title || t.description}</div>
-                {view === 'resolved' && resolvedLabel && (
-                  <span style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>
-                    Traitée le {resolvedLabel}
-                  </span>
-                )}
+              {/* Icône du type */}
+              <div style={{ width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: meta.iconBg, color: meta.iconColor }}>
+                {meta.icon}
               </div>
-              {t.description && t.title && (
-                <p style={{ fontSize: 13, color: '#666', margin: '0 0 8px', whiteSpace: 'pre-wrap' }}>{t.description}</p>
-              )}
-              {refusedPreview && (
-                <pre style={{ fontSize: 12, color: '#444', background: '#f9fafb', padding: 8, borderRadius: 6, margin: '0 0 10px', whiteSpace: 'pre-wrap' }}>{refusedPreview}</pre>
-              )}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {showDeliveryBtn && (
-                  <button
-                    type="button"
-                    style={css.btnGold}
-                    onClick={() => onOpenDelivery!(deliveryId!, tourDate)}
+              {/* Corps */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.3,
+                      padding: '2px 9px',
+                      borderRadius: 99,
+                      background: meta.tagBg,
+                      color: meta.tagColor,
+                    }}
                   >
-                    Voir la livraison
-                  </button>
+                    <span style={{ width: 6, height: 6, borderRadius: 99, background: meta.tagColor }} />
+                    {view === 'resolved' ? 'Traitée' : meta.label}
+                  </span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e' }}>{t.title || t.description}</span>
+                </div>
+                {t.description && t.title && (
+                  <div style={{ fontSize: 12.5, color: '#6b7280', marginTop: 3 }}>{t.description}</div>
                 )}
-                {showTourBtn && (
-                  <button
-                    type="button"
-                    style={css.btnGold}
-                    onClick={() => onOpenTour!(t.relatedTourId!, tourDate)}
-                  >
-                    Ouvrir la tournée
-                  </button>
+                {refusedPreview && (
+                  <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: '7px 12px', fontSize: 12, color: '#92400e', fontWeight: 500, marginTop: 8 }}>
+                    ⚠️ Lignes refusées
+                    <span style={{ whiteSpace: 'pre-wrap' }}>{refusedPreview}</span>
+                  </div>
                 )}
-                {/* REPLAN DÉSACTIVÉ — bouton « Replanifier » retiré (on garde « Modifier »).
-                {showReplanBtn && (
-                  <button
-                    type="button"
-                    style={css.btnOutline}
-                    onClick={() => onReplanTour!(
-                      t.relatedTourId!,
-                      type === 'partial_delivery' ? deliveryId : undefined
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: '#6b7280' }}>
+                  {t.driverName && <span style={{ fontWeight: 600, color: '#374151' }}>🚚 {t.driverName}</span>}
+                  {(t.deliveryName ?? t.relatedTourId) && (
+                    <span>📍 {t.deliveryName ?? `Tournée ${t.relatedTourId}`}</span>
+                  )}
+                  <span>🕐 {createdLabel(t)}</span>
+                </div>
+              </div>
+              {/* Actions / date de traitement */}
+              <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
+                {view === 'resolved' ? (
+                  resAt && <div style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>✓ Traitée le {resAt}</div>
+                ) : (
+                  <>
+                    {showDeliveryBtn && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenDelivery!(deliveryId!, tourDate)}
+                        style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        👁️ Voir la livraison
+                      </button>
                     )}
-                  >
-                    Replanifier
-                  </button>
-                )}
-                */}
-                {view === 'pending' && (
-                  <button type="button" disabled={loading} onClick={() => void resolve(t.id)} style={css.btnOutline}>
-                    Marquer traitée
-                  </button>
+                    {showTourBtn && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenTour!(t.relatedTourId!, tourDate)}
+                        style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        🗺️ Ouvrir la tournée
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => void resolve(t.id)}
+                      style={{ border: '1px dashed #d1d5db', background: 'transparent', color: '#6b7280', padding: '8px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      ✓ Marquer traitée
+                    </button>
+                  </>
                 )}
               </div>
             </div>

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi — points fournisseurs des BC (maquette)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1e3a5f; --navy-soft:#eef3f8; --muted:#64748b; --border:#e2e8f0;
+    --green:#047857; --green-bg:#ecfdf5; --amber:#b45309; --amber-bg:#fffbeb;
+    --red:#b91c1c; --red-bg:#fef2f2; --gold:#b7791f;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;background:#f5f7fa;color:#1e293b;padding:24px}
+  .page{max-width:1280px;margin:0 auto}
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:6px}
+  h1{font-size:22px;font-weight:800;color:var(--navy)}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer}
+  .btn-gold{background:#fdf3e0;border-color:#ecd9b0;color:var(--gold)}
+  .btn-primary{background:var(--navy);border-color:var(--navy);color:#fff}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:18px 0}
+  .kpi{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px}
+  .kpi .val{font-size:22px;font-weight:800;color:var(--navy)}
+  .kpi .det{font-size:11px;color:var(--muted);margin-top:4px}
+  .kpi.warn .val{color:var(--amber)}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700}
+  .pill-green{background:var(--green-bg);color:var(--green)}
+  .pill-amber{background:var(--amber-bg);color:var(--amber)}
+  .pill-red{background:var(--red-bg);color:var(--red)}
+  .pill-gray{background:#f1f5f9;color:var(--muted)}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .chip{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer}
+  .chip.active{background:#fdf3e0;border-color:#ecd9b0;color:var(--gold)}
+  .sheet-note{font-size:12px;color:var(--muted);margin-left:8px}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+  .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .filters label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .filters select{font-family:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;color:#1e293b;min-width:150px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;padding:8px 10px;color:var(--navy);border-bottom:2px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+  td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tr:hover td{background:#f8fafc}
+  .mono{font-variant-numeric:tabular-nums}
+  .cell-input{font-family:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;width:100%;min-width:90px;color:#1e293b;background:#fff}
+  .cell-input:focus{outline:2px solid #bfdbfe;border-color:#93c5fd}
+  .cell-input.filled{border-color:#a7f3d0;background:#f0fdf9}
+  .att{border:1px solid var(--border);background:#fff;border-radius:6px;padding:3px 8px;font-size:11.5px;color:var(--navy);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin:1px 2px 1px 0}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px}
+  .dot-g{background:#10b981}.dot-a{background:#f59e0b}.dot-r{background:#ef4444}
+  .bon{font-weight:700;color:var(--navy);white-space:nowrap}
+  .tot{font-weight:800;background:var(--navy-soft)}
+  .sup-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .sup-head h3{font-size:14px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.4px}
+  .sup-total{font-size:14px;font-weight:800;color:var(--navy)}
+  .grand{display:flex;justify-content:flex-end;gap:12px;align-items:baseline;margin-top:14px;padding:12px 16px;background:var(--navy);border-radius:10px;color:#fff}
+  .grand .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.5px;opacity:.75}
+  .grand .val{font-size:20px;font-weight:800}
+  .legend{font-size:11.5px;color:var(--muted);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="topbar">
+    <div>
+      <h1>Suivi — points fournisseurs des BC</h1>
+      <p class="sub">Feuille mois filtrable + récap par fournisseur · suivi facture / justificatifs / vérification</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn">↳ Exporter (xlsx)</button>
+      <button class="btn btn-primary">⟳ Actualiser</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">BC confirmés · juillet</div><div class="val">18</div><div class="det">3 fournisseurs actifs</div></div>
+    <div class="kpi"><div class="lbl">Montant total</div><div class="val mono">12 450 000</div><div class="det">XOF · tous chantiers</div></div>
+    <div class="kpi warn"><div class="lbl">Justifs manquants</div><div class="val">4</div><div class="det">2 chantiers concernés</div></div>
+    <div class="kpi warn"><div class="lbl">Vérifs en attente</div><div class="val">6</div><div class="det">CdG — 3 de plus de 7 j</div></div>
+    <div class="kpi"><div class="lbl">Factures reçues</div><div class="val">12 / 18</div><div class="det">67 % du mois</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="chip">Juin 2026</button>
+    <button class="chip active">Juillet 2026</button>
+    <span class="sheet-note">Feuille active :</span>
+    <button class="chip active">Feuille mois</button>
+    <button class="chip">RECAP Juillet 2026</button>
+  </div>
+
+  <!-- ══════════ FEUILLE « MOIS » ══════════ -->
+  <div class="card">
+    <div class="filters">
+      <label>Chantier
+        <select><option>Tous</option><option>Résidence Cocody — Tour A</option><option>IMMEUBLE TOURE</option><option>LAURIER 20 BINGERVILLE</option></select>
+      </label>
+      <label>Fournisseur
+        <select><option>Tous</option><option>BOIS & CIMENT CI</option><option>QUINCAILLERIE du PRIMO</option><option>FER ACIER ABIDJAN</option></select>
+      </label>
+      <label>Mode de paiement
+        <select><option>Tous</option><option>Espèces</option><option>Virement</option><option>Mobile Money</option></select>
+      </label>
+      <label>Facture
+        <select><option>Toutes</option><option>Reçue</option><option>Manquante</option></select>
+      </label>
+      <span class="sheet-note">18 BC · filtres en-tête dupliqués (tri par colonne au clic)</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Chantier</th><th>Fournisseur</th><th>Date</th><th>Bon</th><th>Mode paiement</th>
+            <th>Montant (XOF)</th><th>Facture</th><th>Justifs</th><th>Observation</th><th>Vérification</th><th>Doc en attache</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Résidence Cocody — Tour A</td>
+            <td>BOIS & CIMENT CI</td>
+            <td class="mono">12/07/2026</td>
+            <td class="bon">BC-2026-0712</td>
+            <td>Virement</td>
+            <td class="mono tot">3 250 000</td>
+            <td><span class="pill pill-green">FAC-881</span></td>
+            <td><input class="cell-input filled" value="BL + facture"></td>
+            <td><input class="cell-input" value="Conforme"></td>
+            <td><span class="pill pill-green">✓ Vérifié</span></td>
+            <td><button class="att">📄 facture-881.pdf</button><button class="att">📷 bl-photo.jpg</button></td>
+          </tr>
+          <tr>
+            <td>IMMEUBLE TOURE</td>
+            <td>FER ACIER ABIDJAN</td>
+            <td class="mono">14/07/2026</td>
+            <td class="bon">BC-2026-0718</td>
+            <td>Mobile Money</td>
+            <td class="mono tot">1 875 000</td>
+            <td><span class="pill pill-red">Manquante</span></td>
+            <td><input class="cell-input" placeholder="à compléter…"></td>
+            <td><input class="cell-input" value="Relancer fournisseur"></td>
+            <td><span class="pill pill-amber">En attente</span></td>
+            <td><button class="att">📷 bon-livraison.jpg</button></td>
+          </tr>
+          <tr>
+            <td>LAURIER 20 BINGERVILLE</td>
+            <td>QUINCAILLERIE du PRIMO</td>
+            <td class="mono">15/07/2026</td>
+            <td class="bon">BC-2026-0721</td>
+            <td>Espèces</td>
+            <td class="mono tot">640 000</td>
+            <td><span class="pill pill-amber">Reçue tard</span></td>
+            <td><input class="cell-input filled" value="Ticket + BL"></td>
+            <td><input class="cell-input" value="Écart qte ciment 2 sacs"></td>
+            <td><span class="pill pill-amber">⚠ Écart à valider</span></td>
+            <td><button class="att">📷 ticket-primo.jpg</button></td>
+          </tr>
+          <tr>
+            <td>Résidence Cocody — Tour A</td>
+            <td>FER ACIER ABIDJAN</td>
+            <td class="mono">18/07/2026</td>
+            <td class="bon">BC-2026-0727</td>
+            <td>Virement</td>
+            <td class="mono tot">4 100 000</td>
+            <td><span class="pill pill-green">FAC-894</span></td>
+            <td><input class="cell-input filled" value="Facture + BL"></td>
+            <td><input class="cell-input" value="—"></td>
+            <td><span class="pill pill-green">✓ Vérifié</span></td>
+            <td><button class="att">📄 fac-894.pdf</button></td>
+          </tr>
+          <tr>
+            <td>IMMEUBLE TOURE</td>
+            <td>BOIS & CIMENT CI</td>
+            <td class="mono">22/07/2026</td>
+            <td class="bon">BC-2026-0733</td>
+            <td>Espèces</td>
+            <td class="mono tot">2 585 000</td>
+            <td><span class="pill pill-gray">Non réclamée</span></td>
+            <td><input class="cell-input" placeholder="à compléter…"></td>
+            <td><input class="cell-input" placeholder="…"></td>
+            <td><span class="pill pill-red">Non vérifié · 9 j</span></td>
+            <td><span style="color:var(--muted);font-size:12px">—</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="legend">
+      ● Champs FACTURE / JUSTIFS / OBSERVATION / VÉRIFICATION éditables en ligne (sauvegarde auto à la sortie du champ, comme aujourd'hui) — pastille verte = champ complété.
+      ● Pièces jointes : clic → aperçu intégré (image ou PDF).
+    </p>
+  </div>
+
+
+  <!-- ══════════ FEUILLE « RECAP » (vue alternative) ══════════ -->
+  <div class="card" style="border-left:4px solid var(--gold)">
+    <p class="sub" style="margin-bottom:14px">
+      <strong style="color:var(--gold)">RECAP JUILLET 2026</strong> — groupage par fournisseur, tel que partagé aux points fournisseurs. Export xlsx en un clic.
+    </p>
+
+    <div style="margin-bottom:18px">
+      <div class="sup-head">
+        <h3>🏢 Fournisseur BOIS & CIMENT CI</h3>
+        <span class="sup-total mono">Total : 5 835 000 XOF</span>
+      </div>
+      <table>
+        <thead><tr><th>Date</th><th>N° BC</th><th>Montant (XOF)</th><th>Sites</th><th>Observation</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">12/07/2026</td><td class="bon">BC-2026-0712</td><td class="mono">3 250 000</td><td>Résidence Cocody — Tour A</td><td>Conforme</td></tr>
+          <tr><td class="mono">22/07/2026</td><td class="bon">BC-2026-0733</td><td class="mono">2 585 000</td><td>IMMEUBLE TOURE</td><td>Facture non réclamée</td></tr>
+          <tr class="tot"><td colspan="2">Total</td><td class="mono">5 835 000</td><td colspan="2"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-bottom:18px">
+      <div class="sup-head">
+        <h3>🏢 Fournisseur FER ACIER ABIDJAN</h3>
+        <span class="sup-total mono">Total : 5 975 000 XOF</span>
+      </div>
+      <table>
+        <thead><tr><th>Date</th><th>N° BC</th><th>Montant (XOF)</th><th>Sites</th><th>Observation</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">14/07/2026</td><td class="bon">BC-2026-0718</td><td class="mono">1 875 000</td><td>IMMEUBLE TOURE</td><td>Relancer — facture manquante</td></tr>
+          <tr><td class="mono">18/07/2026</td><td class="bon">BC-2026-0727</td><td class="mono">4 100 000</td><td>Résidence Cocody — Tour A</td><td>—</td></tr>
+          <tr class="tot"><td colspan="2">Total</td><td class="mono">5 975 000</td><td colspan="2"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <div class="sup-head">
+        <h3>🏢 Fournisseur QUINCAILLERIE du PRIMO</h3>
+        <span class="sup-total mono">Total : 640 000 XOF</span>
+      </div>
+      <table>
+        <thead><tr><th>Date</th><th>N° BC</th><th>Montant (XOF)</th><th>Sites</th><th>Observation</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">15/07/2026</td><td class="bon">BC-2026-0721</td><td class="mono">640 000</td><td>LAURIER 20 BINGERVILLE</td><td>Écart qte ciment 2 sacs — à valider</td></tr>
+          <tr class="tot"><td colspan="2">Total</td><td class="mono">640 000</td><td colspan="2"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grand">
+      <span class="lbl">Total général juillet 2026</span>
+      <span class="val mono">12 450 000 XOF</span>
+      <span class="lbl">· 18 BC · 3 fournisseurs</span>
+    </div>
+  </div>
+
+
+
+</div>
+</body>
+</html>

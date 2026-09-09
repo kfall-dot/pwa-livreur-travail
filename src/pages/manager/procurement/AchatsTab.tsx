@@ -107,6 +107,26 @@ function pricingLinesFromDetail(lines: RequestDetailResponse['lines']) {
   }))
 }
 
+/**
+ * Ouvre le détail d'une demande puis amène la zone à traiter (chiffrage SA)
+ * au centre de l'écran. Le détail se charge en asynchrone : on sonde le DOM
+ * brièvement (le flag exact vaut true quand la zone est déjà visible).
+ */
+function scrollToChiffrageZone(): void {
+  let tries = 0
+  const tick = () => {
+    tries += 1
+    const el = document.querySelector('[data-chiffrage-zone]')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+    if (tries < 20) setTimeout(tick, 150)
+  }
+  setTimeout(tick, 150)
+}
+
+/** Joindre/retirer une PJ recharge le détail serveur : on garde le chiffrage local non enregistré. */
 /** Joindre/retirer une PJ recharge le détail serveur : on garde le chiffrage local non enregistré. */
 function keepUnsavedPricing(
   prev: RequestDetailResponse | null,
@@ -449,6 +469,7 @@ export function AchatsTab({
     setView('inbox')
     setSelectedRequestId(focusRequestId)
     onFocusConsumed?.()
+    scrollToChiffrageZone()
     // onFocusConsumed volontairement omis : callback stable du parent
   }, [focusRequestId])
 
@@ -619,7 +640,7 @@ export function AchatsTab({
     try {
       await updateRequestPricing(selectedRequestId, pricingLinesFromDetail(requestDetail.lines))
       const result = await submitRequestFinance(selectedRequestId)
-      toast.success(`EB envoyée au Contrôle de gestion (${result.finance.totalAmountFcfa.toLocaleString('fr-FR')} XOF).`)
+      toast.success(`EB envoyée au Contrôle de gestion (${result.finance.totalAmountFcfa.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} XOF).`)
       const detail = await fetchRequest(selectedRequestId)
       setRequestDetail(detail)
       void loadRequests()
@@ -926,6 +947,7 @@ export function AchatsTab({
           onOpenRequest={(id) => {
             setView('requests')
             setSelectedRequestId(id)
+            scrollToChiffrageZone()
           }}
         />
       )}
@@ -1145,7 +1167,7 @@ export function AchatsTab({
               </div>
             </>
           )}
-          {!loading && view === 'requests' && filteredRequests.length > 0 && (
+          {!loading && view === 'requests' && requests.length > 0 && (
             <>
               {/* ---- Barre d'outils : recherche + filtres ---- */}
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
@@ -2022,7 +2044,7 @@ function RequestDetailPanel({
         >
           <h4 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>Dossier à valider</h4>
           <p style={{ ...css.meta, marginTop: 6, color: '#1e3a5f' }}>
-            Montant : <strong>{total.toLocaleString('fr-FR')} XOF</strong>
+            Montant : <strong>{total.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} XOF</strong>
             {' · '}
             {lines.filter((l) => l.attachmentFileName).length} pièce(s) jointe(s)
           </p>
@@ -2103,7 +2125,7 @@ function RequestDetailPanel({
             </tr>
           </tbody>
         </table>
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: 'auto' }} data-chiffrage-zone>
           <table style={css.lineTable}>
             <thead>
               <tr>
@@ -2413,7 +2435,7 @@ function RequestDetailPanel({
       {canPrice && (
         <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }} data-testid="mgr-achats-sa-pricing">
           <p style={css.meta}>
-            Montant total : <strong>{total.toLocaleString('fr-FR')} XOF</strong>
+            Montant total : <strong>{total.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} XOF</strong>
             {' — '}
             {needsPdg
               ? '≥ 500 000 XOF : après le CdG, le DAF et le PDG valident.'
@@ -2469,9 +2491,9 @@ function RequestDetailPanel({
             {ebSuppliers.length <= 1
               ? 'Un BC pour le fournisseur de l’EB.'
               : 'Un BC par fournisseur présent sur l’EB.'}
-            {' '}Montant total : <strong>{total.toLocaleString('fr-FR')} XOF</strong>
+            {' '}Montant total : <strong>{total.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} XOF</strong>
             {siteBudget?.remainingFcfa != null
-              ? ` — reste à engager : ${siteBudget.remainingFcfa.toLocaleString('fr-FR')}`
+              ? ` — reste à engager : ${siteBudget.remainingFcfa.toLocaleString('fr-FR').replace(/\u202F/g, ' ')}`
               : ''}
           </p>
           {wouldExceedBudget && (

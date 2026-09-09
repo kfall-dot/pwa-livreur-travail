@@ -49,8 +49,9 @@ export async function listSitesForManager(
   return rows
 }
 
-/** Rôles « compagnie entière » : accès à tous les chantiers actifs (DT, DAF, CdG, PDG). */
-export const COMPANY_WIDE_ROLES = ['technical_director', 'daf', 'controle_gestion', 'pdg']
+/** Rôles « compagnie entière » : accès à tous les chantiers actifs (DAF, CdG, PDG).
+ *  Le DT est exclu : restriction « mes chantiers assignés » (demande métier). */
+export const COMPANY_WIDE_ROLES = ['daf', 'controle_gestion', 'pdg']
 
 export async function canAccessSite(
   companyId: string,

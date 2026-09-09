@@ -25,7 +25,7 @@ const FILTER_LABELS: { id: StopFilter; label: string }[] = [
 
 function formatDistanceKm(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`
-  return `${(meters / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km`
+  return `${(meters / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 }).replace(/u202F/g, ' ')} km`
 }
 
 function filterStops(stops: DeliveryPoint[], filter: StopFilter): DeliveryPoint[] {

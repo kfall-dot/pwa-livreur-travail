@@ -18,6 +18,7 @@ export type SiteBudgetTotals = {
   budgetInitialFcfa: number | null
   budgetTotalFcfa: number | null
   engagedFcfa: number
+  realizedFcfa: number
   remainingFcfa: number | null
   overBudget: boolean
 }
@@ -41,14 +42,17 @@ export function computeBudgetTotals(input: {
   budgetFrozenAt: Date | string | null
   approvedAmendmentSumFcfa: number
   engagedFcfa: number
+  realizedFcfa: number
 }): SiteBudgetTotals {
   const frozen = Boolean(input.budgetFrozenAt)
   const engagedFcfa = Math.max(0, Math.trunc(input.engagedFcfa))
+  const realizedFcfa = Math.max(0, Math.trunc(input.realizedFcfa))
   if (!frozen || input.budgetInitialFcfa == null || input.budgetInitialFcfa === '') {
     return {
       budgetInitialFcfa: null,
       budgetTotalFcfa: null,
       engagedFcfa,
+      realizedFcfa,
       remainingFcfa: null,
       overBudget: false,
     }
@@ -60,6 +64,7 @@ export function computeBudgetTotals(input: {
     budgetInitialFcfa,
     budgetTotalFcfa,
     engagedFcfa,
+    realizedFcfa,
     remainingFcfa,
     overBudget: engagedFcfa > budgetTotalFcfa,
   }
@@ -107,11 +112,12 @@ export function computeBudgetKpis(input: {
 
   const budgetTotalFcfa = totals.budgetTotalFcfa
   const engagedFcfa = totals.engagedFcfa
-  const varianceFcfa = engagedFcfa - budgetTotalFcfa
+  const realizedFcfa = totals.realizedFcfa
+  const varianceFcfa = budgetTotalFcfa - realizedFcfa
   const variancePct = roundPct((varianceFcfa / budgetTotalFcfa) * 100)
   const engagementPct = roundPct((engagedFcfa / budgetTotalFcfa) * 100)
   const trafficLight: BudgetTrafficLight =
-    variancePct <= BUDGET_TOLERANCE_PCT ? 'ok' : variancePct < BUDGET_ALERT_PCT ? 'watch' : 'alert'
+    variancePct >= -BUDGET_TOLERANCE_PCT ? 'ok' : variancePct > -BUDGET_ALERT_PCT ? 'watch' : 'alert'
 
   const overrunDate =
     input.overrunSinceAt == null

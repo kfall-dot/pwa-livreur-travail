@@ -3,56 +3,107 @@ import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
 import { fetchRequestLineAttachment, patchBcRegisterFollowup } from './procurementApi'
 import type { BcRegisterMonth, BcRegisterRecapGroup, BcRegisterRow } from './procurementTypes'
-import { AlertBox, css } from './procurementUi'
+import { AlertBox, formatFcfa } from './procurementUi'
 
-type Sheet = 'mois' | 'recap'
-type FollowupField = 'invoice' | 'justifs' | 'observation' | 'verification'
+/**
+ * Onglet « Suivi — points fournisseurs des BC » (SA / CdG).
+ * Reproduction fidèle de la maquette docs/mockups/suivi-bc-v1.html :
+ * le CSS ci-dessous est celui de la maquette, scopé sous .sbc.
+ */
+const SBC_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+.sbc{
+  --navy:#1e3a5f; --navy-soft:#eef3f8; --muted:#64748b; --border:#e2e8f0;
+  --green:#047857; --green-bg:#ecfdf5; --amber:#b45309; --amber-bg:#fffbeb;
+  --red:#b91c1c; --red-bg:#fef2f2; --gold:#b7791f;
+  font-family:'Inter',sans-serif; color:#1e293b;
+}
+.sbc *{margin:0;padding:0;box-sizing:border-box}
+.sbc .page{max-width:1280px;margin:0 auto}
+.sbc .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:6px}
+.sbc h1{font-size:22px;font-weight:800;color:var(--navy)}
+.sbc .sub{color:var(--muted);font-size:13px;margin-top:4px}
+.sbc .btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer}
+.sbc .btn-primary{background:var(--navy);border-color:var(--navy);color:#fff}
+.sbc .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:18px 0}
+.sbc .kpi{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.sbc .kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px}
+.sbc .kpi .val{font-size:22px;font-weight:800;color:var(--navy)}
+.sbc .kpi .det{font-size:11px;color:var(--muted);margin-top:4px}
+.sbc .kpi.warn .val{color:var(--amber)}
+.sbc .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700}
+.sbc .pill-green{background:var(--green-bg);color:var(--green)}
+.sbc .pill-amber{background:var(--amber-bg);color:var(--amber)}
+.sbc .pill-red{background:var(--red-bg);color:var(--red)}
+.sbc .pill-gray{background:#f1f5f9;color:var(--muted)}
+.sbc .tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.sbc .chip{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer}
+.sbc .chip.active{background:#fdf3e0;border-color:#ecd9b0;color:var(--gold)}
+.sbc .sheet-note{font-size:12px;color:var(--muted);margin-left:8px}
+.sbc .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+.sbc .card-recap{border-left:4px solid var(--gold)}
+.sbc .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.sbc .filters label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.sbc .filters select{font-family:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;color:#1e293b;min-width:150px}
+.sbc table{width:100%;border-collapse:collapse;font-size:12.5px}
+.sbc th{text-align:left;padding:8px 10px;color:var(--navy);border-bottom:2px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.sbc td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.sbc tr:hover td{background:#f8fafc}
+.sbc .mono{font-variant-numeric:tabular-nums}
+.sbc .cell-input{font-family:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;width:100%;min-width:90px;color:#1e293b;background:#fff}
+.sbc .cell-input:focus{outline:2px solid #bfdbfe;border-color:#93c5fd}
+.sbc .cell-input.filled{border-color:#a7f3d0;background:#f0fdf9}
+.sbc .att{border:1px solid var(--border);background:#fff;border-radius:6px;padding:3px 8px;font-size:11.5px;color:var(--navy);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin:1px 2px 1px 0}
+.sbc .bon{font-weight:700;color:var(--navy);white-space:nowrap}
+.sbc .tot{font-weight:800;background:var(--navy-soft)}
+.sbc .sup-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.sbc .sup-head h3{font-size:14px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.4px}
+.sbc .sup-total{font-size:14px;font-weight:800;color:var(--navy)}
+.sbc .grand{display:flex;justify-content:flex-end;gap:12px;align-items:baseline;margin-top:14px;padding:12px 16px;background:var(--navy);border-radius:10px;color:#fff}
+.sbc .grand .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.5px;opacity:.75}
+.sbc .grand .val{font-size:20px;font-weight:800}
+.sbc .legend{font-size:11.5px;color:var(--muted);margin-top:10px}
+`
+const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
 
-const FILTER_COLUMNS = [
-  'siteName',
-  'supplierName',
-  'date',
-  'bon',
-  'paymentMode',
-  'amountLabel',
-  'invoice',
-  'justifs',
-  'observation',
-  'verification',
-  'attachment',
-] as const
+/** '2026-07' → 'Juillet 2026' (format maquette). */
+function monthTitle(key: string | null | undefined): string {
+  if (!key) return ''
+  const [y, m] = key.split('-').map(Number)
+  if (!y || !m || m < 1 || m > 12) return key
+  const name = MOIS_FR[m - 1]
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${y}`
+}
 
-type FilterKey = (typeof FILTER_COLUMNS)[number]
+/** '2026-07' → 'juillet' (libellés KPI façon maquette). */
+function monthNameLower(key: string | null | undefined): string {
+  if (!key) return ''
+  const m = Number(key.split('-')[1])
+  return m >= 1 && m <= 12 ? MOIS_FR[m - 1] : key
+}
 
-function uniqueValues(rows: BcRegisterRow[], key: FilterKey): string[] {
+function daysSince(dateStr: string): number | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dateStr.trim())
+  const d = m ? new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])) : new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return null
+  return Math.floor((Date.now() - d.getTime()) / 86400000)
+}
+
+/** Emoji de pièce jointe façon maquette : 📄 PDF, 📷 image, 📎 sinon. */
+function attIcon(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
+  if (ext === 'pdf') return '📄'
+  if (['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(ext)) return '📷'
+  return '📎'
+}
+
+function uniqueValues(rows: BcRegisterRow[], key: 'siteName' | 'supplierName' | 'paymentMode'): string[] {
   return [...new Set(rows.map((r) => String(r[key] ?? '').trim() || '—'))].sort((a, b) => a.localeCompare(b, 'fr'))
 }
 
-function FilterSelect({
-  testId,
-  values,
-  selected,
-  onChange,
-}: {
-  testId: string
-  values: string[]
-  selected: string
-  onChange: (v: string) => void
-}) {
-  return (
-    <select
-      data-testid={testId}
-      value={selected}
-      onChange={(e) => onChange(e.target.value)}
-      style={{ ...css.input, fontSize: 11, padding: '2px 4px', fontWeight: 400, maxWidth: 140 }}
-    >
-      <option value="">Tous</option>
-      {values.map((v) => (
-        <option key={v} value={v}>{v}</option>
-      ))}
-    </select>
-  )
-}
+type Sheet = 'mois' | 'recap'
+type FollowupField = 'invoice' | 'justifs' | 'observation' | 'verification'
+type InvoiceFilter = '' | 'received' | 'missing'
 
 export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boolean }) {
   const [rows, setRows] = useState<BcRegisterRow[]>([])
@@ -62,71 +113,106 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   const [sheet, setSheet] = useState<Sheet>('mois')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filters, setFilters] = useState<Record<FilterKey, string>>({
-    siteName: '',
-    supplierName: '',
-    date: '',
-    bon: '',
-    paymentMode: '',
-    amountLabel: '',
-    invoice: '',
-    justifs: '',
-    observation: '',
-    verification: '',
-    attachment: '',
-  })
+  const [fSite, setFSite] = useState('')
+  const [fSupplier, setFSupplier] = useState('')
+  const [fPayment, setFPayment] = useState('')
+  const [fInvoice, setFInvoice] = useState<InvoiceFilter>('')
+  const [invoiceEditId, setInvoiceEditId] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ url: string; fileName: string; contentType: string } | null>(null)
   const previewUrlRef = useRef<string | null>(null)
 
-  const load = useCallback(async (selectedMonth?: string | null) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const q = selectedMonth ? `?month=${encodeURIComponent(selectedMonth)}` : ''
-      const res = await authFetch(`/procurement/bc-register${q}`)
-      if (handleAuth(res.status)) return
-      if (!res.ok) throw new Error('Registre BC indisponible')
-      const data = (await res.json()) as {
-        rows?: BcRegisterRow[]
-        recap?: BcRegisterRecapGroup[]
-        months?: BcRegisterMonth[]
-        month?: string | null
+  const load = useCallback(
+    async (selectedMonth?: string | null) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const q = selectedMonth ? `?month=${encodeURIComponent(selectedMonth)}` : ''
+        const res = await authFetch(`/procurement/bc-register${q}`)
+        if (handleAuth(res.status)) return
+        if (!res.ok) throw new Error('Registre BC indisponible')
+        const data = (await res.json()) as {
+          rows?: BcRegisterRow[]
+          recap?: BcRegisterRecapGroup[]
+          months?: BcRegisterMonth[]
+          month?: string | null
+        }
+        setRows(data.rows ?? [])
+        setRecap(data.recap ?? [])
+        setMonths(data.months ?? [])
+        setMonth(data.month ?? null)
+      } catch (err) {
+        setRows([])
+        setRecap([])
+        setError(err instanceof Error ? err.message : 'Registre indisponible')
+      } finally {
+        setLoading(false)
       }
-      setRows(data.rows ?? [])
-      setRecap(data.recap ?? [])
-      setMonths(data.months ?? [])
-      setMonth(data.month ?? null)
-    } catch (err) {
-      setRows([])
-      setRecap([])
-      setError(err instanceof Error ? err.message : 'Registre indisponible')
-    } finally {
-      setLoading(false)
-    }
-  }, [handleAuth])
+    },
+    [handleAuth],
+  )
 
   useEffect(() => {
     void load()
   }, [load])
 
-  useEffect(() => () => {
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
-  }, [])
-
-  const monthLabel = months.find((m) => m.key === month)?.label ?? ''
-
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) =>
-      FILTER_COLUMNS.every((key) => {
-        const selected = filters[key]
-        if (!selected) return true
-        return (String(row[key] ?? '').trim() || '—') === selected
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (fSite && (r.siteName.trim() || '—') !== fSite) return false
+        if (fSupplier && (r.supplierName.trim() || '—') !== fSupplier) return false
+        if (fPayment && (r.paymentMode.trim() || '—') !== fPayment) return false
+        if (fInvoice === 'received' && !r.invoice.trim()) return false
+        if (fInvoice === 'missing' && r.invoice.trim()) return false
+        return true
       }),
-    )
-  }, [rows, filters])
+    [rows, fSite, fSupplier, fPayment, fInvoice],
+  )
 
-  const setFilter = (key: FilterKey, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }))
+  // KPI du mois (maquette suivi-bc-v1) — dérivés des champs existants.
+  const kpi = useMemo(() => {
+    const totalAmount = rows.reduce((s, r) => s + (r.amountFcfa ?? 0), 0)
+    const invoicesReceived = rows.filter((r) => r.invoice.trim()).length
+    const justifsMissingRows = rows.filter((r) => !r.justifs.trim())
+    const verifPendingRows = rows.filter((r) => !r.verification.trim())
+    const oldVerifCount = verifPendingRows.filter((r) => {
+      const d = daysSince(r.date)
+      return d != null && d > 7
+    }).length
+    return {
+      count: rows.length,
+      totalAmount,
+      invoicesReceived,
+      invoicePct: rows.length > 0 ? Math.round((invoicesReceived / rows.length) * 100) : 0,
+      justifsMissing: justifsMissingRows.length,
+      justifsSites: new Set(justifsMissingRows.map((r) => r.siteName)).size,
+      supplierCount: new Set(rows.map((r) => r.supplierName)).size,
+      verifPending: verifPendingRows.length,
+      oldVerifCount,
+    }
+  }, [rows])
+
+  // Export Excel (.xls SpreadsheetML — s'ouvre dans Excel/LibreOffice, sans dépendance externe).
+  const exportXls = () => {
+    const esc = (v: unknown) =>
+      String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const headers = ['Chantier', 'Fournisseur', 'Date', 'N° BC', 'Paiement', 'Montant (XOF)', 'Facture', 'Justifs', 'Observation', 'Vérification']
+    const body = filteredRows
+      .map((r) => {
+        const cells = [r.siteName, r.supplierName, r.date, r.bon, r.paymentMode, r.amountFcfa ?? '', r.invoice, r.justifs, r.observation, r.verification]
+        return '<tr>' + cells.map((v, i) => (i === 5 ? `<td x:num>${esc(v)}</td>` : `<td>${esc(v)}</td>`)).join('') + '</tr>'
+      })
+      .join('')
+    const html =
+      '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>' +
+      `<table border="1"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>` +
+      '</body></html>'
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `points-fournisseurs-bc-${month ?? 'tous'}.xls`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const saveFollowup = async (row: BcRegisterRow, field: FollowupField, value: string) => {
@@ -152,239 +238,380 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     }
   }
 
+  const closePreview = () => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    previewUrlRef.current = null
+    setPreview(null)
+  }
+
+  const followupInput = (row: BcRegisterRow, field: FollowupField, placeholder: string) => (
+    <input
+      key={`${row.purchaseOrderId}-${field}-${row[field]}`}
+      className={`cell-input${row[field].trim() ? ' filled' : ''}`}
+      defaultValue={row[field]}
+      placeholder={placeholder}
+      data-testid={`mgr-suivi-bc-${field}-${row.purchaseOrderId}`}
+      onBlur={(e) => void saveFollowup(row, field, e.target.value)}
+    />
+  )
+
   return (
-    <div data-testid="mgr-suivi-bc">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
-        <div>
-          <h2 style={{ ...css.sectionTitle, margin: 0 }}>Suivi — points fournisseurs des BC</h2>
-          <p style={css.meta}>
-            Feuille mois filtrable + récap par fournisseur (POINTS FOURNISSEURS DES BC).
-          </p>
-        </div>
-        <button type="button" onClick={() => void load(month)} style={css.btnOutline} data-testid="mgr-suivi-bc-refresh">
-          Actualiser
-        </button>
-      </div>
-      {error && <AlertBox>{error}</AlertBox>}
-      {months.length > 0 && (
-        <div data-testid="mgr-suivi-bc-month-tabs" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-          {months.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              data-testid={`mgr-suivi-bc-month-${m.key}`}
-              onClick={() => void load(m.key)}
-              style={m.key === month ? css.btnGold : css.btnOutline}
-            >
-              {m.label}
+    <div className="sbc" data-testid="mgr-suivi-bc">
+      <style>{SBC_CSS}</style>
+      <div className="page">
+        <div className="topbar">
+          <div>
+            <h1>Suivi — points fournisseurs des BC</h1>
+            <p className="sub">Feuille mois filtrable + récap par fournisseur · suivi facture / justificatifs / vérification</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn" onClick={exportXls} data-testid="mgr-suivi-bc-export">
+              ↳ Exporter (xlsx)
             </button>
-          ))}
-        </div>
-      )}
-      {month && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <button
-            type="button"
-            data-testid="mgr-suivi-bc-sheet-mois"
-            onClick={() => setSheet('mois')}
-            style={sheet === 'mois' ? css.btnGold : css.btnOutline}
-          >
-            {monthLabel || 'Mois'}
-          </button>
-          <button
-            type="button"
-            data-testid="mgr-suivi-bc-sheet-recap"
-            onClick={() => setSheet('recap')}
-            style={sheet === 'recap' ? css.btnGold : css.btnOutline}
-          >
-            RECAP {monthLabel}
-          </button>
-        </div>
-      )}
-      {loading ? (
-        <p style={css.meta}>Chargement…</p>
-      ) : rows.length === 0 ? (
-        <p style={css.meta} data-testid="mgr-suivi-bc-empty">
-          Aucune livraison BC confirmée.
-        </p>
-      ) : sheet === 'recap' ? (
-        <div data-testid="mgr-suivi-bc-recap">
-          {recap.length === 0 ? (
-            <p style={css.meta}>Aucun BC ce mois.</p>
-          ) : (
-            recap.map((group) => (
-              <div key={group.supplierName} style={{ marginBottom: 20 }} data-testid={`mgr-suivi-bc-recap-${group.supplierName}`}>
-                <h3 style={{ ...css.sectionTitle, fontSize: 14, margin: '0 0 8px' }}>
-                  FOURNISSEUR {group.supplierName}
-                </h3>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={css.lineTable}>
-                    <thead>
-                      <tr>
-                        <th style={css.lineTh}>DATE</th>
-                        <th style={css.lineTh}>N° BC</th>
-                        <th style={css.lineTh}>MONTANT (XOF)</th>
-                        <th style={css.lineTh}>SITES</th>
-                        <th style={css.lineTh}>OBSERVATION</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.rows.map((line) => (
-                        <tr key={`${group.supplierName}-${line.bon}`}>
-                          <td style={css.lineTd}>{line.date}</td>
-                          <td style={css.lineTd}>{line.bon}</td>
-                          <td style={css.lineTd}>{line.amountLabel}</td>
-                          <td style={css.lineTd}>{line.siteName}</td>
-                          <td style={css.lineTd}>{line.observation}</td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td style={{ ...css.lineTd, fontWeight: 700 }} colSpan={2}>Total</td>
-                        <td style={{ ...css.lineTd, fontWeight: 700 }}>{group.totalLabel}</td>
-                        <td style={css.lineTd} colSpan={2} />
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={css.lineTable} data-testid="mgr-suivi-bc-table">
-            <thead>
-              <tr>
-                <th style={css.lineTh}>CHANTIERS</th>
-                <th style={css.lineTh}>FOURNISSEURS</th>
-                <th style={css.lineTh}>DATE</th>
-                <th style={css.lineTh}>BON</th>
-                <th style={css.lineTh}>MODE DE PAIEMENT</th>
-                <th style={css.lineTh}>MONTANT (XOF)</th>
-                <th style={css.lineTh}>FACTURE</th>
-                <th style={css.lineTh}>JUSTIFS</th>
-                <th style={css.lineTh}>OBSERVATION</th>
-                <th style={css.lineTh}>VÉRIFICATION</th>
-                <th style={css.lineTh}>DOC EN ATTACHE</th>
-              </tr>
-              <tr data-testid="mgr-suivi-bc-filters">
-                {FILTER_COLUMNS.map((key) => (
-                  <th key={key} style={{ ...css.lineTh, fontWeight: 400, borderBottom: '1px solid var(--border)' }}>
-                    <FilterSelect
-                      testId={`mgr-suivi-bc-filter-${key}`}
-                      values={uniqueValues(rows, key)}
-                      selected={filters[key]}
-                      onChange={(v) => setFilter(key, v)}
-                    />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((row) => (
-                <tr key={row.purchaseOrderId} data-testid={`mgr-suivi-bc-row-${row.purchaseOrderId}`}>
-                  <td style={css.lineTd}>{row.siteName}</td>
-                  <td style={css.lineTd}>{row.supplierName}</td>
-                  <td style={css.lineTd}>{row.date}</td>
-                  <td style={css.lineTd}>{row.bon}</td>
-                  <td style={css.lineTd}>{row.paymentMode}</td>
-                  <td style={css.lineTd}>{row.amountLabel}</td>
-                  <td style={css.lineTd}>
-                    <input
-                      defaultValue={row.invoice}
-                      onBlur={(e) => void saveFollowup(row, 'invoice', e.target.value)}
-                      style={css.input}
-                      data-testid={`mgr-suivi-bc-invoice-${row.purchaseOrderId}`}
-                    />
-                  </td>
-                  <td style={css.lineTd}>
-                    <input
-                      defaultValue={row.justifs}
-                      onBlur={(e) => void saveFollowup(row, 'justifs', e.target.value)}
-                      style={css.input}
-                      data-testid={`mgr-suivi-bc-justifs-${row.purchaseOrderId}`}
-                    />
-                  </td>
-                  <td style={css.lineTd}>
-                    <input
-                      defaultValue={row.observation}
-                      onBlur={(e) => void saveFollowup(row, 'observation', e.target.value)}
-                      style={css.input}
-                      data-testid={`mgr-suivi-bc-observation-${row.purchaseOrderId}`}
-                    />
-                  </td>
-                  <td style={css.lineTd}>
-                    <input
-                      defaultValue={row.verification}
-                      onBlur={(e) => void saveFollowup(row, 'verification', e.target.value)}
-                      style={css.input}
-                      data-testid={`mgr-suivi-bc-verification-${row.purchaseOrderId}`}
-                    />
-                  </td>
-                  <td style={css.lineTd}>
-                    {(row.attachments ?? []).length === 0 ? (
-                      row.attachment
-                    ) : (
-                      (row.attachments ?? []).map((att) => (
-                        <button
-                          key={att.lineId}
-                          type="button"
-                          data-testid={`mgr-suivi-bc-attach-${row.purchaseOrderId}`}
-                          onClick={() => void openAttachment(row, att.lineId, att.fileName)}
-                          style={{ ...css.btnGhost, padding: '2px 6px', fontSize: 12 }}
-                        >
-                          {att.fileName}
-                        </button>
-                      ))
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {preview && (
-        <div
-          role="dialog"
-          data-testid="mgr-suivi-bc-preview"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 40,
-          }}
-          onClick={() => {
-            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
-            previewUrlRef.current = null
-            setPreview(null)
-          }}
-        >
-          <div
-            style={{ background: '#fff', padding: 16, maxWidth: '90vw', maxHeight: '90vh', overflow: 'auto' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-              <strong>{preview.fileName}</strong>
-              <button type="button" style={css.btnGhost} onClick={() => {
-                if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
-                previewUrlRef.current = null
-                setPreview(null)
-              }}>
-                Fermer
-              </button>
-            </div>
-            {preview.contentType.startsWith('image/') ? (
-              <img src={preview.url} alt={preview.fileName} style={{ maxWidth: '80vw', maxHeight: '70vh' }} />
-            ) : (
-              <iframe title={preview.fileName} src={preview.url} style={{ width: '70vw', height: '70vh', border: 0 }} />
-            )}
+            <button type="button" className="btn btn-primary" onClick={() => void load(month)} data-testid="mgr-suivi-bc-refresh">
+              ⟳ Actualiser
+            </button>
           </div>
         </div>
-      )}
+
+        <div className="kpis" data-testid="mgr-suivi-bc-kpis">
+          <div className="kpi" data-testid="mgr-suivi-bc-kpi-count">
+            <div className="lbl">BC confirmés{month ? ` · ${monthNameLower(month)}` : ''}</div>
+            <div className="val">{kpi.count}</div>
+            <div className="det">
+              {kpi.supplierCount} fournisseur{kpi.supplierCount > 1 ? 's' : ''} actif{kpi.supplierCount > 1 ? 's' : ''}
+            </div>
+          </div>
+          <div className="kpi" data-testid="mgr-suivi-bc-kpi-amount">
+            <div className="lbl">Montant total</div>
+            <div className="val mono">{formatFcfa(kpi.totalAmount)}</div>
+            <div className="det">XOF · tous chantiers</div>
+          </div>
+          <div className={`kpi${kpi.justifsMissing > 0 ? ' warn' : ''}`} data-testid="mgr-suivi-bc-kpi-justifs">
+            <div className="lbl">Justifs manquants</div>
+            <div className="val">{kpi.justifsMissing}</div>
+            <div className="det">
+              {kpi.justifsMissing > 0
+                ? `${kpi.justifsSites} chantier${kpi.justifsSites > 1 ? 's' : ''} concerné${kpi.justifsSites > 1 ? 's' : ''}`
+                : 'Tous complétés'}
+            </div>
+          </div>
+          <div className={`kpi${kpi.verifPending > 0 ? ' warn' : ''}`} data-testid="mgr-suivi-bc-kpi-verifs">
+            <div className="lbl">Vérifs en attente</div>
+            <div className="val">{kpi.verifPending}</div>
+            <div className="det">
+              {kpi.oldVerifCount > 0 ? `CdG — ${kpi.oldVerifCount} de plus de 7 j` : 'CdG — à jour'}
+            </div>
+          </div>
+          <div className="kpi" data-testid="mgr-suivi-bc-kpi-invoices">
+            <div className="lbl">Factures reçues</div>
+            <div className="val">
+              {kpi.invoicesReceived} / {kpi.count}
+            </div>
+            <div className="det">{kpi.invoicePct} % du mois</div>
+          </div>
+        </div>
+
+        {months.length > 0 && (
+          <div className="tabs" data-testid="mgr-suivi-bc-month-tabs">
+            {months.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                className={`chip${m.key === month ? ' active' : ''}`}
+                data-testid={`mgr-suivi-bc-month-${m.key}`}
+                onClick={() => void load(m.key)}
+              >
+                {monthTitle(m.key)}
+              </button>
+            ))}
+            {month && (
+              <>
+                <span className="sheet-note">Feuille active :</span>
+                <button
+                  type="button"
+                  className={`chip${sheet === 'mois' ? ' active' : ''}`}
+                  data-testid="mgr-suivi-bc-sheet-mois"
+                  onClick={() => setSheet('mois')}
+                >
+                  Feuille mois
+                </button>
+                <button
+                  type="button"
+                  className={`chip${sheet === 'recap' ? ' active' : ''}`}
+                  data-testid="mgr-suivi-bc-sheet-recap"
+                  onClick={() => setSheet('recap')}
+                >
+                  RECAP {monthTitle(month)}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {error && <AlertBox>{error}</AlertBox>}
+
+        {loading ? (
+          <p className="sub">Chargement…</p>
+        ) : rows.length === 0 ? (
+          <p className="sub" data-testid="mgr-suivi-bc-empty">
+            Aucune livraison BC confirmée.
+          </p>
+        ) : sheet === 'mois' ? (
+          <div className="card">
+            <div className="filters" data-testid="mgr-suivi-bc-filters">
+              <label>
+                Chantier
+                <select value={fSite} onChange={(e) => setFSite(e.target.value)} data-testid="mgr-suivi-bc-filter-siteName">
+                  <option value="">Tous</option>
+                  {uniqueValues(rows, 'siteName').map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Fournisseur
+                <select value={fSupplier} onChange={(e) => setFSupplier(e.target.value)} data-testid="mgr-suivi-bc-filter-supplierName">
+                  <option value="">Tous</option>
+                  {uniqueValues(rows, 'supplierName').map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Mode de paiement
+                <select value={fPayment} onChange={(e) => setFPayment(e.target.value)} data-testid="mgr-suivi-bc-filter-paymentMode">
+                  <option value="">Tous</option>
+                  {uniqueValues(rows, 'paymentMode').map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Facture
+                <select value={fInvoice} onChange={(e) => setFInvoice(e.target.value as InvoiceFilter)} data-testid="mgr-suivi-bc-filter-invoice">
+                  <option value="">Toutes</option>
+                  <option value="received">Reçue</option>
+                  <option value="missing">Manquante</option>
+                </select>
+              </label>
+              <span className="sheet-note">{filteredRows.length} BC · filtres en-tête dupliqués (tri par colonne au clic)</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table data-testid="mgr-suivi-bc-table">
+                <thead>
+                  <tr>
+                    <th>CHANTIERS</th>
+                    <th>FOURNISSEURS</th>
+                    <th>DATE</th>
+                    <th>BON</th>
+                    <th>MODE DE PAIEMENT</th>
+                    <th>MONTANT (XOF)</th>
+                    <th>FACTURE</th>
+                    <th>JUSTIFS</th>
+                    <th>OBSERVATION</th>
+                    <th>VÉRIFICATION</th>
+                    <th>DOC EN ATTACHE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row) => {
+                    const days = daysSince(row.date)
+                    return (
+                      <tr key={row.purchaseOrderId}>
+                        <td>{row.siteName}</td>
+                        <td>{row.supplierName}</td>
+                        <td className="mono">{row.date}</td>
+                        <td className="bon">{row.bon}</td>
+                        <td>{row.paymentMode}</td>
+                        <td className="mono tot">{row.amountLabel}</td>
+                        <td>
+                          {row.invoice.trim() && invoiceEditId !== row.purchaseOrderId ? (
+                            <span
+                              className="pill pill-green"
+                              style={{ cursor: 'pointer' }}
+                              title="Cliquer pour modifier la facture"
+                              data-testid={`mgr-suivi-bc-invoice-${row.purchaseOrderId}`}
+                              onClick={() => setInvoiceEditId(row.purchaseOrderId)}
+                            >
+                              {row.invoice}
+                            </span>
+                          ) : (
+                            <>
+                              {!row.invoice.trim() && <span className="pill pill-red">Manquante</span>}
+                              <div style={{ marginTop: 4, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                                {followupInput(row, 'invoice', 'n° facture…')}
+                                <button
+                                  type="button"
+                                  className="pill pill-green"
+                                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                                  title="Marquer la facture comme reçue"
+                                  onClick={() => { void saveFollowup(row, 'invoice', 'reçue'); setInvoiceEditId(null) }}
+                                >
+                                  ✓ Reçue
+                                </button>
+                                {row.invoice.trim() && (
+                                  <button
+                                    type="button"
+                                    className="pill pill-gray"
+                                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                                    title="Annuler la modification"
+                                    onClick={() => setInvoiceEditId(null)}
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </td>
+                        <td>{followupInput(row, 'justifs', 'à compléter…')}</td>
+                        <td>{followupInput(row, 'observation', 'à compléter…')}</td>
+                        <td>
+                          {row.verification.trim() ? (
+                            <span className="pill pill-green">✓ Vérifié</span>
+                          ) : (
+                            <>
+                              {followupInput(row, 'verification', 'à compléter…')}
+                              <div style={{ marginTop: 4 }}>
+                                {days != null && days > 7 ? (
+                                  <span className="pill pill-red">Non vérifié · {days} j</span>
+                                ) : (
+                                  <span className="pill pill-amber">En attente</span>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </td>
+                        <td>
+                          {(row.attachments ?? []).length === 0 ? (
+                            <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+                          ) : (
+                            (row.attachments ?? []).map((att) => (
+                              <button
+                                key={att.lineId}
+                                type="button"
+                                className="att"
+                                data-testid={`mgr-suivi-bc-attach-${row.purchaseOrderId}`}
+                                onClick={() => void openAttachment(row, att.lineId, att.fileName)}
+                              >
+                                {attIcon(att.fileName)} {att.fileName}
+                              </button>
+                            ))
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="legend">
+              ● Champs FACTURE / JUSTIFS / OBSERVATION / VÉRIFICATION éditables en ligne (sauvegarde auto à la sortie du champ,
+              comme aujourd'hui) — pastille verte = champ complété. ● Pièces jointes : clic → aperçu intégré (image ou PDF).
+            </p>
+          </div>
+        ) : null}
+
+        {!loading && rows.length > 0 && sheet === 'recap' && (
+          <div className="card card-recap" data-testid="mgr-suivi-bc-recap">
+            <p className="sub" style={{ marginBottom: 14 }}>
+              <strong style={{ color: 'var(--gold)' }}>RECAP {monthTitle(month).toUpperCase()}</strong> — groupage par
+              fournisseur, tel que partagé aux points fournisseurs. Export xlsx en un clic.
+            </p>
+            {recap.length === 0 ? (
+              <p className="sub">Aucun BC ce mois.</p>
+            ) : (
+              recap.map((group) => (
+                <div key={group.supplierName} style={{ marginBottom: 18 }} data-testid={`mgr-suivi-bc-recap-${group.supplierName}`}>
+                  <div className="sup-head">
+                    <h3>🏢 Fournisseur {group.supplierName}</h3>
+                    <span className="sup-total mono">Total : {group.totalLabel} XOF</span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>DATE</th>
+                          <th>N° BC</th>
+                          <th>MONTANT (XOF)</th>
+                          <th>SITES</th>
+                          <th>OBSERVATION</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.rows.map((line) => (
+                          <tr key={`${group.supplierName}-${line.bon}`}>
+                            <td className="mono">{line.date}</td>
+                            <td className="bon">{line.bon}</td>
+                            <td className="mono">{line.amountLabel}</td>
+                            <td>{line.siteName}</td>
+                            <td>{line.observation}</td>
+                          </tr>
+                        ))}
+                        <tr className="tot">
+                          <td colSpan={2}>Total</td>
+                          <td className="mono">{group.totalLabel}</td>
+                          <td colSpan={2} />
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))
+            )}
+            {recap.length > 0 && (
+              <div className="grand" data-testid="mgr-suivi-bc-recap-grand">
+                <span className="lbl">Total général {monthNameLower(month)} {month?.split('-')[0]}</span>
+                <span className="val mono">{formatFcfa(kpi.totalAmount)} XOF</span>
+                <span className="lbl">
+                  · {kpi.count} BC · {kpi.supplierCount} fournisseurs
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {preview && (
+          <div
+            role="dialog"
+            data-testid="mgr-suivi-bc-preview"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.45)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 40,
+            }}
+            onClick={closePreview}
+          >
+            <div
+              style={{ background: '#fff', padding: 16, maxWidth: '90vw', maxHeight: '90vh', overflow: 'auto', borderRadius: 12 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                <strong>{preview.fileName}</strong>
+                <button type="button" className="btn" onClick={closePreview}>
+                  Fermer
+                </button>
+              </div>
+              {preview.contentType.startsWith('image/') ? (
+                <img src={preview.url} alt={preview.fileName} style={{ maxWidth: '80vw', maxHeight: '70vh' }} />
+              ) : (
+                <iframe title={preview.fileName} src={preview.url} style={{ width: '70vw', height: '70vh', border: 0 }} />
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

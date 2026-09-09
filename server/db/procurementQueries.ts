@@ -149,6 +149,7 @@ export type SiteBudgetDto = {
   budgetFrozenAt: string | null
   budgetTotalFcfa: number | null
   engagedFcfa: number
+  realizedFcfa: number
   remainingFcfa: number | null
   overBudget: boolean
   engagementPct: number | null
@@ -184,6 +185,24 @@ async function sumEngagedBc(companyId: string, siteId: string): Promise<number> 
         eq(purchaseRequests.siteId, siteId),
         eq(purchaseOrders.docType, 'bc'),
         inArray(purchaseRequests.status, [...ENGAGED_BC_STATUSES]),
+      ),
+    )
+  return toFcfaInt(row?.total)
+}
+
+async function sumRealizedBc(companyId: string, siteId: string): Promise<number> {
+  const [row] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${purchaseOrders.amountFcfa}), 0)`,
+    })
+    .from(purchaseOrders)
+    .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
+    .where(
+      and(
+        eq(purchaseRequests.companyId, companyId),
+        eq(purchaseRequests.siteId, siteId),
+        eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseRequests.status, 'delivered'),
       ),
     )
   return toFcfaInt(row?.total)
@@ -235,6 +254,7 @@ async function nextAmendmentReference(companyId: string): Promise<string> {
 export async function listSiteMonthlyExpenses(
   companyId: string,
   month: string,
+  opts?: { supervisedSiteIds?: string[] },
 ): Promise<{ siteId: string; amountFcfa: number }[]> {
   const startDate = new Date(`${month}-01T00:00:00`)
   if (Number.isNaN(startDate.getTime())) return []
@@ -257,18 +277,21 @@ export async function listSiteMonthlyExpenses(
       ),
     )
     .groupBy(purchaseRequests.siteId)
-  return rows
-    .filter((r): r is { siteId: string; total: string } => typeof r.siteId === 'string')
-    .map((r) => ({ siteId: r.siteId, amountFcfa: toFcfaInt(r.total) }))
+  // DT : ne compter que les dépenses de ses chantiers assignés.
+  const scoped = opts?.supervisedSiteIds
+    ? rows.filter((r) => typeof r.siteId === 'string' && opts.supervisedSiteIds!.includes(r.siteId))
+    : rows.filter((r) => typeof r.siteId === 'string')
+  return scoped.map((r) => ({ siteId: (r as { siteId: string }).siteId, amountFcfa: toFcfaInt(r.total) }))
 }
 
 export async function getSiteBudget(companyId: string, siteId: string): Promise<SiteBudgetDto | null> {
   const site = await getSiteById(companyId, siteId)
   if (!site) return null
 
-  const [approvedSum, engagedFcfa, amendmentRows] = await Promise.all([
+  const [approvedSum, engagedFcfa, realizedFcfa, amendmentRows] = await Promise.all([
     sumApprovedAmendments(siteId),
     sumEngagedBc(companyId, siteId),
+    sumRealizedBc(companyId, siteId),
     db
       .select({
         id: siteBudgetAmendments.id,
@@ -303,6 +326,7 @@ export async function getSiteBudget(companyId: string, siteId: string): Promise<
     budgetFrozenAt: site.budgetFrozenAt,
     approvedAmendmentSumFcfa: approvedSum,
     engagedFcfa,
+    realizedFcfa,
   })
 
   const approvedAmendmentCount = amendmentRows.filter((row) => row.status === 'approved').length
@@ -323,6 +347,7 @@ export async function getSiteBudget(companyId: string, siteId: string): Promise<
     budgetFrozenAt: site.budgetFrozenAt ? site.budgetFrozenAt.toISOString() : null,
     budgetTotalFcfa: totals.budgetTotalFcfa,
     engagedFcfa: totals.engagedFcfa,
+    realizedFcfa: totals.realizedFcfa,
     remainingFcfa: totals.remainingFcfa,
     overBudget: totals.overBudget,
     engagementPct: kpis.engagementPct,
@@ -439,12 +464,34 @@ export async function getSiteIndicators(companyId: string, siteId: string): Prom
   }
 }
 
-export async function listSiteBudgets(companyId: string): Promise<SiteBudgetDto[]> {
-  const siteRows = await listSites(companyId)
+/** Ids des chantiers actifs supervisés par un manager (DT) — restriction « mes chantiers ». */
+export async function listSupervisedSiteIds(companyId: string, managerId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(
+      and(
+        eq(sites.companyId, companyId),
+        eq(sites.active, true),
+        eq(sites.supervisorManagerId, managerId),
+      ),
+    )
+  return rows.map((r) => r.id)
+}
+
+export async function listSiteBudgets(
+  companyId: string,
+  opts?: { supervisedSiteIds?: string[] },
+): Promise<SiteBudgetDto[]> {
+  const allSites = await listSites(companyId)
+  // DT : uniquement les chantiers qui lui sont assignés (supervisor_manager_id).
+  const siteRows = opts?.supervisedSiteIds
+    ? allSites.filter((s) => opts.supervisedSiteIds!.includes(s.id))
+    : allSites
   if (siteRows.length === 0) return []
   const siteIds = siteRows.map((s) => s.id)
 
-  const [approvedRows, engagedRows, amendmentRows] = await Promise.all([
+  const [approvedRows, engagedRows, realizedRows, amendmentRows] = await Promise.all([
     db
       .select({
         siteId: siteBudgetAmendments.siteId,
@@ -477,6 +524,22 @@ export async function listSiteBudgets(companyId: string): Promise<SiteBudgetDto[
       .groupBy(purchaseRequests.siteId),
     db
       .select({
+        siteId: purchaseRequests.siteId,
+        total: sql<string>`coalesce(sum(${purchaseOrders.amountFcfa}), 0)`,
+      })
+      .from(purchaseOrders)
+      .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
+      .where(
+        and(
+          eq(purchaseRequests.companyId, companyId),
+          eq(purchaseOrders.docType, 'bc'),
+          eq(purchaseRequests.status, 'delivered'),
+          inArray(purchaseRequests.siteId, siteIds),
+        ),
+      )
+      .groupBy(purchaseRequests.siteId),
+    db
+      .select({
         id: siteBudgetAmendments.id,
         siteId: siteBudgetAmendments.siteId,
         reference: siteBudgetAmendments.reference,
@@ -501,6 +564,11 @@ export async function listSiteBudgets(companyId: string): Promise<SiteBudgetDto[
       .filter((r): r is { siteId: string; total: string } => typeof r.siteId === 'string')
       .map((r) => [r.siteId, toFcfaInt(r.total)]),
   )
+  const realizedBySite = new Map(
+    realizedRows
+      .filter((r): r is { siteId: string; total: string } => typeof r.siteId === 'string')
+      .map((r) => [r.siteId, toFcfaInt(r.total)]),
+  )
   const amendmentsBySite = new Map<string, typeof amendmentRows>()
   for (const row of amendmentRows) {
     const list = amendmentsBySite.get(row.siteId) ?? []
@@ -521,12 +589,14 @@ export async function listSiteBudgets(companyId: string): Promise<SiteBudgetDto[
   const assembled = siteRows.map((site) => {
     const approvedSum = approvedBySite.get(site.id) ?? 0
     const engagedFcfa = engagedBySite.get(site.id) ?? 0
+    const realizedFcfa = realizedBySite.get(site.id) ?? 0
     const siteAmendments = amendmentsBySite.get(site.id) ?? []
     const totals = computeBudgetTotals({
       budgetInitialFcfa: site.budgetInitialFcfa,
       budgetFrozenAt: site.budgetFrozenAt,
       approvedAmendmentSumFcfa: approvedSum,
       engagedFcfa,
+      realizedFcfa,
     })
     return { site, totals, siteAmendments }
   })
@@ -554,6 +624,7 @@ export async function listSiteBudgets(companyId: string): Promise<SiteBudgetDto[
       budgetFrozenAt: site.budgetFrozenAt ? site.budgetFrozenAt.toISOString() : null,
       budgetTotalFcfa: totals.budgetTotalFcfa,
       engagedFcfa: totals.engagedFcfa,
+      realizedFcfa: totals.realizedFcfa,
       remainingFcfa: totals.remainingFcfa,
       overBudget: totals.overBudget,
       engagementPct: kpis.engagementPct,
@@ -1551,7 +1622,8 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       and(
         eq(purchaseOrders.companyId, companyId),
         eq(purchaseOrders.docType, 'bc'),
-        eq(deliveryPoints.status, 'delivered'),
+        // Livraison confirmée = déclaration « full » (cohérent avec le dashboard livraison)
+        eq(declarations.outcome, 'full'),
       ),
     )
     .orderBy(desc(declarations.declaredAt), desc(purchaseOrders.createdAt))

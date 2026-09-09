@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planifier une tournée (maquette)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1e3a5f; --muted:#64748b; --border:#e2e8f0; --bg:#f5f7fa;
+    --green:#047857; --green-bg:#ecfdf5; --amber:#b45309; --amber-bg:#fffbeb;
+    --red:#b91c1c; --red-bg:#fef2f2; --gold:#b7791f; --gold-bg:#fdf3e0; --gold-border:#ecd9b0;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:#1e293b;padding:24px}
+  .page{max-width:1180px;margin:0 auto}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:6px;flex-wrap:wrap}
+  h1{font-size:22px;font-weight:800;color:var(--navy)}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .role-pill{background:var(--navy);color:#fff;border-radius:999px;padding:5px 14px;font-size:12px;font-weight:600}
+  .actions{display:flex;gap:8px}
+  .btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer}
+  .btn-gold{background:var(--gold-bg);border-color:var(--gold-border);color:var(--gold)}
+  .btn-primary{background:var(--navy);border-color:var(--navy);color:#fff}
+  .alert{background:var(--amber-bg);border:1px solid #fde68a;border-radius:12px;padding:12px 16px;font-size:13px;color:var(--amber);display:flex;justify-content:space-between;align-items:center;gap:12px;margin:16px 0}
+  .alert b{color:#92400e}
+  .cols{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .card-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)}
+  .card-head h2{font-size:14px;font-weight:700;color:var(--navy)}
+  .card-body{padding:16px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px}
+  .field input,.field select{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;color:#334155;background:#fff}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:5px}
+  .drv{display:flex;align-items:center;gap:10px;background:var(--green-bg);border:1px solid #a7f3d0;border-radius:10px;padding:10px 12px;margin-top:4px}
+  .drv .dot{width:9px;height:9px;border-radius:50%;background:#10b981;flex-shrink:0}
+  .drv .nm{font-size:13px;font-weight:700;color:var(--green)}
+  .drv .meta{font-size:11.5px;color:var(--muted);margin-left:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;padding:10px 14px;background:#f8fafc;border-bottom:1px solid var(--border);white-space:nowrap}
+  tbody td{padding:12px 14px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+  tbody tr:hover{background:#f8fafc}
+  .stop-n{width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+  .stop-title{font-weight:700;color:var(--navy);font-size:13px}
+  .stop-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .prod{font-size:12px;color:#334155;padding:2px 0}
+  .prod .mono{font-variant-numeric:tabular-nums;font-weight:600}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+  .pill-navy{background:#eef3f8;color:var(--navy)}
+  .pill-amber{background:var(--amber-bg);color:var(--amber)}
+  .times{font-size:12px;color:#334155;white-space:nowrap}
+  .times .sep{color:#94a3b8;margin:0 4px}
+  .rowact{display:flex;gap:6px}
+  .mini{border:none;background:#f1f5f9;border-radius:7px;padding:4px 9px;font-size:12px;font-weight:700;color:#334155;cursor:pointer;font-family:inherit}
+  .mini.danger{background:var(--red-bg);color:var(--red)}
+  .summary{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--navy);color:#fff;border-radius:12px;padding:14px 18px;margin-top:16px}
+  .summary .big{font-size:17px;font-weight:800}
+  .summary .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.75}
+  .summary .sep{width:1px;height:26px;background:rgba(255,255,255,.25)}
+  .summary .spacer{flex:1}
+  .summary .btn-primary{background:#fff;color:var(--navy);border-color:#fff}
+  .modal-back{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:10}
+  .modal{background:#fff;border-radius:12px;padding:20px;width:460px;max-width:92vw;max-height:88vh;overflow-y:auto}
+  .modal h3{font-size:15px;font-weight:800;color:var(--navy);margin-bottom:14px}
+  .modal .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  .legend{margin-top:16px;font-size:12.5px;color:var(--muted);line-height:1.6}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div>
+      <h1>Planifier une tournée</h1>
+      <p class="sub">Créez la tournée d'un livreur : dépôt de départ, arrêts, produits et créneau horaire — 06:00 → 18:00</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="actions">
+        <button class="btn">Annuler</button>
+        <button class="btn btn-primary">💾 Enregistrer la tournée</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert">
+    <span>⚠️ <b>2 arrêts sans produits</b> — un arrêt doit contenir au moins un produit et une quantité avant enregistrement.</span>
+    <button class="btn btn-gold">Compléter maintenant</button>
+  </div>
+
+  <div class="cols">
+    <!-- Colonne gauche : paramètres -->
+    <div class="card">
+      <div class="card-head"><h2>Paramètres de la tournée</h2><span class="pill pill-amber">Brouillon</span></div>
+      <div class="card-body">
+        <div class="field">
+          <label>Date de la tournée</label>
+          <input type="date" value="2026-09-07">
+          <div class="hint">La tournée apparaîtra dans le dashboard du livreur à cette date.</div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Heure de début</label>
+            <input type="time" value="06:00">
+          </div>
+          <div class="field">
+            <label>Heure de fin</label>
+            <input type="time" value="18:00">
+          </div>
+        </div>
+        <div class="field">
+          <label>Livreur assigné</label>
+          <select><option>— Choisir un livreur —</option></select>
+          <div class="drv">
+            <span class="dot"></span>
+            <span class="nm">Aya Livreur</span>
+            <span class="meta">Disponible · +225 07 00 43 04 02</span>
+          </div>
+          <div class="hint">✓ Aucune tournée ce jour pour ce livreur — pas de conflit.</div>
+        </div>
+        <div class="field">
+          <label>Dépôt de départ</label>
+          <select><option>Dépôt principal — Abidjan</option></select>
+        </div>
+        <div class="field">
+          <label>Notes pour le livreur (optionnel)</label>
+          <input placeholder="Ex. prévenir le magasin à l'arrivée">
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonne droite : arrêts -->
+    <div class="card">
+      <div class="card-head">
+        <h2>Arrêts de la tournée (3)</h2>
+        <button class="btn btn-gold">+ Ajouter un arrêt</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Point de livraison</th><th>Produits à livrer</th><th>Créneau</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="stop-n">1</span></td>
+            <td><div class="stop-title">TIMO BÉTON — Bingerville</div><div class="stop-sub">Contact : Konan Yao · +225 07 11 22 33 44</div></td>
+            <td>
+              <div class="prod">Ciment CPJ 35 · <span class="mono">120 sacs</span></div>
+              <div class="prod">Fer Ø8 · <span class="mono">40 barres</span></div>
+            </td>
+            <td class="times">08:00 <span class="sep">→</span> 09:30</td>
+            <td><div class="rowact"><button class="mini">Modifier</button><button class="mini danger">Retirer</button></div></td>
+          </tr>
+          <tr>
+            <td><span class="stop-n">2</span></td>
+            <td><div class="stop-title">Fer & Acier Abidjan — Zone 4</div><div class="stop-sub">Contact : Mariam K. · +225 05 55 66 77 88</div></td>
+            <td>
+              <div class="prod">Fer Ø12 · <span class="mono">80 barres</span></div>
+              <span class="pill pill-amber" style="margin-top:4px">⚠ à compléter</span>
+            </td>
+            <td class="times">10:00 <span class="sep">→</span> 11:00</td>
+            <td><div class="rowact"><button class="mini">Modifier</button><button class="mini danger">Retirer</button></div></td>
+          </tr>
+          <tr>
+            <td><span class="stop-n">3</span></td>
+            <td><div class="stop-title">BOUET Dépôt annexe</div><div class="stop-sub">Contact : non renseigné</div></td>
+            <td><span class="pill pill-amber">⚠ aucun produit</span></td>
+            <td class="times">14:00 <span class="sep">→</span> 15:00</td>
+            <td><div class="rowact"><button class="mini">Modifier</button><button class="mini danger">Retirer</button></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="summary">
+        <div><div class="lbl">Livreur</div><div class="big">Aya Livreur</div></div>
+        <div class="sep"></div>
+        <div><div class="lbl">Date</div><div class="big">07/09/2026</div></div>
+        <div class="sep"></div>
+        <div><div class="lbl">Arrêts</div><div class="big">3</div></div>
+        <div class="sep"></div>
+        <div><div class="lbl">Créneau</div><div class="big">06:00 → 18:00</div></div>
+        <div class="spacer"></div>
+        <button class="btn btn-primary">💾 Enregistrer la tournée</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    📌 <b>Notes d'implémentation</b> — la maquette reprend la logique réelle de <code>PlanifierTab</code> : date + créneau 06:00–18:00, sélection du livreur (avec détection de conflit), dépôt de départ, arrêts avec produits/quantités, et la <b>replanification</b> (Modifier une tournée existante = mêmes champs pré-remplis). Le bandeau ambre signale les arrêts incomplets, bloquants à l'enregistrement. Les boutons Modifier/Supprimer de tournées existantes restent réservés au SA (déjà en place dans l'interface Livraisons).
+  </div>
+</div>
+</body>
+</html>

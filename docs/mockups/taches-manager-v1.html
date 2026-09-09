@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maquette — Tâches gestionnaire (v1)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f8f9fb; color: #1a1a2e; display: flex; height: 100vh; }
+    /* ===== Sidebar (identique maquette sidebar-manager-v1) ===== */
+    .sidebar { width: 260px; background: #1e3a5f; color: #fff; display: flex; flex-direction: column; padding: 20px 0; box-shadow: 2px 0 8px rgba(0,0,0,0.1); }
+    .sidebar-brand { padding: 0 24px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 16px; }
+    .sidebar-brand h1 { font-size: 20px; font-weight: 800; display: inline-flex; align-items: baseline; justify-content: center; gap: 0; margin: 0; line-height: 1; font-family: 'Inter', system-ui, sans-serif; font-weight: 800; letter-spacing: -0.035em; color: #fff; }
+    .sidebar-brand .traceo-trace { font-weight: 800; letter-spacing: inherit; }
+    .sidebar-brand .traceo-oslot { position: relative; display: inline-block; line-height: 1; margin-left: 0.11em; }
+    .sidebar-brand .traceo-ghost { visibility: hidden; font-weight: 800; speak: never; }
+    .sidebar-brand .traceo-o { position: absolute; left: 52%; top: 42%; width: 1.08em; height: 1.08em; transform: translate(-50%, -50%); display: block; pointer-events: none; overflow: visible; }
+    .sidebar-brand .traceo-reg { align-self: flex-start; margin: 0.12em 0 0 0.04em; font-size: 0.32em; font-weight: 700; color: #e85d04; line-height: 1; }
+    .sidebar-brand .subtitle { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+    .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
+    .nav-section { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.4); padding: 16px 12px 8px; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; color: rgba(255,255,255,0.7); }
+    .nav-item:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-item.active { background: rgba(255,255,255,0.15); color: #fff; font-weight: 600; }
+    .nav-item .icon { width: 20px; text-align: center; font-size: 16px; }
+    .nav-item .badge { margin-left: auto; background: #22c55e; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; min-width: 20px; text-align: center; }
+    .sidebar-user { padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 12px; }
+    .sidebar-user .avatar { width: 36px; height: 36px; background: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+    .sidebar-user .info { flex: 1; }
+    .sidebar-user .name { font-size: 13px; font-weight: 600; }
+    .sidebar-user .role { font-size: 11px; color: rgba(255,255,255,0.5); }
+    /* ===== Main ===== */
+    .main { flex: 1; padding: 28px 36px; overflow-y: auto; }
+    .breadcrumb { font-size: 12.5px; color: #6b7280; margin-bottom: 6px; }
+    .breadcrumb .cur { color: #1a1a2e; font-weight: 600; }
+    h1.page-title { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+    .page-sub { font-size: 13px; color: #6b7280; margin-top: 2px; }
+    /* ===== KPI row ===== */
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 18px; }
+    .kpi { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; }
+    .kpi .lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: #6b7280; display: flex; align-items: center; gap: 6px; }
+    .kpi .val { font-size: 26px; font-weight: 800; margin-top: 4px; color: #1a1a2e; }
+    .kpi .det { font-size: 11.5px; color: #9ca3af; margin-top: 2px; }
+    .kpi.urgent .val { color: #dc2626; }
+    .kpi.prog .track { height: 6px; background: #e5e7eb; border-radius: 99px; margin-top: 10px; }
+    .kpi.prog .fill { display: block; height: 6px; width: 72%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 99px; }
+    /* ===== Tabs + filtres ===== */
+    .tabs { display: inline-flex; gap: 6px; margin-top: 20px; background: #eef1f5; border-radius: 10px; padding: 4px; }
+    .tab { border: 0; background: transparent; padding: 8px 18px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; color: #4b5563; }
+    .tab.active { background: #1e3a5f; color: #fff; }
+    .chip-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .chip { border: 1px solid #e5e7eb; background: #fff; border-radius: 99px; padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer; color: #4b5563; }
+    .chip .n { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; font-size: 10px; font-weight: 700; color: #fff; border-radius: 99px; margin-left: 6px; }
+    .chip.active { border-color: #1e3a5f; background: #eef6ff; color: #1e3a5f; font-weight: 600; }
+    .chip.active .n { background: #1e3a5f; }
+    /* ===== Task cards ===== */
+    .task-list { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+    .task { background: #fff; border: 1px solid #e5e7eb; border-left: 4px solid transparent; border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); display: grid; grid-template-columns: 44px 1fr auto; gap: 16px; align-items: start; }
+    .task .t-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .task .t-body { min-width: 0; }
+    .task .t-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .task .t-title { font-size: 14px; font-weight: 700; color: #1a1a2e; }
+    .task .t-desc { font-size: 12.5px; color: #6b7280; margin-top: 3px; }
+    .task .t-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: #6b7280; }
+    .task .t-meta i { font-size: 11px; color: #9ca3af; width: 14px; text-align: center; }
+    .task .t-meta .driver { font-weight: 600; color: #374151; }
+    .task .refused { background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 7px 12px; font-size: 12px; color: #92400e; margin-top: 8px; font-weight: 500; }
+    .task .refused ul { padding-left: 16px; margin-top: 2px; }
+    .task .refused li { margin: 2px 0; }
+    .tag { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; padding: 2px 9px; border-radius: 99px; }
+    .tag .l { width: 6px; height: 6px; border-radius: 99px; background: currentColor; }
+    /* actions */
+    .actions { display: flex; gap: 8px; flex-direction: column; }
+    .btn { border: 1px solid #e5e7eb; background: #fff; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; color: #374151; }
+    .btn:hover { background: #f3f4f6; }
+    .btn.gold { background: #1e3a5f; border-color: #1e3a5f; color: #fff; }
+    .btn.ghost { border: 1px dashed #d1d5db; background: transparent; color: #6b7280; }
+    /* empty state */
+    .empty { display: none; text-align: center; padding: 40px 0; color: #9ca3af; font-size: 13.5px; }
+    .empty i { font-size: 34px; display: block; margin-bottom: 10px; color: #c7ccd6; }
+    .mockup-note { position: fixed; bottom: 20px; right: 20px; background: #1e3a5f; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 12px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  </style>
+</head>
+<body>
+  <!-- ============ SIDEBAR (copie de la maquette validée) ============ -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <h1>
+        <span class="traceo-trace">Trace</span>
+        <span class="traceo-oslot">
+          <span class="traceo-ghost">O</span>
+          <svg class="traceo-o" xmlns="http://www.w3.org/2000/svg" viewBox="10 4 48 52" fill="none" role="presentation" aria-hidden="true">
+            <path d="M 45.40 44.47 A 17 17 0 1 1 38.37 18.24" stroke="#ffffff" stroke-width="5.6" stroke-linecap="round" fill="none" />
+            <circle cx="43.38" cy="21.37" r="1.85" fill="#ffffff" />
+            <circle cx="46.42" cy="24.99" r="1.85" fill="#ffffff" />
+            <circle cx="48.34" cy="29.31" r="1.85" fill="#ffffff" />
+            <circle cx="48.99" cy="34.59" r="1.85" fill="#ffffff" />
+            <circle cx="47.01" cy="41.98" r="2.7" fill="#e85d04" />
+            <g transform="translate(38.37 5.74)">
+              <path fill="#e85d04" d="M0 12.5 C-5.2 5.3 -7.6 2.2 -7.6 -2 A7.6 7.6 0 1 1 7.6 -2 C7.6 2.2 5.2 5.3 0 12.5 Z" />
+              <circle cx="0" cy="-2" r="2.9" fill="#0b4a2c" />
+            </g>
+          </svg>
+        </span>
+        <span class="traceo-reg">®</span>
+      </h1>
+      <div class="subtitle">Gestion de chantier</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Général</div>
+      <div class="nav-item"><span class="icon">📋</span><span>Trace</span></div>
+      <div class="nav-section">Gestion</div>
+      <div class="nav-item"><span class="icon">📊</span><span>Contrôle de gestion</span></div>
+      <div class="nav-item"><span class="icon">🛒</span><span>Achats chantier</span><span class="badge">2</span></div>
+      <div class="nav-item"><span class="icon">🏗️</span><span>Suivi chantier</span></div>
+      <div class="nav-item"><span class="icon">🚚</span><span>Livraisons</span></div>
+      <div class="nav-section">Planification</div>
+      <div class="nav-item"><span class="icon">📅</span><span>Planifier</span></div>
+      <div class="nav-item"><span class="icon">📦</span><span>Catalogue</span></div>
+      <div class="nav-item"><span class="icon">👥</span><span>Équipe</span></div>
+      <div class="nav-item active"><span class="icon">✅</span><span>Tâches</span><span class="badge">6</span></div>
+    </nav>
+    <div class="sidebar-user">
+      <div class="avatar">FC</div>
+      <div class="info"><div class="name">Fatou CdG</div><div class="role">Contrôle de gestion</div></div>
+    </div>
+  </aside>
+
+  <!-- ============ CONTENU : page Tâches ============ -->
+  <main class="main">
+    <div class="breadcrumb">TraceO / Gestion / <span class="cur">Tâches</span></div>
+    <h1 class="page-title">Tâches gestionnaire <span class="tag" style="background:#fee2e2;color:#b91c1c;"><span class="l"></span>6 en attente</span></h1>
+    <div class="page-sub">Actions générées automatiquement à partir des livraisons : partielle, non effectuée, annulée, réaffectation de tournée, OTP de confirmation.</div>
+
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="lbl"><i class="fa-regular fa-clock" style="font-size:12px"></i> En attente</div>
+        <div class="val">6</div>
+        <div class="det">dont 2 urgentes (&gt; 48 h)</div>
+      </div>
+      <div class="kpi">
+        <div class="lbl"><i class="fa-solid fa-check" style="font-size:12px;color:#16a34a"></i> Traitées aujourd’hui</div>
+        <div class="val">14</div>
+        <div class="det">12 depuis 08:00</div>
+      </div>
+      <div class="kpi prog">
+        <div class="lbl"><i class="fa-solid fa-gauge-high" style="font-size:12px"></i> Taux de traitement</div>
+        <div class="val">72<span style="font-size:15px">%</span></div>
+        <span class="track"><span class="fill"></span></span>
+      </div>
+      <div class="kpi urgent">
+        <div class="lbl"><i class="fa-solid fa-triangle-exclamation" style="font-size:12px"></i> Urgentes</div>
+        <div class="val">2</div>
+        <div class="det">livraison non effectuée</div>
+      </div>
+    </div>
+
+    <!-- Onglets + filtres -->
+    <div class="tabs">
+      <button class="tab active" onclick="setView('pending')">En attente</button>
+      <button class="tab" onclick="setView('resolved')">Traitées</button>
+    </div>
+    <div class="chip-row">
+      <button class="chip active" data-type="all" onclick="setFilter('all')">Toutes <span class="n">20</span></button>
+      <button class="chip" data-type="partial_delivery" onclick="setFilter('partial_delivery')">Partielle <span class="n" style="background:#b45309">3</span></button>
+      <button class="chip" data-type="missed_delivery" onclick="setFilter('missed_delivery')">Non effectuée <span class="n" style="background:#dc2626">2</span></button>
+      <button class="chip" data-type="delivery_cancelled" onclick="setFilter('delivery_cancelled')">Annulée <span class="n" style="background:#6b7280">1</span></button>
+      <button class="chip" data-type="reassign_tour" onclick="setFilter('reassign_tour')">Réaffectation <span class="n" style="background:#2563eb">1</span></button>
+      <button class="chip" data-type="otp_manager_assist" onclick="setFilter('otp_manager_assist')">OTP <span class="n" style="background:#7c3aed">1</span></button>
+    </div>
+
+    <!-- Liste des tâches -->
+    <div class="task-list" id="taskList">
+      <!-- T1 · Livraison partielle -->
+      <div class="task t-pending" data-type="partial_delivery">
+        <div class="t-icon" style="background:#fef3c7;color:#b45309;"><i class="fa-solid fa-box-open"></i></div>
+        <div class="t-body">
+          <div class="t-head">
+            <span class="tag" style="background:#fef3c7;color:#b45309;"><span class="l"></span>Livraison partielle</span>
+            <span class="t-title">Ciment CEM II 35 kg — 4 sacs refusés</span>
+          </div>
+          <div class="t-desc">Le livreur a signalé un refus partiel : 26 sacs livrés sur 30 attendus.</div>
+          <div class="refused">
+            <i class="fa-solid fa-circle-exclamation" style="font-size:11px"></i>&nbsp; Lignes refusées
+            <ul>
+              <li>• Ciment CEM II/B-LL 35 kg — attendu 30, refusé 4</li>
+            </ul>
+          </div>
+          <div class="t-meta">
+            <i class="fa-solid fa-truck"></i><span class="driver">Moussa K.</span>
+            <i class="fa-solid fa-route"></i><span>Tournée T-1042 · Chantier Résidence les Palmiers</span>
+            <i class="fa-regular fa-clock"></i><span>hier, 16:42</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn gold"><i class="fa-solid fa-eye" style="font-size:11px"></i> Voir la livraison</button>
+          <button class="btn ghost"><i class="fa-solid fa-check" style="font-size:11px"></i> Marquer traitée</button>
+        </div>
+      </div>
+
+      <!-- T2 · Non effectuée (urgente) -->
+      <div class="task t-pending" data-type="missed_delivery">
+        <div class="t-icon" style="background:#fee2e2;color:#dc2626;"><i class="fa-solid fa-truck-ramp-box"></i></div>
+        <div class="t-body">
+          <div class="t-head">
+            <span class="tag" style="background:#fee2e2;color:#b91c1c;"><span class="l"></span>Non effectuée</span>
+            <span class="t-title">Livraison non effectuée — Bois de coffrage</span>
+          </div>
+          <div class="t-desc">Le livreur n’a pas pu livrer le point de livraison : chantier fermé, personne sur place.</div>
+          <div class="t-meta">
+            <i class="fa-solid fa-truck"></i><span class="driver">Ibrahima S.</span>
+            <i class="fa-solid fa-route"></i><span>Tournée T-1038 · Chantier Villa Dupont</span>
+            <i class="fa-regular fa-clock"></i><span>il y a 2 j, 07:15</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn gold"><i class="fa-solid fa-route" style="font-size:11px"></i> Ouvrir la tournée</button>
+          <button class="btn ghost"><i class="fa-solid fa-check" style="font-size:11px"></i> Marquer traitée</button>
+        </div>
+      </div>
+
+      <!-- T3 · Réaffectation de tournée -->
+      <div class="task t-pending" data-type="reassign_tour">
+        <div class="t-icon" style="background:#dbeafe;color:#2563eb;"><i class="fa-solid fa-arrows-rotate"></i></div>
+        <div class="t-body">
+          <div class="t-head">
+            <span class="tag" style="background:#dbeafe;color:#1e40af;"><span class="l"></span>Réaffectation</span>
+            <span class="t-title">Tournée réaffectée — Ibrahim vers Moussa</span>
+          </div>
+          <div class="t-desc">La tournée T-1042 a été réassignée d’Ibrahim à Moussa suite à un désistement. 6 arrêts à livrer.</div>
+          <div class="t-meta">
+            <i class="fa-solid fa-truck"></i><span class="driver">Moussa K.</span>
+            <i class="fa-solid fa-route"></i><span>Tournée T-1042 · 6 points</span>
+            <i class="fa-regular fa-clock"></i><span>aujourd’hui, 08:05</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn gold"><i class="fa-solid fa-route" style="font-size:11px"></i> Ouvrir la tournée</button>
+          <button class="btn ghost"><i class="fa-solid fa-check" style="font-size:11px"></i> Marquer traitée</button>
+        </div>
+      </div>
+<!-- T4 · OTP manager assist -->
+      <div class="task t-pending" data-type="otp_manager_assist">
+        <div class="t-icon" style="background:#ede9fe;color:#7c3aed;"><i class="fa-solid fa-shield-halved"></i></div>
+        <div class="t-body">
+          <div class="t-head">
+            <span class="tag" style="background:#ede9fe;color:#6b21a8;"><span class="l"></span>OTP requise</span>
+            <span class="t-title">Confirmation de réception requise</span>
+          </div>
+          <div class="t-desc">Le client ne se souvient plus du code OTP. Valider la réception en tant que gestionnaire.</div>
+          <div class="t-meta">
+            <i class="fa-solid fa-truck"></i><span class="driver">Alassane D.</span>
+            <i class="fa-solid fa-route"></i><span>Tournée T-1051 · Chantier Marché central</span>
+            <i class="fa-regular fa-clock"></i><span>il y a 25 min</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn gold"><i class="fa-solid fa-eye" style="font-size:11px"></i> Voir la livraison</button>
+          <button class="btn ghost"><i class="fa-solid fa-check" style="font-size:11px"></i> Marquer traitée</button>
+        </div>
+      </div>
+
+      <!-- T5 · Annulée par le livreur -->
+      <div class="task t-pending" data-type="delivery_cancelled">
+        <div class="t-icon" style="background:#e5e7eb;color:#4b5563;"><i class="fa-solid fa-ban"></i></div>
+        <div class="t-body">
+          <div class="t-head">
+            <span class="tag" style="background:#f1f5f9;color:#475569;"><span class="l"></span>Annulée</span>
+            <span class="t-title">Livraison annulée par le livreur — Acier et fers à béton</span>
+          </div>
+          <div class="t-desc">Annulation signalée avant départ : véhicule indisponible (panne). Les articles restent planifiés.</div>
+          <div class="t-meta">
+            <i class="fa-solid fa-truck"></i><span>Tournée T-1033 · 2 articles</span>
+            <i class="fa-regular fa-clock"></i><span>il y a 3 h</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn gold"><i class="fa-solid fa-route" style="font-size:11px"></i> Ouvrir la tournée</button>
+          <button class="btn ghost"><i class="fa-solid fa-check" style="font-size:11px"></i> Marquer traitée</button>
+        </div>
+      </div>
+
+      <!-- T6 · Traitée (vue Traitées) -->
+      <div class="task t-resolved" data-type="partial_delivery">
+        <div class="t-icon" style="background:#dcfce7;color:#16a34a;"><i class="fa-solid fa-check-double"></i></div>
+        <div class="t-body">
+          <div class="t-head">
+            <span class="tag" style="background:#dcfce7;color:#166534;"><span class="l"></span>Traitée</span>
+            <span class="t-title">Livraison partielle — Gravier concassé 6/10</span>
+          </div>
+          <div class="t-desc">Signalement clôturé. Le reliquat (2 m³) a été replanifié sur la tournée de demain.</div>
+          <div class="t-meta">
+            <i class="fa-solid fa-truck"></i><span class="driver">Moussa K.</span>
+            <i class="fa-regular fa-clock"></i><span>traitée aujourd’hui, 09:12</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn"><i class="fa-solid fa-eye" style="font-size:11px"></i> Voir la livraison</button>
+        </div>
+      </div>
+
+      <!-- T7 · Traitée (vue Traitées) -->
+      <div class="task t-resolved" data-type="missed_delivery">
+        <div class="t-icon" style="background:#dcfce7;color:#16a34a;"><i class="fa-solid fa-check-double"></i></div>
+        <div class="t-body">
+          <div class="t-head">
+            <span class="tag" style="background:#dcfce7;color:#166534;"><span class="l"></span>Traitée</span>
+            <span class="t-title">Non effectuée — Briques pleines</span>
+          </div>
+          <div class="t-desc">Relance effectuée, le client confirme la disponibilité pour demain 07:30.</div>
+          <div class="t-meta">
+            <i class="fa-solid fa-truck"></i><span class="driver">Ibrahima S.</span>
+            <i class="fa-regular fa-clock"></i><span>traitée hier, 17:40</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn"><i class="fa-solid fa-eye" style="font-size:11px"></i> Voir la livraison</button>
+        </div>
+      </div>
+    </div>
+<!-- Empty state (affiché quand aucun résultat) -->
+    <div class="empty" id="emptyState">
+      <i class="fa-regular fa-circle-check"></i>
+      <div id="emptyTitle">Aucune tâche en attente.</div>
+      <div id="emptySub">Vous serez notifié ici dès qu’une action nécessite votre attention.</div>
+    </div>
+  </main>
+
+  <div class="mockup-note">Maquette — Tâches manager · v1</div>
+
+  <script>
+    // Petite logique de démo : onglet En attente / Traitées + filtre par type
+    var TASKS = Array.prototype.slice.call(document.querySelectorAll('.task'));
+    var activeView = 'pending';
+    var activeFilter = 'all';
+    function setView(v) {
+      activeView = v;
+      document.querySelectorAll('.tab').forEach(function (t) {
+        t.classList.toggle('active', t.textContent == (v === 'pending' ? 'En attente' : 'Traitées'));
+      });
+      apply();
+    }
+    function setFilter(f) {
+      activeFilter = f;
+      document.querySelectorAll('.chip').forEach(function (c) {
+        c.classList.toggle('active', c.dataset.type === f);
+      });
+      apply();
+    }
+    function apply() {
+      var shown = 0;
+      TASKS.forEach(function (t) {
+        var matchesFilter = activeFilter === 'all' || t.dataset.type === activeFilter;
+        var matchesView = t.classList.contains('t-' + activeView);
+        var visible = matchesFilter && matchesView;
+        t.style.display = visible ? '' : 'none';
+        if (visible) shown++;
+      });
+      document.getElementById('emptyState').style.display = shown ? 'none' : 'block';
+      document.getElementById('emptyTitle').textContent = activeView === 'pending'
+        ? 'Aucune tâche en attente.'
+        : 'Aucune tâche traitée dans cette catégorie.';
+    }
+    apply();
+  </script>
+</body>
+</html>

@@ -145,6 +145,7 @@ const registerCompanySchema = z.object({
 const productCreateSchema = z.object({
   label: z.string().trim().min(1, 'Libellé requis'),
   unit: z.string().trim().min(1, 'Unité requise'),
+  category: z.string().trim().optional(),
   displayOrder: z.number().int().optional(),
 })
 
@@ -2058,6 +2059,7 @@ dashboardRouter.post('/dashboard/products', requireManager, async (req, res) => 
       companyId: manager.companyId,
       label: label.trim(),
       unit: unitCode,
+      category: parsed.category?.trim() || undefined,
       displayOrder: displayOrder ?? 0,
       active: true,
     })
@@ -2071,7 +2073,7 @@ dashboardRouter.post('/dashboard/products', requireManager, async (req, res) => 
 dashboardRouter.patch('/dashboard/products/:id', requireManager, async (req, res) => {
   const { manager } = req as ManagerRequest
   const { id } = req.params
-  const data = req.body as { label?: string; unit?: string; displayOrder?: number; active?: boolean }
+  const data = req.body as { label?: string; unit?: string; category?: string | null; displayOrder?: number; active?: boolean }
   const existing = await getProductById(String(id))
   if (!existing || existing.companyId !== manager.companyId) {
     res.status(404).json({ message: 'Produit introuvable' })

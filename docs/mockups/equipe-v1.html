@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Equipe — maquette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--navy:#1e3a5f;--navy-soft:#eef3f8;--muted:#64748b;--border:#e2e8f0;
+    --green:#047857;--green-bg:#ecfdf5;--amber:#b45309;--amber-bg:#fffbeb;
+    --red:#b91c1c;--red-bg:#fef2f2;--gold:#b7791f}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;background:#f5f7fa;color:#1e293b;padding:24px}
+  .page{max-width:1280px;margin:0 auto}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  h1{font-size:22px;font-weight:800;color:var(--navy)}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer}
+  .btn-primary{background:var(--navy);border-color:var(--navy);color:#fff}
+  .mini{border:1px solid var(--border);background:#fff;border-radius:6px;padding:4px 10px;font-family:inherit;font-size:12px;color:var(--navy);cursor:pointer}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
+  .kpi{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px}
+  .kpi .val{font-size:22px;font-weight:800;color:var(--navy)}
+  .kpi .det{font-size:11px;color:var(--muted);margin-top:4px}
+  .kpi.warn .val{color:var(--amber)}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700}
+  .pill-green{background:var(--green-bg);color:var(--green)}
+  .pill-amber{background:var(--amber-bg);color:var(--amber)}
+  .pill-red{background:var(--red-bg);color:var(--red)}
+  .pill-gray{background:#f1f5f9;color:var(--muted)}
+  .tabs{display:flex;gap:8px;margin-bottom:12px}
+  .chip{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer}
+  .chip.active{background:#fdf3e0;border-color:#ecd9b0;color:var(--gold)}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+  .card h2{font-size:15px;color:var(--navy);margin-bottom:12px}
+  .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .filters label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .filters select,.filters input{font-family:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--navy)}
+  .filters input{min-width:180px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--border)}
+  td{padding:10px;border-bottom:1px solid #f1f5f9}
+  .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,monospace;font-size:12px}
+  .avatar{display:inline-flex;width:28px;height:28px;border-radius:999px;background:var(--navy-soft);color:var(--navy);font-weight:700;font-size:11px;align-items:center;justify-content:center;margin-right:8px}
+  .legend{font-size:12px;color:var(--muted);margin-top:4px}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div><h1>Equipe</h1><p class="sub">Gestionnaires · Livreurs · Chantiers — comptes et affectations</p></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn">⟳ Actualiser</button>
+      <button class="btn btn-primary">＋ Inviter un membre</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Gestionnaires</div><div class="val">8</div><div class="det">actifs · sur 10 comptes</div></div>
+    <div class="kpi"><div class="lbl">Livreurs</div><div class="val">24</div><div class="det">18 en service aujourd'hui</div></div>
+    <div class="kpi"><div class="lbl">Chantiers</div><div class="val">15</div><div class="det">actifs</div></div>
+    <div class="kpi warn"><div class="lbl">Livreurs inactifs</div><div class="val">1</div><div class="det">à réactiver</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="chip active">Gestionnaires</button>
+    <button class="chip">Livreurs</button>
+    <button class="chip">Chantiers</button>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Gestionnaires &amp; chefs de chantier</h2>
+      <button class="btn btn-primary">＋ Nouveau gestionnaire</button>
+    </div>
+    <div class="filters">
+      <label>Chantier
+        <select><option>Tous</option><option>Résidence 35ème</option><option>Laurier 20 Bingerville</option><option>Cocody Tour A</option></select>
+      </label>
+      <label>Statut
+        <select><option>Tous</option><option>Actif</option><option>Suspendu</option></select>
+      </label>
+      <label>Recherche
+        <input type="text" placeholder="Nom, email, téléphone…">
+      </label>
+    </div>
+    <table>
+      <thead><tr><th>Membre</th><th>Email</th><th>Téléphone</th><th>Rôle</th><th>Statut</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="avatar">KD</span><strong>Kouamé DT</strong></td>
+          <td>dt@btp-pilote.ci</td><td class="mono">+225 07 10 22 33 44</td>
+          <td>Directeur technique</td>
+          <td><span class="pill pill-green">Actif</span></td>
+          <td><button class="mini">Modifier</button> <button class="mini">Chantiers</button></td>
+        </tr>
+        <tr>
+          <td><span class="avatar">FC</span><strong>Fatou CdG</strong></td>
+          <td>cdg@btp-pilote.ci</td><td class="mono">+225 07 88 45 12 09</td>
+          <td>Contrôle de gestion</td>
+          <td><span class="pill pill-green">Actif</span></td>
+          <td><button class="mini">Modifier</button> <button class="mini">Chantiers</button></td>
+        </tr>
+        <tr>
+          <td><span class="avatar">SA</span><strong>Service Achats</strong></td>
+          <td>sa@btp-pilote.ci</td><td class="mono">+225 05 61 77 23 10</td>
+          <td>Service achats</td>
+          <td><span class="pill pill-green">Actif</span></td>
+          <td><button class="mini">Modifier</button> <button class="mini">Chantiers</button></td>
+        </tr>
+        <tr>
+          <td><span class="avatar">IB</span><strong>Ibrahim Bakayoko</strong></td>
+          <td>ibrahim.b@btp-pilote.ci</td><td class="mono">+225 01 45 90 87 62</td>
+          <td>Chef de chantier</td>
+          <td><span class="pill pill-green">Actif</span></td>
+          <td><button class="mini">Modifier</button> <button class="mini">Chantiers</button></td>
+        </tr>
+        <tr>
+          <td><span class="avatar">AT</span><strong>Awa Traoré</strong></td>
+          <td>awa.t@btp-pilote.ci</td><td class="mono">+225 07 33 21 09 55</td>
+          <td>Chef de chantier</td>
+          <td><span class="pill pill-amber">Invitation en attente</span></td>
+          <td><button class="mini">Renvoyer</button> <button class="mini">Modifier</button></td>
+        </tr>
+        <tr>
+          <td><span class="avatar">YK</span><strong>Yao Kouassi</strong></td>
+          <td>yao.k@btp-pilote.ci</td><td class="mono">—</td>
+          <td>Chef de chantier</td>
+          <td><span class="pill pill-red">Suspendu</span></td>
+          <td><button class="mini">Réactiver</button> <button class="mini">Modifier</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>🛵 Livreurs</h2>
+      <button class="btn btn-primary">＋ Nouveau livreur</button>
+    </div>
+    <div class="filters">
+      <label>Statut
+        <select><option>Tous</option><option>Actif</option><option>Inactif</option></select>
+      </label>
+      <label>Recherche
+        <input type="text" placeholder="Nom, téléphone…">
+      </label>
+    </div>
+    <table>
+      <thead><tr><th>Livreur</th><th>Téléphone</th><th>Statut</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="avatar">AY</span><strong>Aya Livreur</strong></td>
+          <td class="mono">+225 07 00 43 04 02</td>
+          <td><span class="pill pill-green">Actif</span></td>
+          <td><button class="mini">Modifier</button> <button class="mini">Désactiver</button></td>
+        </tr>
+        <tr>
+          <td><span class="avatar">LO</span><strong>Lamine Ouattara</strong></td>
+          <td class="mono">+225 05 78 12 66 34</td>
+          <td><span class="pill pill-green">Actif</span></td>
+          <td><button class="mini">Modifier</button> <button class="mini">Désactiver</button></td>
+        </tr>
+        <tr>
+          <td><span class="avatar">JS</span><strong>Jean-Marc Sery</strong></td>
+          <td class="mono">+225 01 22 78 45 90</td>
+          <td><span class="pill pill-green">Actif</span></td>
+          <td><button class="mini">Modifier</button> <button class="mini">Désactiver</button></td>
+        </tr>
+        <tr>
+          <td><span class="avatar">KA</span><strong>Koffi Adama</strong></td>
+          <td class="mono">+225 07 55 31 20 18</td>
+          <td><span class="pill pill-gray">Inactif</span></td>
+          <td><button class="mini">Modifier</button> <button class="mini">Activer</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>📍 Chantiers</h2>
+      <button class="btn btn-primary">＋ Nouveau chantier</button>
+    </div>
+    <table>
+      <thead><tr><th>Point</th><th>Chantier</th><th>Contact</th><th>Téléphone</th><th>Livraisons (30 j)</th><th>Statut</th></tr></thead>
+      <tbody>
+        <tr><td><strong>BOUET — Dépôt central</strong></td><td>Résidence 35ème</td><td>M. Diomandé</td><td class="mono">+225 27 21 30 45 67</td><td class="mono">22</td><td><span class="pill pill-green">Actif</span></td></tr>
+        <tr><td><strong>TIMO Béton — Yopougon</strong></td><td>Laurier 20 Bingerville</td><td>Accueil</td><td class="mono">+225 01 02 55 78 96</td><td class="mono">9</td><td><span class="pill pill-green">Actif</span></td></tr>
+        <tr><td><strong>Chantier Cocody — Tour A</strong></td><td>Cocody Tour A</td><td>Gardien</td><td class="mono">+225 05 90 12 34 78</td><td class="mono">7</td><td><span class="pill pill-green">Actif</span></td></tr>
+        <tr><td><strong>Dépôt Bingerville</strong></td><td>Laurier 20 Bingerville</td><td>—</td><td class="mono">—</td><td class="mono">0</td><td><span class="pill pill-gray">Inactif</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="legend">● 3 onglets : Gestionnaires · Livreurs · Chantiers &nbsp;&nbsp; ● Invitation par email/SMS avec PIN à 6 chiffres &nbsp;&nbsp; ● Affectation des chantiers en un clic (DT : uniquement ses chantiers)</p>
+</div>
+</body>
+</html>

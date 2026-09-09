@@ -155,6 +155,10 @@ function EnvelopeBanner({
           <strong data-testid="mgr-suivi-enveloppe-engaged">{formatFcfa(budget.engagedFcfa)}</strong>
         </div>
         <div>
+          <div style={css.meta}>Réalisé</div>
+          <strong data-testid="mgr-suivi-enveloppe-realized">{formatFcfa(budget.realizedFcfa)}</strong>
+        </div>
+        <div>
           <div style={css.meta}>Reste à engager</div>
           <strong data-testid="mgr-suivi-enveloppe-remaining" style={{ color: remainingTone }}>
             {formatFcfa(budget.remainingFcfa)}
@@ -167,8 +171,11 @@ function EnvelopeBanner({
               <strong data-testid="mgr-suivi-enveloppe-pct">{formatPct(budget.engagementPct)}</strong>
             </div>
             <div>
-              <div style={css.meta}>Écart</div>
-              <strong data-testid="mgr-suivi-enveloppe-variance">
+              <div style={css.meta}>Écart (budget − réalisé)</div>
+              <strong
+                data-testid="mgr-suivi-enveloppe-variance"
+                style={{ color: budget.varianceFcfa == null ? undefined : budget.varianceFcfa >= 0 ? 'var(--green)' : 'var(--red)' }}
+              >
                 {budget.varianceFcfa == null
                   ? '—'
                   : `${budget.varianceFcfa > 0 ? '+' : ''}${formatFcfa(budget.varianceFcfa)} · ${formatPct(budget.variancePct)}`}
@@ -894,16 +901,13 @@ export function SuiviChantierTab({
             <button type="button" style={css.btnOutline} aria-label="Mois précédent" data-testid="mgr-suivi-chantier-prev-month" onClick={() => shiftMonth(-1)}>
               ◀
             </button>
-            <label style={css.meta}>
-              Mois
-              <input
+            <input
                 type="month"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
                 style={{ ...css.input, display: 'block', marginTop: 4, width: 180 }}
                 data-testid="mgr-suivi-chantier-month"
               />
-            </label>
             <button type="button" style={css.btnOutline} aria-label="Mois suivant" data-testid="mgr-suivi-chantier-next-month" onClick={() => shiftMonth(1)}>
               ▶
             </button>
@@ -965,7 +969,10 @@ export function SuiviChantierTab({
         // il ne masque pas de lignes.
         const base = isChef
           ? budgets.filter((b) => chefSiteIds.size === 0 || chefSiteIds.has(b.siteId))
-          : budgets
+          : procurementRole === 'technical_director'
+            ? // DT : uniquement les chantiers qui lui sont assignés.
+              budgets.filter((b) => chantierSites.some((s) => s.id === b.siteId))
+            : budgets
         const visible = (() => {
           let filtered = base
           if (procurementRole === 'controle_gestion') {

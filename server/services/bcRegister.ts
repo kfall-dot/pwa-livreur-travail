@@ -93,7 +93,7 @@ export function deliveredAmountFcfa(
 }
 
 export function formatBcRegisterAmount(amountFcfa: number): string {
-  return Math.round(amountFcfa).toLocaleString('fr-FR')
+  return Math.round(amountFcfa).toLocaleString('fr-FR').replace(/u202F/g, ' ')
 }
 
 export function bcRegisterInvoice(paymentMode: string): string {

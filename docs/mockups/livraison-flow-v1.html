@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maquette — Interface Livraison (livreur) — TraceO</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #eef1f6; color: #1a1a2e; padding: 32px; }
+    .page-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: #6b7280; margin-bottom: 28px; }
+    .flow { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+    .phone { width: 320px; background: #f8f9fb; border-radius: 28px; border: 1px solid #d1d5db;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.10); overflow: hidden; flex-shrink: 0; display: flex; flex-direction: column; min-height: 620px; }
+    .phone-head { background: #1e3a5f; color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
+    .phone-head .back { font-size: 18px; opacity: .85; }
+    .phone-head .title { font-size: 14px; font-weight: 600; flex: 1; }
+    .phone-head .status { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 20px; background: rgba(255,255,255,0.16); }
+    .screen-label { font-size: 12px; font-weight: 700; color: #1e3a5f; background: #fff; border-bottom: 1px solid #e5e7eb; padding: 8px 16px; letter-spacing: .3px; }
+    .steps { display: flex; align-items: center; gap: 6px; padding: 14px 16px 4px; }
+    .step-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; background: #fff; color: #9ca3af; border: 1.5px solid #d1d5db; }
+    .step-dot.done { background: #22c55e; border-color: #22c55e; color: #fff; }
+    .step-dot.active { background: #1e3a5f; border-color: #1e3a5f; color: #fff; box-shadow: 0 0 0 3px rgba(30,58,95,.15); }
+    .step-line { flex: 1; height: 2px; background: #d1d5db; border-radius: 2px; }
+    .step-line.done { background: #22c55e; }
+    .screen { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .card h3 { font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .meta { font-size: 11px; color: #6b7280; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-blue { background: #eff6ff; color: #1d4ed8; }
+    .btn { display: block; width: 100%; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 700;
+      cursor: pointer; border: none; text-align: center; font-family: inherit; }
+    .btn-primary { background: #1e3a5f; color: #fff; }
+    .btn-primary:disabled { background: #9fb3c8; cursor: not-allowed; }
+    .btn-outline { background: #fff; color: #1e3a5f; border: 1.5px solid #d1d5db; }
+    .btn-ghost { background: none; color: #991b1b; font-weight: 600; font-size: 12px; padding: 8px; }
+    .btn-hint { font-size: 10px; color: #6b7280; text-align: center; margin-top: 4px; }
+    .info-rows { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; }
+    .info-rows dt { color: #6b7280; }
+    .info-rows dd { font-weight: 600; }
+    .gps { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #166534; font-weight: 600; }
+    .warn-box { border-color:#f59e0b; background:#fffbeb; }
+    .warn-text { font-size:12px; color:#92400e; }
+    .photo-grid { display: flex; gap: 8px; }
+    .photo-slot { flex: 1; aspect-ratio: 1; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 600; }
+    .photo-slot.empty { border: 1.5px dashed #cbd5e1; color: #94a3b8; background: #fff; }
+    .photo-slot.filled { background: #e7f0e8; color: #166534; border: 1.5px solid #86c793; }
+    .qty-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+    .qty-row:last-child { border-bottom: none; }
+    .qty-label { font-size: 12px; font-weight: 600; flex: 1; }
+    .qty-label .unit { display: block; font-size: 10px; color: #6b7280; font-weight: 500; }
+    .stepper { display: flex; align-items: center; gap: 6px; }
+    .stepper button { width: 26px; height: 26px; border-radius: 8px; border: 1.5px solid #d1d5db; background: #fff; font-size: 14px; font-weight: 700; color: #1e3a5f; cursor: pointer; }
+    .stepper .val { min-width: 40px; text-align: center; font-size: 13px; font-weight: 700; background: #eff3f8; border-radius: 6px; padding: 3px 0; }
+    .otp-row { display: flex; gap: 8px; justify-content: center; margin: 6px 0 2px; }
+    .otp-box { width: 40px; height: 48px; border-radius: 10px; border: 1.5px solid #cbd5e1; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: #1e3a5f; }
+    .otp-box.filled { border-color: #1e3a5f; }
+    .banner-ok { background: #e7f0e8; border: 1px solid #86c793; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #14532d; font-weight: 600; }
+    .footer { margin-top: 28px; font-size: 12px; color: #6b7280; max-width: 1040px; line-height: 1.6; }
+    .footer b { color: #1e3a5f; }
+  </style>
+</head>
+<body>
+  <div class="page-title">🚚 Interface Livraison — parcours livreur</div>
+  <div class="page-sub">Maquette v1 · 5 écrans : démarrage → photos → déclaration des quantités → OTP client → confirmation. Charte identique au dashboard CdG.</div>
+
+  <div class="flow">
+
+    <!-- ═══ ÉCRAN 1 : DÉMARRAGE ═══ -->
+    <div class="phone">
+      <div class="phone-head">
+        <span class="back">←</span>
+        <span class="title">Livraison BC-2026-0142</span>
+        <span class="status">Planifiée</span>
+      </div>
+      <div class="screen-label">ÉTAPE 1 · DÉMARRER LA LIVRAISON</div>
+      <div class="steps">
+        <div class="step-dot active">1</div><div class="step-line"></div>
+        <div class="step-dot">2</div><div class="step-line"></div>
+        <div class="step-dot">3</div><div class="step-line"></div>
+        <div class="step-dot">4</div><div class="step-line"></div>
+        <div class="step-dot">5</div>
+      </div>
+      <div class="screen">
+        <div class="card">
+          <h3>📦 Commande</h3>
+          <dl class="info-rows">
+            <dt>Chantier</dt><dd>Immeuble Toure — Cocody</dd>
+            <dt>Fournisseur</dt><dd>Ciments d'Afrique</dd>
+            <dt>BC</dt><dd>BC-2026-0142</dd>
+            <dt>Créneau</dt><dd>Aujourd'hui · 09:00–11:00</dd>
+          </dl>
+        </div>
+        <div class="card">
+          <h3>🧱 2 lignes attendues</h3>
+          <dl class="info-rows">
+            <dt>Ciment CPJ 35</dt><dd>120 sacs</dd>
+            <dt>Rond à béton Ø12</dt><dd>60 barres</dd>
+          </dl>
+        </div>
+        <div class="gps">📍 GPS : position vérifiée — chantier à 350 m</div>
+        <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+          <button class="btn btn-primary">▶ Démarrer la livraison</button>
+          <div class="btn-hint">Le pointage GPS et l'heure de début seront enregistrés</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ÉCRAN 2 : PHOTOS ═══ -->
+    <div class="phone">
+      <div class="phone-head">
+        <span class="back">←</span>
+        <span class="title">Livraison BC-2026-0142</span>
+        <span class="status">En cours</span>
+      </div>
+      <div class="screen-label">ÉTAPE 2 · PHOTOS DE LIVRAISON</div>
+      <div class="steps">
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot active">2</div><div class="step-line"></div>
+        <div class="step-dot">3</div><div class="step-line"></div>
+        <div class="step-dot">4</div><div class="step-line"></div>
+        <div class="step-dot">5</div>
+      </div>
+      <div class="screen">
+        <div class="card">
+          <h3>📷 Photos obligatoires</h3>
+          <div class="photo-grid">
+            <div class="photo-slot filled">🚛<span>Camion</span></div>
+            <div class="photo-slot filled">📦<span>Marchandise</span></div>
+            <div class="photo-slot empty">➕<span>Bordereau</span></div>
+          </div>
+        </div>
+        <div class="card warn-box">
+          <div class="warn-text">⚠️ La photo du bordereau signé est requise avant l'étape des quantités.</div>
+        </div>
+        <div class="gps">📍 2/3 photos · hors-ligne : sauvegarde locale activée</div>
+        <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+          <button class="btn btn-primary">📷 Ajouter une photo</button>
+          <button class="btn btn-primary" disabled>Continuer</button>
+          <div class="btn-hint">Débloqué quand les 3 photos sont prises</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ÉCRAN 3 : QUANTITÉS ═══ -->
+    <div class="phone">
+      <div class="phone-head">
+        <span class="back">←</span>
+        <span class="title">Livraison BC-2026-0142</span>
+        <span class="status">En cours</span>
+      </div>
+      <div class="screen-label">ÉTAPE 3 · DÉCLARATION DES QUANTITÉS</div>
+      <div class="steps">
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot active">3</div><div class="step-line"></div>
+        <div class="step-dot">4</div><div class="step-line"></div>
+        <div class="step-dot">5</div>
+      </div>
+      <div class="screen">
+        <div class="card">
+          <h3>🔢 Quantités reçues</h3>
+          <div class="qty-row">
+            <div class="qty-label">Ciment CPJ 35<span class="unit">attendu : 120 sacs</span></div>
+            <div class="stepper">
+              <button>−</button><span class="val">118</span><button>+</button>
+            </div>
+          </div>
+          <div class="qty-row">
+            <div class="qty-label">Rond à béton Ø12<span class="unit">attendu : 60 barres</span></div>
+            <div class="stepper">
+              <button>−</button><span class="val">60</span><button>+</button>
+            </div>
+          </div>
+        </div>
+        <div class="card warn-box">
+          <div class="warn-text">⚠️ Écart de 2 sacs sur le ciment — un motif sera demandé à la confirmation.</div>
+        </div>
+        <div class="gps">🔌 2 lignes saisies · saisie hors-ligne possible</div>
+        <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+          <button class="btn btn-primary">Continuer</button>
+          <button class="btn btn-ghost">Signaler un refus de ligne</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ÉCRAN 4 : OTP ═══ -->
+    <div class="phone">
+      <div class="phone-head">
+        <span class="back">←</span>
+        <span class="title">Livraison BC-2026-0142</span>
+        <span class="status">En cours</span>
+      </div>
+      <div class="screen-label">ÉTAPE 4 · CODE OTP CLIENT</div>
+      <div class="steps">
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot active">4</div><div class="step-line"></div>
+        <div class="step-dot">5</div>
+      </div>
+      <div class="screen">
+        <div class="card">
+          <h3>🔐 Code de réception</h3>
+          <p class="meta" style="margin-bottom:8px;">Demandez au responsable chantier le code à 4 chiffres affiché sur son écran.</p>
+          <div class="otp-row">
+            <div class="otp-box filled">7</div>
+            <div class="otp-box filled">3</div>
+            <div class="otp-box filled">1</div>
+            <div class="otp-box">•</div>
+          </div>
+        </div>
+        <div class="card warn-box">
+          <div class="warn-text">📱 Client injoignable ? La livraison peut être confirmée « sans OTP » avec motif — signalée au manager.</div>
+        </div>
+        <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+          <button class="btn btn-primary" disabled>Confirmer le code</button>
+          <button class="btn btn-outline">Confirmer sans OTP…</button>
+          <div class="btn-hint">Le code complet déclenche la confirmation finale</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ÉCRAN 5 : CONFIRMATION ═══ -->
+    <div class="phone">
+      <div class="phone-head">
+        <span class="back">←</span>
+        <span class="title">Livraison BC-2026-0142</span>
+        <span class="status">Terminée</span>
+      </div>
+      <div class="screen-label">ÉTAPE 5 · CONFIRMATION</div>
+      <div class="steps">
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot done">✓</div><div class="step-line done"></div>
+        <div class="step-dot done">✓</div>
+      </div>
+      <div class="screen">
+        <div class="banner-ok">✅ Livraison confirmée — 10:42 · GPS enregistré</div>
+        <div class="card">
+          <h3>📋 Récapitulatif</h3>
+          <dl class="info-rows">
+            <dt>Ciment CPJ 35</dt><dd>118 / 120 sacs <span class="badge badge-blue">écart −2</span></dd>
+            <dt>Rond à béton Ø12</dt><dd>60 / 60 barres</dd>
+            <dt>OTP client</dt><dd>✅ Vérifié</dd>
+            <dt>Photos</dt><dd>3 / 3</dd>
+            <dt>Durée</dt><dd>42 min</dd>
+          </dl>
+        </div>
+        <div class="card warn-box">
+          <div class="warn-text">✍️ Motif de l'écart : « 2 sacs déchirés refusés par le chantier » — visible côté manager.</div>
+        </div>
+        <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+          <button class="btn btn-primary">🏠 Retour à mes tournées</button>
+          <div class="btn-hint">La commande passe à « Livrée » — le stock du chantier est mis à jour</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <b>Notes d'implémentation</b> — flux repris de l'existant (<code>start → photos → declare → otp → confirm</code>) :
+    ① le démarrage horodate et géolocalise la livraison · ② les 3 photos (camion, marchandise, bordereau) sont stockées localement si hors-ligne ·
+    ③ les quantités sont saisies ligne à ligne avec écart signalé · ④ l'OTP est celui affiché au responsable chantier, avec repli « sans OTP » motivé ·
+    ⑤ la confirmation met à jour le statut du BC et le stock du chantier.
+  </div>
+</body>
+</html>
+

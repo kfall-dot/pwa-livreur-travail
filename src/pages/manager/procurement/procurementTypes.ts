@@ -305,6 +305,7 @@ export interface SiteBudget {
   budgetFrozenAt: string | null
   budgetTotalFcfa: number | null
   engagedFcfa: number
+  realizedFcfa: number
   remainingFcfa: number | null
   overBudget: boolean
   engagementPct?: number | null

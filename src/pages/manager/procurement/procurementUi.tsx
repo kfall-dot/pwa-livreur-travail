@@ -309,7 +309,7 @@ export function ProcurementStatusBadge({ status }: { status: PurchaseRequestStat
 export function formatFcfa(amount?: number | null): string {
   if (amount == null) return '—'
   if (amount === 0) return '--'
-  return amount.toLocaleString('fr-FR')
+  return amount.toLocaleString('fr-FR').replace(/\u202F/g, ' ')
 }
 
 export function formatPct(value?: number | null): string {

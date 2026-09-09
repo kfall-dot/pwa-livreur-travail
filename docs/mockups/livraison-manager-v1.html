@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maquette — Livraisons (vue SA / CdG) v1</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; padding: 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .page-header h1 { font-size: 22px; font-weight: 800; color: #1e3a5f; }
+  .page-header .sub { font-size: 13px; color: #64748b; margin-top: 4px; }
+  .role-pill { background: #1e3a5f; color: #fff; border-radius: 999px; padding: 5px 14px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .header-actions { display: flex; gap: 8px; }
+  .btn { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: #1e3a5f; border-color: #1e3a5f; color: #fff; }
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; }
+  .kpi .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #64748b; font-weight: 600; }
+  .kpi .value { font-size: 24px; font-weight: 800; margin-top: 4px; color: #1e3a5f; }
+  .kpi .value.warn { color: #b45309; }
+  .kpi .value.ok { color: #15803d; }
+  .kpi .detail { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .kpi .icon { float: right; font-size: 17px; }
+  .filters { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .filters select, .filters input { border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 10px; font-size: 13px; color: #334155; background: #fff; }
+  .filters .spacer { flex: 1; }
+  .chip { border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; background: #f1f5f9; color: #475569; cursor: pointer; }
+  .chip.active { background: #1e3a5f; color: #fff; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #e2e8f0; }
+  .card-head h2 { font-size: 14px; font-weight: 700; color: #1e3a5f; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: #64748b; font-weight: 700; padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  tbody td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  tbody tr:hover { background: #f8fafc; cursor: pointer; }
+  .ref { font-weight: 700; color: #1e3a5f; }
+  .muted { color: #94a3b8; font-size: 12px; }
+  .mono { font-variant-numeric: tabular-nums; }
+  .badge { border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; white-space: nowrap; display: inline-block; }
+  .b-pending { background: #fef3c7; color: #92400e; }
+  .b-progress { background: #dbeafe; color: #1d4ed8; }
+  .b-otp { background: #ede9fe; color: #6d28d9; }
+  .b-delivered { background: #dcfce7; color: #15803d; }
+  .b-failed { background: #fee2e2; color: #b91c1c; }
+  .photos { display: flex; align-items: center; gap: 5px; font-weight: 600; }
+  .photos .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot-ok { background: #22c55e; } .dot-ko { background: #e2e8f0; }
+  .qty-bar { width: 110px; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+  .qty-bar > div { height: 100%; background: #1e3a5f; border-radius: 4px; }
+  .qty-bar > div.partial { background: #f59e0b; }
+  .row-actions { display: flex; gap: 6px; }
+  .btn-sm { border: 1px solid #cbd5e1; background: #fff; border-radius: 7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer; white-space: nowrap; }
+  .btn-sm.gold { background: #b45309; border-color: #b45309; color: #fff; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; z-index: 50; }
+  .modal { background: #fff; border-radius: 16px; width: 860px; max-width: 100%; max-height: calc(100vh - 80px); overflow-y: auto; box-shadow: 0 20px 60px rgba(15,23,42,.25); }
+  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 22px; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; background: #fff; z-index: 2; }
+  .modal-head h3 { font-size: 17px; font-weight: 800; color: #1e3a5f; }
+  .modal-head .meta { font-size: 12.5px; color: #64748b; margin-top: 3px; }
+  .modal-body { padding: 20px 22px; }
+  .modal-section { margin-bottom: 20px; }
+  .modal-section h4 { font-size: 13px; font-weight: 700; color: #1e3a5f; margin-bottom: 10px; }
+  .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .info-cell { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+  .info-cell .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: #64748b; font-weight: 700; }
+  .info-cell .v { font-size: 13.5px; font-weight: 600; margin-top: 3px; }
+  .photo-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+  .photo-tile .img { width: 108px; height: 82px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 30px; color: #cbd5e1; border: 1px solid #e2e8f0; background: linear-gradient(135deg,#f8fafc,#eef2f7); }
+  .photo-tile .cap { font-size: 11px; color: #64748b; text-align: center; margin-top: 4px; font-weight: 600; }
+  .delta-ok { color: #15803d; font-weight: 700; }
+  .delta-ko { color: #b91c1c; font-weight: 700; }
+  .otp-panel { border: 1.5px solid #c7d2fe; background: #eef2ff; border-radius: 12px; padding: 14px 16px; }
+  .otp-panel .title { font-size: 13px; font-weight: 800; color: #3730a3; margin-bottom: 6px; }
+  .otp-panel .desc { font-size: 12.5px; color: #475569; margin-bottom: 12px; }
+  .otp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .otp-state { font-size: 12.5px; font-weight: 600; color: #4338ca; margin-bottom: 12px; }
+  .trail { list-style: none; }
+  .trail li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; }
+  .trail .t { color: #94a3b8; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .trail .who { font-weight: 700; color: #334155; }
+  .modal-foot { display: flex; justify-content: space-between; gap: 10px; padding: 14px 22px; border-top: 1px solid #e2e8f0; background: #f8fafc; position: sticky; bottom: 0; }
+  .btn-danger { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+  .note { margin-top: 18px; font-size: 12.5px; color: #64748b; line-height: 1.6; }
+  .note b { color: #334155; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>🚚 Livraisons</h1>
+      <div class="sub">Suivi en temps réel des livraisons confirmées — photos, quantités déclarées, OTP.</div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <span class="role-pill">Vue SA / CdG</span>
+      <div class="header-actions">
+        <button class="btn">Exporter CSV</button>
+        <button class="btn btn-primary">Actualiser</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi"><span class="icon">📦</span><div class="label">En attente</div><div class="value">4</div><div class="detail">BC émis, non démarrées</div></div>
+    <div class="kpi"><span class="icon">🛣️</span><div class="label">En cours</div><div class="value warn">3</div><div class="detail">livreur parti du dépôt</div></div>
+    <div class="kpi"><span class="icon">🔐</span><div class="label">OTP envoyé</div><div class="value warn">2</div><div class="detail">dont 1 blocage &gt; 30 min</div></div>
+    <div class="kpi"><span class="icon">✅</span><div class="label">Confirmées aujourd'hui</div><div class="value ok">11</div><div class="detail">sur 20 prévues</div></div>
+    <div class="kpi"><span class="icon">⚠️</span><div class="label">Échecs / écarts</div><div class="value warn">2</div><div class="detail">quantité ≠ attendue</div></div>
+  </div>
+
+  <div class="filters">
+    <button class="chip active">Toutes</button>
+    <button class="chip">À surveiller</button>
+    <button class="chip">OTP bloqué</button>
+    <button class="chip">Aujourd'hui</button>
+    <span class="spacer"></span>
+    <select><option>Tous les chantiers</option><option>IMMEUBLE BESSIKOI 4EME</option><option>Résidence Cocody — Tour A</option></select>
+    <select><option>Tous les livreurs</option><option>Livreur BTP Pilote</option></select>
+    <input type="date" value="2026-09-05">
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <h2>Livraisons du 05/09/2026</h2>
+      <span class="muted">20 livraisons · clic sur une ligne pour le détail</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Référence</th><th>Chantier / Magasin</th><th>Livreur</th><th>Statut</th>
+          <th>Photos</th><th>Quantités (déclaré / attendu)</th><th>Heure créneau</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="ref">BC-2026-0142</span><div class="muted">Ciment CDC 50 kg × 120</div></td>
+          <td>Résidence Cocody — Tour A<div class="muted">Bricorama Marcory</div></td>
+          <td>Livreur BTP Pilote<div class="muted">🛵 · 07:45</div></td>
+          <td><span class="badge b-delivered">Confirmée</span></td>
+          <td><span class="photos"><span class="dot dot-ok"></span><span class="dot dot-ok"></span><span class="dot dot-ok"></span> 3/3</span></td>
+          <td><span class="mono">120 / 120 sacs</span><div class="qty-bar"><div style="width:100%"></div></div></td>
+          <td class="mono">08:00 – 10:00</td>
+          <td><div class="row-actions"><button class="btn-sm">📄 Détail</button></div></td>
+        </tr>
+        <tr>
+          <td><span class="ref">BC-2026-0145</span><div class="muted">Fer à béton Ø8 × 400 barres</div></td>
+          <td>IMMEUBLE BESSIKOI 4EME<div class="muted">Gedimat Yopougon</div></td>
+          <td>Livreur BTP Pilote<div class="muted">🛵 · 09:10</div></td>
+          <td><span class="badge b-otp">OTP envoyé</span></td>
+          <td><span class="photos"><span class="dot dot-ok"></span><span class="dot dot-ok"></span><span class="dot dot-ko"></span> 2/3</span></td>
+          <td><span class="mono">— / 400 barres</span><div class="qty-bar"><div class="partial" style="width:0%"></div></div></td>
+          <td class="mono">09:00 – 11:00</td>
+          <td><div class="row-actions"><button class="btn-sm gold">🔐 Assistance OTP</button></div></td>
+        </tr>
+        <tr>
+          <td><span class="ref">BC-2026-0148</span><div class="muted">Sable lagunaire 7 m³</div></td>
+          <td>LAURIER 20 BINGERVILLE<div class="muted">Carrière Bingerville</div></td>
+          <td>Livreur BTP Pilote<div class="muted">🚚 · 10:05</div></td>
+          <td><span class="badge b-progress">En cours</span></td>
+          <td><span class="photos"><span class="dot dot-ko"></span><span class="dot dot-ko"></span> 0/2</span></td>
+          <td><span class="muted">Non déclaré</span><div class="qty-bar"><div class="partial" style="width:0%"></div></div></td>
+          <td class="mono">10:00 – 12:00</td>
+          <td><div class="row-actions"><button class="btn-sm">📄 Détail</button></div></td>
+        </tr>
+        <tr>
+          <td><span class="ref">BC-2026-0139</span><div class="muted">Peinture acrylique 20 × 25 L</div></td>
+          <td>RESIDENCE 35EME<div class="muted">Deko Abidjan</div></td>
+          <td>Livreur BTP Pilote<div class="muted">🛵 · 14:20</div></td>
+          <td><span class="badge b-delivered">Confirmée</span><div class="muted">écart déclaré</div></td>
+          <td><span class="photos"><span class="dot dot-ok"></span><span class="dot dot-ok"></span> 2/2</span></td>
+          <td><span class="mono" style="color:#b91c1c;font-weight:700">18 / 20 bidons</span><div class="qty-bar"><div class="partial" style="width:90%"></div></div></td>
+          <td class="mono">14:00 – 16:00</td>
+          <td><div class="row-actions"><button class="btn-sm">📄 Détail</button><button class="btn-sm">↩️ Réception</button></div></td>
+        </tr>
+        <tr>
+          <td><span class="ref">BC-2026-0131</span><div class="muted">Carreaux 60×60 × 85 cartons</div></td>
+          <td>IMMEUBLE TOURE<div class="muted">Céramique Marcory</div></td>
+          <td>Livreur BTP Pilote<div class="muted">🚚 · 16:40</div></td>
+          <td><span class="badge b-failed">Échec</span><div class="muted">magasin fermé</div></td>
+          <td><span class="photos"><span class="dot dot-ok"></span> 1/2</span></td>
+          <td><span class="muted">Retour dépôt</span></td>
+          <td class="mono">16:00 – 18:00</td>
+          <td><div class="row-actions"><button class="btn-sm">📄 Détail</button><button class="btn-sm">🔁 Replanifier</button></div></td>
+        </tr>
+        <tr>
+          <td><span class="ref">BC-2026-0150</span><div class="muted">Rond à béton Ø12 × 250</div></td>
+          <td>Résidence Cocody — Tour A<div class="muted">Sotici Koumassi</div></td>
+          <td><span class="muted">Non affecté</span></td>
+          <td><span class="badge b-pending">En attente</span></td>
+          <td><span class="photos"><span class="dot dot-ko"></span><span class="dot dot-ko"></span> 0/2</span></td>
+          <td><span class="muted">Non démarrée</span></td>
+          <td class="mono">Demain 08:00</td>
+          <td><div class="row-actions"><button class="btn-sm">👤 Affecter</button></div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="note">
+    <b>Légende :</b> les pastilles vertes = photo reçue, grises = attendue non reçue. La barre de quantité compare le déclaré au attendu (orange si écart).
+    <b>Assistance OTP</b> : renvoi du code ou validation manuelle après accord téléphonique — action tracée (voir volet d'audit dans le détail).
+    Rôles : le <b>SA</b> voit tout et agit ; le <b>CdG</b> voit tout en lecture seule (export, écarts) — la matrice d'accès s'applique.
+  </p>
+
+</div>
+
+<div class="modal-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h3>BC-2026-0145 — Fer à béton Ø8 × 400 barres</h3>
+        <div class="meta">IMMEUBLE BESSIKOI 4EME · Gedimat Yopougon · Livreur BTP Pilote · créneau 09:00–11:00</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="badge b-otp">OTP envoyé</span>
+        <button class="btn" onclick="this.closest('.modal-overlay').remove()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+
+      <div class="modal-section">
+        <h4>📍 Informations livraison</h4>
+        <div class="info-grid">
+          <div class="info-cell"><div class="k">Tournée</div><div class="v">BTP Pilote — 05/09</div></div>
+          <div class="info-cell"><div class="k">Unités / Poids</div><div class="v">400 barres · 1,8 t</div></div>
+          <div class="info-cell"><div class="k">Téléphone magasin</div><div class="v">+225 27 21 00 00</div></div>
+          <div class="info-cell"><div class="k">Démarrée à</div><div class="v">09:12</div></div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <h4>📷 Photos (2/3 reçues)</h4>
+        <div class="photo-grid">
+          <div class="photo-tile"><div class="img">🏗️</div><div class="cap">Palette 1 — chargement</div></div>
+          <div class="photo-tile"><div class="img">🏗️</div><div class="cap">Palette 2 — arrivée</div></div>
+          <div class="photo-tile"><div class="img">＋</div><div class="cap">Palette 3 — attendue</div></div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <h4>📋 Quantités — déclarées par le livreur</h4>
+        <table>
+          <thead><tr><th>Produit</th><th>Attendu</th><th>Déclaré</th><th>Écart</th></tr></thead>
+          <tbody>
+            <tr><td>Fer à béton Ø8 (barres de 12 m)</td><td class="mono">400</td><td class="mono">—</td><td class="muted">Non déclaré</td></tr>
+            <tr><td>Fil de ligature (rouleaux)</td><td class="mono">10</td><td class="mono">10</td><td class="delta-ok">=</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="modal-section">
+        <div class="otp-panel">
+          <div class="title">🔐 Assistance OTP (gestionnaire)</div>
+          <div class="otp-state">Code envoyé au livreur à 09:12 · aucune validation depuis <b>42 min</b></div>
+          <div class="desc">Si le SMS n'arrive pas, renvoyez le code ou validez manuellement après accord téléphonique avec le magasin — le livreur n'a pas à attendre la réparation du système.</div>
+          <div class="otp-actions">
+            <button class="btn btn-primary">🔁 Renvoyer le code</button>
+            <button class="btn btn-danger">✔️ Valider sans OTP (tracé)</button>
+            <button class="btn">📞 Appeler le magasin</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <h4>🧾 Historique d'assistance</h4>
+        <ul class="trail">
+          <li><span class="t">09:12</span><span><span class="who">Système</span> — OTP envoyé au livreur par SMS</span></li>
+          <li><span class="t">09:31</span><span><span class="who">Fatou CdG</span> — Renvoi du code demandé (magasin joint, SMS non reçu)</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn">← Fermer</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn">🔍 Certificat de réception</button>
+        <button class="btn btn-primary">Signaler un écart</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

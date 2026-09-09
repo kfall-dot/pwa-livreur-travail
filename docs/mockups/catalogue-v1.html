@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catalogue — Produits & Fournisseurs (maquette)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--navy:#1e3a5f;--navy-soft:#eef3f8;--muted:#64748b;--border:#e2e8f0;
+    --green:#047857;--green-bg:#ecfdf5;--amber:#b45309;--amber-bg:#fffbeb;
+    --red:#b91c1c;--red-bg:#fef2f2;--gold:#b7791f}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;background:#f5f7fa;color:#1e293b;padding:24px}
+  .page{max-width:1280px;margin:0 auto}
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:6px}
+  h1{font-size:22px;font-weight:800;color:var(--navy)}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer}
+  .btn-primary{background:var(--navy);border-color:var(--navy);color:#fff}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
+  .kpi{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px}
+  .kpi .val{font-size:22px;font-weight:800;color:var(--navy)}
+  .kpi .det{font-size:11px;color:var(--muted);margin-top:4px}
+  .kpi.warn .val{color:var(--amber)}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700}
+  .pill-green{background:var(--green-bg);color:var(--green)}
+  .pill-amber{background:var(--amber-bg);color:var(--amber)}
+  .pill-red{background:var(--red-bg);color:var(--red)}
+  .pill-gray{background:#f1f5f9;color:var(--muted)}
+  .tabs{display:flex;gap:8px;margin-bottom:12px}
+  .chip{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer}
+  .chip.active{background:#fdf3e0;border-color:#ecd9b0;color:var(--gold)}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end}
+  .filters label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .filters select,.filters input{font-family:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#1e293b}
+  .filters input{min-width:200px}
+  .cnt{font-size:12px;color:var(--muted);margin-left:auto}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--border)}
+  td{padding:9px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .mono{font-variant-numeric:tabular-nums;font-weight:600}
+  .edit{border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-family:inherit;font-size:12px;background:#fff;color:var(--navy);cursor:pointer}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div><h1>Catalogue</h1><p class="sub">Produits &amp; Fournisseurs — référentiel partagé entre SA, CdG et DT</p></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn">⬆ Importer (xlsx)</button>
+      <button class="btn btn-primary">+ Nouveau produit</button>
+    </div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Produits référencés</div><div class="val">147</div><div class="det">142 actifs · 5 inactifs</div></div>
+    <div class="kpi"><div class="lbl">Catégories</div><div class="val">12</div><div class="det">Ciment, Fer, Agrégats, Bois…</div></div>
+    <div class="kpi"><div class="lbl">Fournisseurs</div><div class="val">28</div><div class="det">22 actifs · 6 archivés</div></div>
+    <div class="kpi warn"><div class="lbl">Prix à compléter</div><div class="val">9</div><div class="det">produits actifs sans prix</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="chip active">Produits</button>
+    <button class="chip">Fournisseurs</button>
+    <button class="chip">Catégories &amp; unités</button>
+  </div>
+
+  <div class="card">
+    <div class="filters">
+      <label>Catégorie
+        <select><option>Toutes</option><option>Ciment</option><option>Fer</option><option>Agrégats</option><option>Bois</option></select>
+      </label>
+      <label>Fournisseur
+        <select><option>Tous</option><option>SOCIAM</option><option>Quincaillerie Aziz</option><option>Ciments d'Afrique</option></select>
+      </label>
+      <label>Statut
+        <select><option>Tous</option><option>Actif</option><option>Prix à compléter</option><option>Inactif</option></select>
+      </label>
+      <label>Recherche
+        <input type="text" placeholder="nom, référence, désignation…">
+      </label>
+      <span class="cnt">147 produits · 9 sans prix</span>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Référence</th><th>Produit</th><th>Catégorie</th><th>Unité</th>
+        <th>Prix (XOF)</th><th>TVA</th><th>Fournisseur</th><th>Statut</th><th></th>
+      </tr></thead>
+      <tbody>
+        <tr><td class="mono">CIM-050</td><td><strong>Ciment CPA 45 — sac 50 kg</strong></td><td>Ciment</td><td>sac</td><td class="mono">4 750</td><td>18 %</td><td>Ciments d'Afrique</td><td><span class="pill pill-green">Actif</span></td><td><button class="edit">Modifier</button></td></tr>
+        <tr><td class="mono">CIM-035</td><td><strong>Ciment CPA 35 — sac 35 kg</strong></td><td>Ciment</td><td>sac</td><td class="mono">3 400</td><td>18 %</td><td>SOCIAM</td><td><span class="pill pill-green">Actif</span></td><td><button class="edit">Modifier</button></td></tr>
+        <tr><td class="mono">FER-008</td><td><strong>Fer à béton Ø8 — barre 12 m</strong></td><td>Fer</td><td>barre</td><td class="mono">3 150</td><td>18 %</td><td>SOCIAM</td><td><span class="pill pill-green">Actif</span></td><td><button class="edit">Modifier</button></td></tr>
+        <tr><td class="mono">FER-012</td><td><strong>Fer à béton Ø12 — barre 12 m</strong></td><td>Fer</td><td>barre</td><td class="mono">7 200</td><td>18 %</td><td>Quincaillerie Aziz</td><td><span class="pill pill-green">Actif</span></td><td><button class="edit">Modifier</button></td></tr>
+        <tr><td class="mono">AGR-SAB</td><td><strong>Sable lagunaire</strong></td><td>Agrégats</td><td>m³</td><td class="mono">12 500</td><td>0 %</td><td>Trans Béton</td><td><span class="pill pill-green">Actif</span></td><td><button class="edit">Modifier</button></td></tr>
+        <tr><td class="mono">AGR-GRA</td><td><strong>Gravier concassé 15/25</strong></td><td>Agrégats</td><td>m³</td><td class="mono">—</td><td>0 %</td><td>Trans Béton</td><td><span class="pill pill-amber">Prix à compléter</span></td><td><button class="edit">Compléter</button></td></tr>
+        <tr><td class="mono">BOI-COF</td><td><strong>Coffrage bois 2,10 m</strong></td><td>Bois</td><td>u</td><td class="mono">2 900</td><td>18 %</td><td>Quincaillerie Aziz</td><td><span class="pill pill-green">Actif</span></td><td><button class="edit">Modifier</button></td></tr>
+        <tr><td class="mono">PEI-100</td><td><strong>Tuyau PEHD Ø100 — barre 6 m</strong></td><td>Plomberie</td><td>barre</td><td class="mono">—</td><td>18 %</td><td>—</td><td><span class="pill pill-amber">Prix à compléter</span></td><td><button class="edit">Compléter</button></td></tr>
+        <tr><td class="mono">CIM-250</td><td><strong>Ciment prompt — seau 25 kg</strong></td><td>Ciment</td><td>seau</td><td class="mono">6 100</td><td>18 %</td><td>Ciments d'Afrique</td><td><span class="pill pill-gray">Inactif</span></td><td><button class="edit">Modifier</button></td></tr>
+
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="topbar" style="margin-bottom:10px">
+      <div><h1 style="font-size:15px">Fournisseurs</h1><p class="sub" style="font-size:12px">Points fournisseurs du référentiel — historique BC rattaché</p></div>
+      <button class="btn">+ Nouveau fournisseur</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Fournisseur</th><th>Contact</th><th>Téléphone</th><th>Produits liés</th>
+        <th>BC du mois</th><th>Montant engagé (XOF)</th><th>Statut</th>
+      </tr></thead>
+      <tbody>
+        <tr><td><strong>SOCIAM</strong></td><td>service.achat@sociam.ci</td><td class="mono">+225 27 22 40 12 30</td><td class="mono">42</td><td class="mono">6</td><td class="mono">2 340 000</td><td><span class="pill pill-green">Actif</span></td></tr>
+        <tr><td><strong>Ciments d'Afrique</strong></td><td>ventes@cimaf.ci</td><td class="mono">+225 27 21 75 88 00</td><td class="mono">18</td><td class="mono">4</td><td class="mono">1 180 500</td><td><span class="pill pill-green">Actif</span></td></tr>
+        <tr><td><strong>Quincaillerie Aziz</strong></td><td>aziz.quincaillerie@gmail.com</td><td class="mono">+225 07 08 55 21 47</td><td class="mono">31</td><td class="mono">5</td><td class="mono">947 000</td><td><span class="pill pill-green">Actif</span></td></tr>
+        <tr><td><strong>Trans Béton</strong></td><td>contact@transbeton.ci</td><td class="mono">+225 05 44 90 33 12</td><td class="mono">9</td><td class="mono">2</td><td class="mono">620 000</td><td><span class="pill pill-green">Actif</span></td></tr>
+        <tr><td><strong>Plomberie Pro Ivoire</strong></td><td>—</td><td class="mono">—</td><td class="mono">12</td><td class="mono">0</td><td class="mono">0</td><td><span class="pill pill-red">Inactif</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

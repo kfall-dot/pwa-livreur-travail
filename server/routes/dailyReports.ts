@@ -49,11 +49,11 @@ function chefMode(req: import('express').Request): 'chef' | 'superviseur' | null
   return null
 }
 
-/** DT/DAF/CdG/PDG : rôles compagnie → accès à tous les chantiers actifs. */
+/** DAF/CdG/PDG : rôles compagnie → accès à tous les chantiers actifs.
+ *  Le DT est volontairement exclu de ce périmètre « compagnie entière » :
+ *  il ne voit que les chantiers qui lui sont assignés (supervisor_manager_id). */
 function isCompanyWide(role: string | null): boolean {
-  return (
-    role === 'technical_director' || role === 'daf' || role === 'controle_gestion' || role === 'pdg'
-  )
+  return role === 'daf' || role === 'controle_gestion' || role === 'pdg'
 }
 
 function unauthorized(res: import('express').Response): void {

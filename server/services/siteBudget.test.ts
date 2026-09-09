@@ -15,6 +15,7 @@ describe('siteBudget F01', () => {
       budgetFrozenAt: null,
       approvedAmendmentSumFcfa: 0,
       engagedFcfa: 1000,
+      realizedFcfa: 500,
     })
     assert.equal(t.budgetInitialFcfa, null)
     assert.equal(t.budgetTotalFcfa, null)
@@ -33,14 +34,18 @@ describe('siteBudget F01', () => {
       budgetFrozenAt: new Date(),
       approvedAmendmentSumFcfa: 15_000_000,
       engagedFcfa: 7_850_000,
+      realizedFcfa: 5_000_000,
     })
     assert.equal(t.budgetInitialFcfa, 100_000_000)
     assert.equal(t.budgetTotalFcfa, 115_000_000)
     assert.equal(t.remainingFcfa, 107_150_000)
+    assert.equal(t.realizedFcfa, 5_000_000)
     assert.equal(t.overBudget, false)
     const k = computeBudgetKpis({ totals: t, approvedAmendmentCount: 1 })
     assert.equal(k.trafficLight, 'ok')
     assert.equal(k.engagementPct, 6.83)
+    assert.equal(k.varianceFcfa, 110_000_000)
+    assert.equal(k.variancePct, 95.65)
     assert.equal(k.missingAmendment, false)
   })
 
@@ -50,9 +55,11 @@ describe('siteBudget F01', () => {
       budgetFrozenAt: '2026-08-19',
       approvedAmendmentSumFcfa: 0,
       engagedFcfa: 50_000,
+      realizedFcfa: 30_000,
     })
     assert.equal(t.overBudget, true)
     assert.equal(t.remainingFcfa, 1000 - 50_000)
+    assert.equal(t.realizedFcfa, 30_000)
   })
 
   it('Koestrem : +2,60 % = vigilance, avenant manquant', () => {
@@ -61,17 +68,19 @@ describe('siteBudget F01', () => {
       budgetFrozenAt: '2026-04-02',
       approvedAmendmentSumFcfa: 0,
       engagedFcfa: 17_730_182,
+      realizedFcfa: 17_730_182,
     })
     assert.equal(t.overBudget, true)
     assert.equal(t.remainingFcfa, 17_280_052 - 17_730_182)
+    assert.equal(t.realizedFcfa, 17_730_182)
     const k = computeBudgetKpis({
       totals: t,
       approvedAmendmentCount: 0,
       overrunSinceAt: '2026-07-20T10:00:00.000Z',
       now: new Date('2026-08-19T21:53:00.000Z'),
     })
-    assert.equal(k.varianceFcfa, 450_130)
-    assert.equal(k.variancePct, 2.6)
+    assert.equal(k.varianceFcfa, -450_130)
+    assert.equal(k.variancePct, -2.6)
     assert.equal(k.engagementPct, 102.6)
     assert.equal(k.trafficLight, 'watch')
     assert.equal(k.missingAmendment, true)
@@ -83,10 +92,12 @@ describe('siteBudget F01', () => {
       budgetInitialFcfa: 1000,
       budgetFrozenAt: '2026-08-19',
       approvedAmendmentSumFcfa: 0,
-      engagedFcfa: 1030,
+      engagedFcfa: 1100,
+      realizedFcfa: 1030,
     })
     const watch = computeBudgetKpis({ totals: watchTotals, approvedAmendmentCount: 0 })
-    assert.equal(watch.variancePct, 3)
+    assert.equal(watch.varianceFcfa, -30)
+    assert.equal(watch.variancePct, -3)
     assert.equal(watch.trafficLight, 'watch')
     assert.equal(watch.missingAmendment, true)
 
@@ -94,10 +105,12 @@ describe('siteBudget F01', () => {
       budgetInitialFcfa: 1000,
       budgetFrozenAt: '2026-08-19',
       approvedAmendmentSumFcfa: 0,
-      engagedFcfa: 1050,
+      engagedFcfa: 1100,
+      realizedFcfa: 1050,
     })
     const alert = computeBudgetKpis({ totals: alertTotals, approvedAmendmentCount: 0 })
-    assert.equal(alert.variancePct, 5)
+    assert.equal(alert.varianceFcfa, -50)
+    assert.equal(alert.variancePct, -5)
     assert.equal(alert.trafficLight, 'alert')
 
     const covered = computeBudgetKpis({ totals: watchTotals, approvedAmendmentCount: 1 })
@@ -137,6 +150,7 @@ describe('siteBudget F01', () => {
       budgetFrozenAt: null,
       approvedAmendmentSumFcfa: 0,
       engagedFcfa: 1000,
+      realizedFcfa: 500,
     })
     assert.equal(t.budgetInitialFcfa, null)
     assert.equal(t.budgetTotalFcfa, null)
@@ -151,6 +165,7 @@ describe('siteBudget F01', () => {
       budgetFrozenAt: new Date(),
       approvedAmendmentSumFcfa: 15_000_000,
       engagedFcfa: 7_850_000,
+      realizedFcfa: 5_000_000,
     })
     assert.equal(t.budgetInitialFcfa, 100_000_000)
     assert.equal(t.budgetTotalFcfa, 115_000_000)
@@ -164,6 +179,7 @@ describe('siteBudget F01', () => {
       budgetFrozenAt: '2026-08-19',
       approvedAmendmentSumFcfa: 0,
       engagedFcfa: 50_000,
+      realizedFcfa: 30_000,
     })
     assert.equal(t.overBudget, true)
     assert.equal(t.remainingFcfa, 1000 - 50_000)

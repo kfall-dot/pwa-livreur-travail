@@ -270,6 +270,7 @@ export const products = pgTable('products', {
     .default(DEMO_COMPANY_ID),
   label: text('label').notNull(),
   unit: text('unit').notNull().default('palette'),
+  category: text('category'),
   displayOrder: integer('display_order').notNull().default(0),
   active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),

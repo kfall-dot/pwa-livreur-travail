@@ -22,6 +22,7 @@ import {
   getSiteIndicators,
   listSiteBudgets,
   listSiteMonthlyExpenses,
+  listSupervisedSiteIds,
   SiteBudgetError,
   linkDraftToRequest,
   listDrafts,
@@ -288,7 +289,12 @@ procurementRouter.get(
   async (req, res) => {
     const { manager } = req as unknown as ManagerRequest
     try {
-      const rows = await listSiteStock(manager.companyId)
+      let rows = await listSiteStock(manager.companyId)
+      // DT : uniquement le stock de ses chantiers assignés.
+      if (manager.procurementRole === 'technical_director') {
+        const supervised = new Set(await listSupervisedSiteIds(manager.companyId, manager.sub))
+        rows = rows.filter((r) => supervised.has(r.siteId))
+      }
       res.json({ rows })
     } catch (err) {
       console.error('[procurement] site-stock error', err)
@@ -392,7 +398,15 @@ const decideAmendmentSchema = z.object({
 
 procurementRouter.get('/site-budgets', async (req, res) => {
   const { manager } = req as unknown as ManagerRequest
-  const budgets = await listSiteBudgets(manager.companyId)
+  // DT : uniquement les chantiers qui lui sont assignés (demande métier).
+  const supervised =
+    manager.procurementRole === 'technical_director'
+      ? await listSupervisedSiteIds(manager.companyId, manager.sub)
+      : null
+  const budgets = await listSiteBudgets(
+    manager.companyId,
+    supervised ? { supervisedSiteIds: supervised } : undefined,
+  )
   res.json({ budgets })
 })
 
@@ -404,7 +418,13 @@ procurementRouter.get('/site-budgets/monthly', async (req, res) => {
     res.status(400).json({ message: 'Paramètre month (YYYY-MM) requis' })
     return
   }
-  const expenses = await listSiteMonthlyExpenses(manager.companyId, month)
+  const expenses = await listSiteMonthlyExpenses(
+    manager.companyId,
+    month,
+    manager.procurementRole === 'technical_director'
+      ? { supervisedSiteIds: await listSupervisedSiteIds(manager.companyId, manager.sub) }
+      : undefined,
+  )
   res.json({ month, expenses })
 })
 

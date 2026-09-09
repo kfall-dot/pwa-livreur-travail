@@ -1753,6 +1753,7 @@ export async function upsertProduct(
     companyId: data.companyId,
     label: data.label ?? '',
     unit: data.unit ?? 'palette',
+    category: data.category ?? null,
     displayOrder: data.displayOrder ?? 0,
     active: data.active ?? true,
   }
@@ -2453,7 +2454,12 @@ export async function getDashboardDeliveries(
   companyId: string,
 ): Promise<DashboardDelivery[]> {
   const conditions = [eq(tours.date, date), eq(tours.companyId, companyId)]
-  if (status && status !== 'all') {
+  // Filtres 'partial' (écart) et 'delivered' (livrée) : le statut réel du point de
+  // livraison ne porte pas ces valeurs — l'écart/livraison est déterminé par la
+  // déclaration du livreur (declarationOutcome). On filtre donc en JS après
+  // enrichissement, sinon le filtre renvoie 0 résultat.
+  const jsStatusFilter = status === 'partial' || status === 'delivered'
+  if (status && status !== 'all' && !jsStatusFilter) {
     conditions.push(eq(deliveryPoints.status, status as DeliveryPoint['status']))
   }
   const rows = await db
@@ -2481,6 +2487,17 @@ export async function getDashboardDeliveries(
   const enriched = await attachDeclarationMeta(
     rows.map((row) => ({ ...row, id: row.deliveryId }))
   )
+  if (jsStatusFilter && status === 'partial') {
+    return enriched.filter((d) => d.declarationOutcome === 'partial')
+  }
+  if (jsStatusFilter && status === 'delivered') {
+    return enriched.filter(
+      (d) =>
+        /deliver|validat/.test((d.status ?? '').toLowerCase()) &&
+        d.declarationOutcome !== 'partial' &&
+        d.declarationOutcome !== 'refused'
+    )
+  }
   return enriched.map(({ declarationOutcome, declarationLines, ...row }) => {
     const { id: _id, ...rest } = row as typeof row & { id: string }
     return { ...rest, declarationOutcome, declarationLines }
