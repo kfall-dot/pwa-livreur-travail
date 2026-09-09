@@ -107,7 +107,7 @@ export async function notifyManagersByProcurementRole(
     }
 
     // SMS si numéro
-    await sendManagerSms(target.phone, subject, text)
+    await sendManagerSms(target.phone ?? undefined, subject, text)
   }
   return { notified }
 }

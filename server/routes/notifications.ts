@@ -1,5 +1,6 @@
 import { Router } from 'express'
-import { authenticateManager } from '../middleware/auth.js'
+import { requireManager } from '../middleware/managerAuth.js'
+import type { ManagerRequest } from '../middleware/managerAuth.js'
 import {
   listUnreadNotifications,
   markNotificationRead,
@@ -9,9 +10,9 @@ import {
 export const notificationRouter = Router()
 
 // Liste les notifications non lues du manager connecté
-notificationRouter.get('/', authenticateManager, async (req, res) => {
+notificationRouter.get('/', requireManager, async (req, res) => {
   try {
-    const managerId = req.manager!.id
+    const managerId = (req as ManagerRequest).manager.sub
     const notifications = await listUnreadNotifications(managerId)
     res.json({ notifications })
   } catch (err) {
@@ -21,7 +22,7 @@ notificationRouter.get('/', authenticateManager, async (req, res) => {
 })
 
 // Marque une notification comme lue
-notificationRouter.patch('/:id/read', authenticateManager, async (req, res) => {
+notificationRouter.patch('/:id/read', requireManager, async (req, res) => {
   try {
     await markNotificationRead(req.params.id)
     res.json({ ok: true })
@@ -32,9 +33,10 @@ notificationRouter.patch('/:id/read', authenticateManager, async (req, res) => {
 })
 
 // Marque toutes les notifications comme lues
-notificationRouter.post('/read-all', authenticateManager, async (req, res) => {
+notificationRouter.post('/read-all', requireManager, async (req, res) => {
   try {
-    await markAllNotificationsRead(req.manager!.id)
+    const managerId = (req as ManagerRequest).manager.sub
+    await markAllNotificationsRead(managerId)
     res.json({ ok: true })
   } catch (err) {
     console.error('[notifications] erreur mark all read:', err)

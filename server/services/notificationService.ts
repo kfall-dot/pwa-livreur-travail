@@ -46,13 +46,15 @@ export async function notifyManager(input: NotifyManagerInput): Promise<string> 
 
   // SMS si demandé
   if (input.sendSms !== false) {
-    const manager = await db.query.managers.findFirst({
-      where: eq(managers.id, input.managerId),
-    })
-    if (manager?.phone) {
+    const rows = await db
+      .select({ phone: managers.phone })
+      .from(managers)
+      .where(eq(managers.id, input.managerId))
+    const phone = rows[0]?.phone
+    if (phone) {
       const smsBody = `[TraceO] ${input.title}\n${input.message}${input.link ? `\n${input.link}` : ''}`
       try {
-        await sendSmsMessage(manager.phone, smsBody)
+        await sendSmsMessage(phone, smsBody)
         await db.update(notifications).set({ smsSent: true }).where(eq(notifications.id, id))
       } catch (err) {
         console.warn(`[notification] SMS échoué pour ${input.managerId}:`, err)
@@ -64,48 +66,15 @@ export async function notifyManager(input: NotifyManagerInput): Promise<string> 
 }
 
 /**
- * Notifie tous les managers d'un rôle donné.
- */
-export async function notifyManagersByRole(params: {
-  companyId: string
-  procurementRole: string
-  type: NotificationType
-  title: string
-  message: string
-  link?: string
-  refType?: string
-  refId?: string
-}): Promise<string[]> {
-  const targets = await db.query.managers.findMany({
-    where: eq(managers.procurementRole, params.procurementRole as never),
-  })
-
-  const ids: string[] = []
-  for (const m of targets) {
-    const id = await notifyManager({
-      managerId: m.id,
-      companyId: params.companyId,
-      type: params.type,
-      title: params.title,
-      message: params.message,
-      link: params.link,
-      refType: params.refType,
-      refId: params.refId,
-    })
-    ids.push(id)
-  }
-  return ids
-}
-
-/**
  * Liste les notifications non lues d'un manager.
  */
 export async function listUnreadNotifications(managerId: string, limit = 50) {
-  return db.query.notifications.findMany({
-    where: eq(notifications.managerId, managerId),
-    orderBy: [desc(notifications.createdAt)],
-    limit,
-  })
+  return db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.managerId, managerId))
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit)
 }
 
 /**
