@@ -19,6 +19,7 @@ import { toursRouter } from './routes/tours.js'
 import { deliveriesRouter } from './routes/deliveries.js'
 import { certificatesRouter } from './routes/certificates.js'
 import { dashboardRouter } from './routes/dashboard.js'
+import { notificationRouter } from './routes/notifications.js'
 import { requireAuth, type AuthPayload } from './middleware/auth.js'
 import { assertDriverOwnsDelivery } from './middleware/deliveryAccess.js'
 import { DatabaseProtectionError } from './config/databaseProtection.js'
@@ -280,6 +281,7 @@ export function createApp() {
     app.use(`${prefix}/tours`, toursRouter)
     app.use(`${prefix}/deliveries`, deliveriesRouter)
     app.use(`${prefix}/certificates`, certificatesRouter)
+    app.use(`${prefix}/notifications`, notificationRouter)
     app.use(`${prefix}`, dashboardRouter)
   }
 

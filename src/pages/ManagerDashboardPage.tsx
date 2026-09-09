@@ -49,6 +49,7 @@ import { SuiviBcTab } from './manager/procurement/SuiviBcTab'
 import { SuiviChantierTab } from './manager/procurement/SuiviChantierTab'
 import { MaJourneeTab } from './manager/procurement/MaJourneeTab'
 import { fetchDraftInboxCount } from './manager/procurement/procurementApi'
+import { NotificationBell } from '../components/NotificationBell'
 import type { ProcurementRole, ProcurementTourPrefill } from './manager/procurement/procurementTypes'
 import { PROCUREMENT_ROLE_LABELS, canSeeSuiviChantier, isProcurementWorkspaceRole, isSiteManagerRole } from './manager/procurement/procurementUi'
 import EquipeTab from './manager/EquipeTab'
@@ -473,6 +474,7 @@ export function ManagerDashboardPage() {
             </h1>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <NotificationBell />
             {isAdmin && (
               <Link to="/manager/security" style={{ ...css.btnGhost, textDecoration: 'none' }}>
                 Sécurité 2FA

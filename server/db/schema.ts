@@ -345,6 +345,7 @@ export const managers = pgTable('managers', {
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   name: text('name').notNull(),
+  phone: text('phone'),
   role: managerRoleEnum('role').notNull().default('manager'),
   procurementRole: procurementRoleEnum('procurement_role'),
   totpSecret: text('totp_secret'),
@@ -355,6 +356,39 @@ export const managers = pgTable('managers', {
 export type Manager = typeof managers.$inferSelect
 export type NewManager = typeof managers.$inferInsert
 export type ManagerRole = Manager['role']
+
+// ─── notifications (alertes in-app + SMS pour managers) ──────────────────────
+
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'approval_required',
+  'bc_to_validate',
+  'bt_to_validate',
+  'task_assigned',
+  'delivery_issue',
+  'budget_alert',
+])
+
+export const notifications = pgTable('notifications', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id')
+    .notNull()
+    .references(() => companies.id),
+  managerId: text('manager_id')
+    .notNull()
+    .references(() => managers.id),
+  type: notificationTypeEnum('type').notNull(),
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  link: text('link'),
+  refType: text('ref_type'),
+  refId: text('ref_id'),
+  smsSent: boolean('sms_sent').notNull().default(false),
+  read: boolean('read').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export type Notification = typeof notifications.$inferSelect
+export type NewNotification = typeof notifications.$inferInsert
 
 export const securityAuditEvents = pgTable('security_audit_events', {
   id: text('id').primaryKey(),

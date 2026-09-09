@@ -1,7 +1,9 @@
 import { eq } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { db } from '../db/index.js'
-import { managers, type ProcurementRole } from '../db/schema.js'
+import { managers, notifications, type ProcurementRole } from '../db/schema.js'
 import { sendEmail } from './email.js'
+import { sendSmsMessage } from './sms.js'
 
 const ROLE_LABELS: Record<ProcurementRole, string> = {
   site_controller: 'Conducteur de travaux',
@@ -13,14 +15,61 @@ const ROLE_LABELS: Record<ProcurementRole, string> = {
   site_manager: 'Chef de chantier',
 }
 
+/**
+ * Crée une notification in-app pour un manager.
+ */
+async function createInAppNotification(params: {
+  managerId: string
+  companyId: string
+  type: 'approval_required' | 'bc_to_validate' | 'bt_to_validate' | 'task_assigned' | 'delivery_issue' | 'budget_alert'
+  title: string
+  message: string
+  link?: string
+  refType?: string
+  refId?: string
+}) {
+  await db.insert(notifications).values({
+    id: randomUUID(),
+    companyId: params.companyId,
+    managerId: params.managerId,
+    type: params.type,
+    title: params.title,
+    message: params.message,
+    link: params.link,
+    refType: params.refType,
+    refId: params.refId,
+    smsSent: false,
+    read: false,
+  })
+}
+
+/**
+ * Envoie un SMS à un manager (si numéro présent).
+ */
+async function sendManagerSms(phone: string | undefined, title: string, message: string) {
+  if (!phone) return
+  const body = `[TraceO] ${title}\n${message}`
+  try {
+    await sendSmsMessage(phone, body)
+  } catch (err) {
+    console.warn(`[procurement-notify] SMS échoué:`, err instanceof Error ? err.message : err)
+  }
+}
+
 export async function notifyManagersByProcurementRole(
   companyId: string,
   roles: ProcurementRole[],
   subject: string,
   text: string,
+  options?: {
+    link?: string
+    refType?: string
+    refId?: string
+    notificationType?: 'approval_required' | 'bc_to_validate' | 'bt_to_validate' | 'task_assigned' | 'delivery_issue' | 'budget_alert'
+  },
 ): Promise<{ notified: number }> {
   const rows = await db
-    .select({ email: managers.email, name: managers.name, procurementRole: managers.procurementRole })
+    .select({ id: managers.id, email: managers.email, name: managers.name, phone: managers.phone, procurementRole: managers.procurementRole })
     .from(managers)
     .where(eq(managers.companyId, companyId))
 
@@ -37,14 +86,28 @@ export async function notifyManagersByProcurementRole(
       await sendEmail({ to: target.email, subject, text })
       notified++
     } catch (err) {
-      // Une notification ne doit JAMAIS faire échouer le workflow : le statut
-      // est déjà mis à jour côté base — un échec SMTP/quota est journalisé et
-      // n'interrompt ni la boucle ni la requête HTTP appelante.
       console.error(
         `[procurement-notify] Échec envoi à ${target.email} (${subject}):`,
         err instanceof Error ? err.message : err,
       )
     }
+
+    // Notification in-app
+    if (options?.notificationType) {
+      await createInAppNotification({
+        managerId: target.id,
+        companyId,
+        type: options.notificationType,
+        title: subject,
+        message: text,
+        link: options.link,
+        refType: options.refType,
+        refId: options.refId,
+      })
+    }
+
+    // SMS si numéro
+    await sendManagerSms(target.phone, subject, text)
   }
   return { notified }
 }
@@ -59,6 +122,12 @@ export async function notifyDraftReadyForReview(
     ['technical_director'],
     `EB à valider — ${siteName}`,
     `Un nouvel expression de besoin (brouillon ${draftId}) est prête pour relecture DT.\nChantier : ${siteName}`,
+    {
+      link: `/manager/procurement/drafts/${draftId}`,
+      refType: 'draft',
+      refId: draftId,
+      notificationType: 'approval_required',
+    },
   )
 }
 
@@ -75,6 +144,9 @@ export async function notifyRequestStatusChange(
     `La demande ${reference} est passée au statut « ${status} » et nécessite votre action${
       status === 'submitted' ? ' (Service achats)' : status === 'cdg_review' ? ' (Contrôle de gestion)' : ''
     }.`,
+    {
+      notificationType: 'approval_required',
+    },
   )
 }
 
@@ -88,5 +160,11 @@ export async function notifyPurchaseOrderReady(
     ['purchasing', 'technical_director'],
     `BC prêt — ${poReference}`,
     `Le bon de commande ${poReference} a été généré pour la demande ${reference}.`,
+    {
+      link: `/manager/procurement/bc/${poReference}`,
+      refType: 'purchase_order',
+      refId: poReference,
+      notificationType: 'bc_to_validate',
+    },
   )
 }
