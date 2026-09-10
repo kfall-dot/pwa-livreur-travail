@@ -183,10 +183,11 @@ export function formatApprovalAt(iso: string): string {
   return `${date} ${time}`.replace(',', '')
 }
 
-/** DT, SA, DAF, PDG : espace achats (pas le cockpit tournées). */
+/** DT, SA, DAF, PDG, CdG : espace achats (pas le cockpit tournées). */
 export function isProcurementWorkspaceRole(role: string | null | undefined): boolean {
   return (
     role === 'technical_director' ||
+    role === 'site_controller' ||
     role === 'purchasing' ||
     role === 'daf' ||
     role === 'pdg' ||
@@ -377,7 +378,7 @@ export function canScheduleDelivery(
 }
 
 export function canEditDraft(role: ProcurementRole | null | undefined): boolean {
-  return role === 'technical_director'
+  return role === 'technical_director' || role === 'site_controller'
 }
 
 export function canPriceRequest(
