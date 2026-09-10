@@ -157,15 +157,11 @@ export async function seedBtpPilotData(): Promise<{
   ]
 
   for (const m of managerRows) {
-    if (process.env.E2E_TRACE === '1') {
-      const probe = await db.execute(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (await import('drizzle-orm')).sql`select count(*)::int as n from companies where id = ${BTP_DEMO.COMPANY_ID}`,
-      )
-      console.log(
-        `[seed-trace] avant insert manager ${m.id}: ${JSON.stringify(probe.rows ?? probe)}`,
-      )
-    }
+    // Vérifie si le manager existe déjà pour préserver son procurementRole
+    const existing = await db.query.managers.findFirst({
+      where: eq(managers.id, m.id),
+    })
+
     await db
       .insert(managers)
       .values({
@@ -185,7 +181,8 @@ export async function seedBtpPilotData(): Promise<{
           passwordHash,
           name: m.name,
           role: m.role,
-          procurementRole: m.procurementRole,
+          // Préserve le procurementRole existant (ne pas écraser les modifications manuelles)
+          ...(existing?.procurementRole ? {} : { procurementRole: m.procurementRole }),
         },
       })
   }

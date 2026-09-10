@@ -356,6 +356,11 @@ export async function seedDemoData(): Promise<{ driverId: string; tourId: string
     managerConflictSet.email = managerEmail
   }
 
+  // Préserve le procurementRole existant du manager démo
+  const existingDemoManager = await db.query.managers.findFirst({
+    where: eq(managers.id, DEMO.MANAGER_ID),
+  })
+
   await db
     .insert(managers)
     .values({
@@ -368,12 +373,20 @@ export async function seedDemoData(): Promise<{ driverId: string; tourId: string
     })
     .onConflictDoUpdate({
       target: managers.id,
-      set: managerConflictSet,
+      set: {
+        ...managerConflictSet,
+        // Ne pas écraser le procurementRole existant
+        ...(existingDemoManager?.procurementRole ? {} : {}),
+      },
     })
 
   // SA démo (Service Achats) dans la compagnie démo — les tests e2e
   // « modification réservée au SA » exigent un gestionnaire `purchasing`
   // voyant les tournées démo (isolation par compagnie).
+  const existingSaManager = await db.query.managers.findFirst({
+    where: eq(managers.id, DEMO.SA_MANAGER_ID),
+  })
+
   await db
     .insert(managers)
     .values({
@@ -392,7 +405,8 @@ export async function seedDemoData(): Promise<{ driverId: string; tourId: string
         name: 'SA Démo',
         companyId: DEMO_COMPANY_ID,
         role: 'manager' as const,
-        procurementRole: 'purchasing' as const,
+        // Ne pas écraser le procurementRole existant
+        ...(existingSaManager?.procurementRole ? {} : { procurementRole: 'purchasing' as const }),
       },
     })
 
