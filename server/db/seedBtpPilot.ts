@@ -31,6 +31,7 @@ export const BTP_DEMO = {
   MANAGER_SA_ID: 'mgr-btp-sa',
   MANAGER_PDG_ID: 'mgr-btp-pdg',
   MANAGER_CDG_ID: 'mgr-btp-cdg',
+  MANAGER_CDC_ID: 'mgr-btp-cdc',
   DRIVER_ID: 'drv-btp-1',
   DRIVER_PHONE: '+2250700998877',
   WHATSAPP_GROUP_ID: 'wa-grp-btp-chantier-1',
@@ -41,6 +42,7 @@ export const BTP_DEMO = {
   SA_EMAIL: 'sa@btp-pilote.ci',
   PDG_EMAIL: 'pdg@btp-pilote.ci',
   CDG_EMAIL: 'cdg@btp-pilote.ci',
+  CDC_EMAIL: 'cdc@btp-pilote.ci',
 } as const
 
 const BC_TEMPLATE = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>BC {{reference}}</title>
@@ -73,6 +75,7 @@ export function btpPilotLoginEmails(): string[] {
     envOr('BTP_SA_EMAIL', BTP_DEMO.SA_EMAIL).toLowerCase(),
     envOr('BTP_PDG_EMAIL', BTP_DEMO.PDG_EMAIL).toLowerCase(),
     envOr('BTP_CDG_EMAIL', BTP_DEMO.CDG_EMAIL).toLowerCase(),
+    envOr('BTP_CDC_EMAIL', BTP_DEMO.CDC_EMAIL).toLowerCase(),
   ]
 }
 
@@ -152,6 +155,13 @@ export async function seedBtpPilotData(): Promise<{
       email: envOr('BTP_CDG_EMAIL', BTP_DEMO.CDG_EMAIL),
       name: 'Fatou CdG',
       procurementRole: 'controle_gestion' as const,
+      role: 'manager' as const,
+    },
+    {
+      id: BTP_DEMO.MANAGER_CDC_ID,
+      email: envOr('BTP_CDC_EMAIL', BTP_DEMO.CDC_EMAIL),
+      name: 'Chef Chantier BTP',
+      procurementRole: 'site_manager' as const,
       role: 'manager' as const,
     },
   ]
