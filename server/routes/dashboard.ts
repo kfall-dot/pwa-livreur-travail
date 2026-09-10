@@ -1336,17 +1336,16 @@ dashboardRouter.post(
     const { manager } = req as ManagerRequest
     const { name, email } = req.body as { name?: string; email?: string }
     const procurementRoleRaw = typeof (req.body as { procurementRole?: string })?.procurementRole === 'string'
-      ? (req.body as { procurementRole: string }).procurementRole
-      : null
-    const procurementRole =
-      procurementRoleRaw &&
-      ['site_controller', 'technical_director', 'daf', 'purchasing', 'pdg', 'controle_gestion', 'site_manager'].includes(
-        procurementRoleRaw,
-      )
-        ? procurementRoleRaw
-        : null
+      ? (req.body as { procurementRole: string }).procurementRole.trim()
+      : ''
+    const validRoles = ['site_controller', 'technical_director', 'daf', 'purchasing', 'pdg', 'controle_gestion', 'site_manager']
+    const procurementRole = validRoles.includes(procurementRoleRaw) ? procurementRoleRaw : null
     if (!name?.trim() || !email?.trim()) {
       res.status(400).json({ message: 'Nom et e-mail sont requis' })
+      return
+    }
+    if (!procurementRole) {
+      res.status(400).json({ message: "L'espace de travail (rôle) est obligatoire" })
       return
     }
     const normalizedEmail = email.trim().toLowerCase()

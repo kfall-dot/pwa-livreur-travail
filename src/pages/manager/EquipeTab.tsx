@@ -9,6 +9,7 @@ interface MgrRow {
   email: string;
   phone: string;
   role: string;
+  procurementRole?: string | null;
   status: string;
   pending: boolean;
 }
@@ -120,7 +121,7 @@ export default function EquipeTab({
   const [points, setPoints] = useState<PointRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [invite, setInvite] = useState({ name: '', email: '', phone: '', role: 'chef_chantier' });
+  const [invite, setInvite] = useState({ name: '', email: '', phone: '', role: 'chef_chantier', procurementRole: '' });
   const [drv, setDrv] = useState({ name: '', phone: '', pin: '1234' });
   const [qG, setQG] = useState('');
   const [stG, setStG] = useState('Tous');
@@ -151,6 +152,7 @@ export default function EquipeTab({
       const mgrs: MgrRow[] = rm ? firstArray(await rm.json(), 'managers').map((m) => ({
         id: str(m.id), name: str(m.name || m.full_name || m.email || 'Membre'),
         email: str(m.email), phone: str(m.phone), role: str(m.role),
+        procurementRole: m.procurementRole ?? m.procurement_role ?? null,
         status: str(m.status || 'active'), pending: false,
       })) : []
       const invs: MgrRow[] = ri ? firstArray(await ri.json(), 'invites').map((i) => ({
@@ -190,7 +192,7 @@ export default function EquipeTab({
       const res = await authFetch('/dashboard/managers/invite', { method: 'POST', body: JSON.stringify(invite) });
       const j = (await res.json()) as { ok?: boolean; message?: string; inviteUrl?: string };
       if (!res.ok) throw new Error(j.message || 'Erreur');
-      setInvite({ name: '', email: '', phone: '', role: 'chef_chantier' });
+      setInvite({ name: '', email: '', phone: '', role: 'chef_chantier', procurementRole: '' });
       if (j.inviteUrl) setInviteUrl(j.inviteUrl);
       setInviteOk('Invitation créée. Si l\u2019e-mail n\u2019arrive pas, le lien est affiché ci-dessous.');
       await load();
@@ -295,6 +297,18 @@ export default function EquipeTab({
                 <option value="pdg">PDG</option>
               </select>
             </label>
+            <label>Espace de travail *
+              <select required value={invite.procurementRole} data-testid="mgr-invite-procurement-role" onChange={(e) => setInvite((p) => ({ ...p, procurementRole: e.target.value }))}>
+                <option value="">-- Choisir un rôle --</option>
+                <option value="technical_director">Directeur technique (DT)</option>
+                <option value="site_controller">Conducteur de travaux (SA)</option>
+                <option value="purchasing">Service achats</option>
+                <option value="controle_gestion">Contrôle de gestion (CdG)</option>
+                <option value="daf">DAF</option>
+                <option value="pdg">PDG</option>
+                <option value="site_manager">Chef de chantier (CdC)</option>
+              </select>
+            </label>
             <button type="submit" className="btn btn-primary" disabled={savingI} data-testid="mgr-invite-send">{savingI ? 'Envoi…' : 'Envoyer l\u2019invitation'}</button>
           </form>
         )}
@@ -381,9 +395,21 @@ export default function EquipeTab({
                 <option value="pdg">PDG</option>
               </select>
             </label>
+            <label style={{ display: 'block', marginBottom: 16, fontSize: 12, color: '#64748b' }}>Espace de travail
+              <select value={editingMgr.procurementRole ?? ''} onChange={(e) => setEditingMgr({ ...editingMgr, procurementRole: e.target.value || null })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, marginTop: 4 }}>
+                <option value="">-- Aucun --</option>
+                <option value="technical_director">Directeur technique (DT)</option>
+                <option value="site_controller">Conducteur de travaux (SA)</option>
+                <option value="purchasing">Service achats</option>
+                <option value="controle_gestion">Contrôle de gestion (CdG)</option>
+                <option value="daf">DAF</option>
+                <option value="pdg">PDG</option>
+                <option value="site_manager">Chef de chantier (CdC)</option>
+              </select>
+            </label>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" className="btn" onClick={() => setEditModal(null)}>Annuler</button>
-              <button type="button" className="btn btn-primary" disabled={savingEdit} onClick={async () => { setSavingEdit(true); try { await authFetch(`/dashboard/managers/${editingMgr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingMgr.name, phone: editingMgr.phone || null, role: editingMgr.role }) }); setEditModal(null); void load(); } finally { setSavingEdit(false); } }}>{savingEdit ? 'Sauvegarde…' : 'Enregistrer'}</button>
+              <button type="button" className="btn btn-primary" disabled={savingEdit} onClick={async () => { setSavingEdit(true); try { await authFetch(`/dashboard/managers/${editingMgr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingMgr.name, phone: editingMgr.phone || null, role: editingMgr.role, procurementRole: editingMgr.procurementRole || null }) }); setEditModal(null); void load(); } finally { setSavingEdit(false); } }}>{savingEdit ? 'Sauvegarde…' : 'Enregistrer'}</button>
             </div>
           </div>
         </div>
