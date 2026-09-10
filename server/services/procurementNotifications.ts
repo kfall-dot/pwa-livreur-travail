@@ -136,14 +136,15 @@ export async function notifyRequestStatusChange(
   reference: string,
   status: string,
   targetRoles: ProcurementRole[],
+  options?: { lines?: string },
 ): Promise<void> {
+  const statusDetail = status === 'submitted' ? ' (Service achats)' : status === 'cdg_review' ? ' (Contrôle de gestion)' : ''
+  const linesDetail = options?.lines ? `\n\nDétail :\n${options.lines}` : ''
   await notifyManagersByProcurementRole(
     companyId,
     targetRoles,
     `EB ${reference} — ${status}`,
-    `La demande ${reference} est passée au statut « ${status} » et nécessite votre action${
-      status === 'submitted' ? ' (Service achats)' : status === 'cdg_review' ? ' (Contrôle de gestion)' : ''
-    }.`,
+    `La demande ${reference} est passée au statut « ${status} » et nécessite votre action${statusDetail}.${linesDetail}`,
     {
       notificationType: 'approval_required',
     },
