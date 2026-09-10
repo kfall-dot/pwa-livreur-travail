@@ -93,9 +93,9 @@ const DELAY_FIXED: Array<{ pattern: RegExp; days: number; period: string; urgent
   { pattern: /urgent|asap|vite|au\s+plus\s+t[oô]t|d[eè]s\s+que\s+possible/i, days: 0, period: 'Immédiat', urgent: true },
 ]
 
-const SEGMENT_SPLIT = /\s*,\s*|\s+et\s+|\s*;\s+/i
+const SEGMENT_SPLIT = /\s*[,;]\s*|\s+et\s+|\n+/i
 const QTY_UNIT_LINE =
-  /(\d+(?:[.,]\d+)?)\s+([\p{L}]+)\s+(?:de\s+|d['’])?(.+)/iu
+  /(\d+(?:[.,]\d+)?)\s+([\p{L}]+)(?:\s+(?:de\s+|d['\u2019]?)?\s*(.+))?/iu
 
 const NUMBER_WORDS: Array<[string, string]> = [
   ['une tonne', '1 tonne'],
@@ -183,6 +183,8 @@ const WHATSAPP_SPELLING: Array<[RegExp, string]> = [
   [/\bferaille\b/giu, 'fer'],
   [/\bsacks?\b/giu, 'sacs'],
   [/\bboites?\b/giu, 'boite'],
+  [/\bcables?\b/giu, 'cable'],
+
 ]
 
 export function correctWhatsappSpelling(text: string): string {
