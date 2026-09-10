@@ -357,9 +357,12 @@ export async function seedDemoData(): Promise<{ driverId: string; tourId: string
   }
 
   // Préserve le procurementRole existant du manager démo
-  const existingDemoManager = await db.query.managers.findFirst({
-    where: eq(managers.id, DEMO.MANAGER_ID),
-  })
+  const existingDemoManager = await db
+    .select({ procurementRole: managers.procurementRole })
+    .from(managers)
+    .where(eq(managers.id, DEMO.MANAGER_ID))
+    .limit(1)
+    .then((rows) => rows[0])
 
   await db
     .insert(managers)
@@ -383,9 +386,12 @@ export async function seedDemoData(): Promise<{ driverId: string; tourId: string
   // SA démo (Service Achats) dans la compagnie démo — les tests e2e
   // « modification réservée au SA » exigent un gestionnaire `purchasing`
   // voyant les tournées démo (isolation par compagnie).
-  const existingSaManager = await db.query.managers.findFirst({
-    where: eq(managers.id, DEMO.SA_MANAGER_ID),
-  })
+  const existingSaManager = await db
+    .select({ procurementRole: managers.procurementRole })
+    .from(managers)
+    .where(eq(managers.id, DEMO.SA_MANAGER_ID))
+    .limit(1)
+    .then((rows) => rows[0])
 
   await db
     .insert(managers)

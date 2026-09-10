@@ -158,9 +158,12 @@ export async function seedBtpPilotData(): Promise<{
 
   for (const m of managerRows) {
     // Vérifie si le manager existe déjà pour préserver son procurementRole
-    const existing = await db.query.managers.findFirst({
-      where: eq(managers.id, m.id),
-    })
+    const existing = await db
+      .select({ procurementRole: managers.procurementRole })
+      .from(managers)
+      .where(eq(managers.id, m.id))
+      .limit(1)
+      .then((rows) => rows[0])
 
     await db
       .insert(managers)
