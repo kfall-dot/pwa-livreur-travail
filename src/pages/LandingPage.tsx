@@ -34,7 +34,8 @@ export function LandingPage() {
             Du dépôt au chantier, chaque produit est suivi, photographié et certifié.
             TraceO® garantit la conformité de vos bons de commande en temps réel.
           </p>
-          <div c          <div c          <div c          <div c          <div c          <danding-hero__btn landing-hero__btn--primary">
+          <div className="landing-hero__actions">
+            <Link to="/login" className="landing-hero__btn landing-hero__btn--primary">
               Accéder à mon espace
             </Link>
             <a href="#fonctionnalites" className="landing-hero__btn landing-hero__btn--secondary">
@@ -81,7 +82,7 @@ export function LandingPage() {
                                                                                                                    -fea                 Gestion complète des BC/BT avec suivi d'approbation.                                                                                                    ame                                                                                                                                                                                         "l                ard                       ntelligente des livraisons multi-chantiers.</p>
             </div>
             <div className="landing-feature-card">
-              <div className="landing-feature-card__icon landing-feature-card__icon--teal">�              <div className="landing-feature-card__icon landing-feature-card__icon--teal">�              <div className="landing-feature-card__icon landing-feature-card__ic les smartphones.</p>
+              <div className="landing-feature-card__icon landing-feature-card__icon--teal">�              <div className="landing-feature-card__icon landing-feature-card__icon--teal">�              <div className="landing-feature-card__icon landing-feature-card__ic les smartphones.</p>
             </div>
           </div>
         </div>
@@ -178,7 +179,7 @@ export function LandingPage() {
 
       <footer       <footer       <footer       <footer       <footer   g-footer__inner">
           <div className="landing-footer__brand">
-            <TraceOMark onBrand lay            <TraceOMark onBrand lay            <TraceOMark oan            <TraceOMark onBrand lay  � a            <TraceOMark onBrand lay                   <TraceOMark onBrand lay ding-footer__cols">
+            <TraceOMark onBrand lay            <TraceOMark onBrand lay            <TraceOMark oan            <TraceOMark onBrand lay  � a            <TraceOMark onBrand lay                   <TraceOMark onBrand lay ding-footer__cols">
             <div className="landing-footer__col">
               <h4 className="landing-footer__col-title">Produit</h4>
               <a href="#fonctionnalites" className="landing-footer__link">Fonctionnalités</a>
@@ -187,6 +188,6 @@ export function LandingPage() {
             <div className="landing-footer__col">
               <h4 className="landing-footer__col-title">Entrepri              <h4 className="landing-footer__col-title">Entrepri              <h4 className="landing-fo                   <h4 className="landing-footer__col-title">Entrepri              <h4 cv>             <d              <anding-footer__col">
               <h4 className="landing-footer__col-title">Légal</h4>
-              <a href="#" className="landing-footer__l              <a href="#" className="landing-footer__l              <a href="#" className="landing-footer__l              <a href="#" className="landing-footer__l              <a href="#" className="landing-footer__l              <a co              <a href="#" className="landing-foo�              <a href="#" className="landing-footer__l             div>
+              <a href="#" className="landing-footer__l              <a href="#" className="landing-footer__l              <a href="#" className="landing-footer__l              <a href="#" className="landing-footer__l              <a href="#" className="landing-footer__l              <a co              <a href="#" className="landing-foo�              <a href="#" className="landing-footer__l             div>
   )
 }
