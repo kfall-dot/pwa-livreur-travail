@@ -44,6 +44,11 @@ const UNIT_PATTERNS: Record<string, string[]> = {
   carton: ['carton', 'cartons'],
   caisse: ['caisse', 'caisses'],
   colis: ['colis'],
+  boite: ['boite', 'boites'],
+  pot: ['pot', 'pots'],
+  feuille: ['feuille', 'feuilles'],
+  tube: ['tube', 'tubes'],
+  paquet: ['paquet', 'paquets'],
 }
 
 const UNIT_LOOKUP = new Map<string, string>()
@@ -177,6 +182,7 @@ const WHATSAPP_SPELLING: Array<[RegExp, string]> = [
   [/\bbetons?\b/giu, 'béton'],
   [/\bferaille\b/giu, 'fer'],
   [/\bsacks?\b/giu, 'sacs'],
+  [/\bboites?\b/giu, 'boite'],
 ]
 
 export function correctWhatsappSpelling(text: string): string {
