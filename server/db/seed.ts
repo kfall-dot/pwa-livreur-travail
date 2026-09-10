@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { db } from './index.js'
 import { seedDefaultCompanyUnits } from './queries.js'
 import { deliveryPoints, drivers, managerTasks, managers, products, DEMO_COMPANY_ID, companies, supermarkets, tours } from './schema.js'
