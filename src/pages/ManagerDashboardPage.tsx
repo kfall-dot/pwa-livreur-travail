@@ -227,6 +227,12 @@ export function ManagerDashboardPage() {
 
   useEffect(() => {
     if (appliedProcurementHome.current) return
+  // Force le remmount des onglets au changement de tab pour rafraîchir les données
+  useEffect(() => {
+    setSuiviRefreshKey((k) => k + 1)
+  }, [tab])
+
+
     if (!procurementRole) return
     appliedProcurementHome.current = true
     if (searchParams.get('tab')) return
@@ -654,7 +660,7 @@ export function ManagerDashboardPage() {
         )}
         {tab === 'suiviBc' && <SuiviBcTab key={`suiviBc-${suiviRefreshKey}`} handleAuth={handleAuth} />}
         {tab === 'suiviChantier' && (
-          <SuiviChantierTab key={`suiviChantier-${suiviRefreshKey}`} handleAuth={handleAuth} procurementRole={procurementRole} />
+          <SuiviChantierTab key={`suiviChantier-${suiviRefreshKey}`} handleAuth={handleAuth} procurementRole={procurementRole} refreshKey={suiviRefreshKey} />
         )}
         {tab === 'maJournee' && <MaJourneeTab key={`maJournee-${suiviRefreshKey}`} handleAuth={handleAuth} />}
         </div>

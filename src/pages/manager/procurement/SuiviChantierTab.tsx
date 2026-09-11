@@ -373,9 +373,11 @@ function EnvelopeBanner({
 export function SuiviChantierTab({
   handleAuth,
   procurementRole,
+  refreshKey,
 }: {
   handleAuth: (status: number) => boolean
   procurementRole: ProcurementRole | null
+  refreshKey?: number
 }) {
   const today = new Date()
   const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
@@ -468,6 +470,13 @@ export function SuiviChantierTab({
   useEffect(() => {
     void load()
   }, [load])
+
+  // Recharger les données quand refreshKey change (retour sur l'onglet)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      void load()
+    }
+  }, [refreshKey])
 
   // Indicateurs par chantier (top 3 matériaux, ventilation) — chargés une fois
   // par chantier pour les rôles avec accès aux indicateurs (CdG / DAF / PDG).
@@ -924,7 +933,7 @@ export function SuiviChantierTab({
         </div>
       </div>
       {error && <AlertBox>{error}</AlertBox>}
-      {procurementRole === 'controle_gestion' && <CdgOverviewHeader budgets={budgets} />}
+      {procurementRole === 'controle_gestion' && <CdgOverviewHeader budgets={budgets} refreshKey={refreshKey} />}
       {procurementRole === 'controle_gestion' && (
         <div style={css.tabsBar} data-testid="mgr-cdg-filters">
           {(Object.keys(CDG_TAB_LABELS) as CdgTab[]).map((t) => (

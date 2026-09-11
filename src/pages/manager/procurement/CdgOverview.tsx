@@ -129,7 +129,7 @@ export function CdgCategoriesCard({ indicators }: { indicators: SiteIndicators |
 }
 
 /** Tableau de bord CdG — cartes KPI (maquette cdg-dashboard : KPI → onglets → tableau). */
-export function CdgOverviewHeader({ budgets }: { budgets: SiteBudget[] }) {
+export function CdgOverviewHeader({ budgets, refreshKey }: { budgets: SiteBudget[]; refreshKey?: number }) {
   const agg = useCdgAggregates(budgets)
   // BC en cours = demandes avec BC émis, livraison pas encore confirmée (po_ready
   // + delivery_scheduled). Détail par statut, comme la tuile « BC en cours » maquette.
@@ -152,7 +152,7 @@ export function CdgOverviewHeader({ budgets }: { budgets: SiteBudget[] }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [refreshKey])
 
   if (budgets.length === 0) return null
 
