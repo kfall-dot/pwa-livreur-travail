@@ -26,8 +26,7 @@ export function LandingPage() {
             La traçabilité au service de vos{' '}
             <span className="landing-hero__accent">livraisons</span>
           </h1>
-          <p className="landing-hero__subtitle">
-            Du dépôt au chantier, chaque produit est suivi, photographié et certifié.
+          <p className="landing-hero__sub          <p className="landing-hechantier, chaque produit est suivi, photographié et certifié.
           </p>
           <div className="landing-hero__actions">
             <Link to="/login" className="landing-hero__btn landing-hero__btn--primary">
@@ -40,58 +39,38 @@ export function LandingPage() {
           <div className="landing-hero__stats">
             <div className="landing-hero__stat">
               <span className="landing-hero__stat-value">100%</span>
-              <span className="landing-hero__stat-label">Traçabilité</span>
+              <s              <s              <s              abilité</span>
             </div>
             <div className="landing-hero__stat">
-              <span className="landing-hero__stat-value">Temps réel</span>
+              <span classNam              <span classNam              <spn>
               <span className="landing-hero__stat-label">Suivi photos</span>
             </div>
-            <div className="landing-hero__stat">
-              <span className="landing-hero__stat-value">Multi-chantiers</span>
-              <span className="landing-hero__stat-label">Centralisé</span>
+            <div className="landing-hero            <div className="landing-hero            <div className="landing-hero            <div className="landing-hero           o__stat-label">Centralisé</span>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section id="features" className="landing-section">
-        <h2 className="landing-section__title">Fonctionna        <h2 className="landinsName="landing-features__grid">
-          <div className="landing-feature">
-            <div className="landing-feature__i          /div>
+                                                                                         >
+        <h2 className="landing-sectio        <h2 claionna        <h2 className="landing-sectio        <h2 claionna        <h2 className="landing-seding-feature">
+            <div className="landing-feature__icon">📦</div>
             <h3>Suivi temps réel</h3>
             <p>Chaque livraison tracée du dépôt au chantier</p>
           </div>
-          <div className="l          <div className="l          <div className="l          <div classNav>
+          <div className="landing-feature">
+            <div className="landing-feature__icon">📋</div>
             <h3>Bons de commande</h3>
             <p>Gestion BC/BT avec validations multi-niveaux</p>
           </div>
           <div className="landing-feature">
             <div className="landing-feature__icon">👥</div>
-            <h3>Équipe & chantiers</h3>
-            <p>Gérez livreurs, DT, chefs de chantier</p>
-          </div>
-          <div className="landing-feature">
-            <div className="landing-feature__icon">🏗️</div>
-            <h3>Achats chantier</h3>
+            <h            <h            <h            <h            <h            <h            <h            <h            <h            <h            <h            <h            <h            <h            <h       �<  iv>
+            <   Achats chantier</h3>
             <p>EB, validations DT/DAF/PDG, suivi budget</p>
           </div>
-          <div className="landing-feature">
-            <div className="landing-feature__icon">📊</div>
-            <h3>Tableaux de bord</h3>
-            <p>KPI par chantier, livreur, période</p>
-          </div>
-          <div className="landing-feature">
-                                                                          <h3>Alertes intelligentes</h3>
+                                                                                                                                                                     r ch                                                            v                                                                                                        <h3>Alertes intelligentes</h3>
             <p>Notifications in-app et SMS</p>
           </div>
         </div>
-      </section>
-
-      <section id="how" className="landing-section">
-        <h2 className="landing-section__title">Comment ça marche</h2>
-        <div className="landing-how__grid">
-          <div className="landing-how__step">
-            <div className="landing-how__num">1</div>
+      </section>      </section>      </section>   ="l      </section>      </section>      </section>   ="l      le">Comment ça marche</h2>
+        <div className="landing-how__        <div className="landing-how__        <div classNam       <div className="landing-how__num">1</div>
             <h3>Expression de besoin</h3>
             <p>Via WhatsApp ou directement dans l'app</p>
           </div>
@@ -108,10 +87,7 @@ export function LandingPage() {
           <div className="landing-how__step">
             <div className="landing-how__num">4</div>
             <h3>Suivi</h3>
-            <p>Temps réel pour toutes les parties</p>
-          </div>
-        </div>
-      </section>
+            <p>T            <p>T            <p>T                           <p                </section>
 
       <section id="pricing" className="landing-section">
         <h2 className="landing-section__title">Tarifs</h2>
@@ -123,8 +99,7 @@ export function LandingPage() {
               <li>1 chantier</li>
               <li>3 livreurs</li>
               <li>Support e-mail</li>
-            </ul>
-            <Link to="/login" className="landing-pricing__btn">Commencer</Link>
+            <            <            <            <            <g-            <            <    
           </div>
           <div className="landing-pricing__card landing-pricing__card--featured">
             <div className="landing-pricing__badge">Populaire</div>
