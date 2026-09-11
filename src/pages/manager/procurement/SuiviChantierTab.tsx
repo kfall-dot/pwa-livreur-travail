@@ -472,6 +472,7 @@ export function SuiviChantierTab({
   }, [load])
 
   // Recharger les données quand refreshKey change (retour sur l'onglet)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (refreshKey !== undefined && refreshKey > 0) {
       void load()

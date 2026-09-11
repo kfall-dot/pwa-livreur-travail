@@ -134,6 +134,7 @@ export function ManagerDashboardPage() {
   }, [searchParams])
 
   // Force le remount des onglets de suivi pour rafraîchir les données à chaque changement
+  const [suiviRefreshKey, setSuiviRefreshKey] = useState(0)
   const activeTabRef = useRef<Tab>(tab)
   useEffect(() => {
     if (activeTabRef.current !== tab) {
@@ -158,7 +159,6 @@ export function ManagerDashboardPage() {
   // restent à planifier, on ramène le SA dans Achats (demande rouverte) au lieu du Suivi.
   const [pendingProcurementRemainingTours, setPendingProcurementRemainingTours] = useState(0)
   const [pendingProcurementFocusRequest, setPendingProcurementFocusRequest] = useState<string | null>(null)
-  const [suiviRefreshKey, setSuiviRefreshKey] = useState(0)
   const [pendingTaskCount, setPendingTaskCount] = useState(0)
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0)
   const [hideE2eDbWarning, setHideE2eDbWarning] = useState(false)
@@ -227,12 +227,6 @@ export function ManagerDashboardPage() {
 
   useEffect(() => {
     if (appliedProcurementHome.current) return
-  // Force le remmount des onglets au changement de tab pour rafraîchir les données
-  useEffect(() => {
-    setSuiviRefreshKey((k) => k + 1)
-  }, [tab])
-
-
     if (!procurementRole) return
     appliedProcurementHome.current = true
     if (searchParams.get('tab')) return
