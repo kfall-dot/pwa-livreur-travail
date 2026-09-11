@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { TourProvider } from './contexts/TourContext'
 import { DashboardPage } from './pages/DashboardPage'
 import { DeliveryPage } from './pages/DeliveryPage'
+import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
 import { ManagerDashboardPage } from './pages/ManagerDashboardPage'
 import { ManagerLoginPage } from './pages/ManagerLoginPage'
@@ -65,6 +66,7 @@ function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/demo/livreur" element={<DemoShowcasePage role="driver" />} />
       <Route path="/demo/manager" element={<DemoShowcasePage role="manager" />} />
