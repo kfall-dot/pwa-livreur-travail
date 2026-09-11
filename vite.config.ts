@@ -29,8 +29,6 @@ export default defineConfig({
       // le precache Workbox fige les assets entre les specs Playwright.
       disable: process.env.VITE_E2E === 'true' || process.env.VITE_DISABLE_PWA === 'true',
       registerType: 'autoUpdate',
-      skipWaiting: true,
-      clientsClaim: true,
       includeAssets: [
         'favicon.svg',
         'favicon.png',
