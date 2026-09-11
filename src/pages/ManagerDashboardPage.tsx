@@ -554,6 +554,7 @@ export function ManagerDashboardPage() {
           )}
         {tab === 'suivi'    && (
           <SuiviTab
+            key={`suivi-${suiviRefreshKey}`}
             handleAuth={handleAuth}
             procurementRole={procurementRole}
             refreshKey={suiviRefreshKey}
