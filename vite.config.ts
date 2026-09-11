@@ -29,6 +29,8 @@ export default defineConfig({
       // le precache Workbox fige les assets entre les specs Playwright.
       disable: process.env.VITE_E2E === 'true',
       registerType: 'autoUpdate',
+      skipWaiting: true,
+      clientsClaim: true,
       includeAssets: [
         'favicon.svg',
         'favicon.png',
@@ -64,6 +66,7 @@ export default defineConfig({
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/demo\//],
         cleanupOutdatedCaches: true,
+        cacheId: `traceo-${new Date().toISOString().slice(0, 10)}`,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/i,
