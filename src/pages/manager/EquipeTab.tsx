@@ -152,7 +152,7 @@ export default function EquipeTab({
       const mgrs: MgrRow[] = rm ? firstArray(await rm.json(), 'managers').map((m) => ({
         id: str(m.id), name: str(m.name || m.full_name || m.email || 'Membre'),
         email: str(m.email), phone: str(m.phone), role: str(m.role),
-        procurementRole: m.procurementRole ?? m.procurement_role ?? null,
+        procurementRole: str(m.procurementRole || m.procurement_role) || null,
         status: str(m.status || 'active'), pending: false,
       })) : []
       const invs: MgrRow[] = ri ? firstArray(await ri.json(), 'invites').map((i) => ({
