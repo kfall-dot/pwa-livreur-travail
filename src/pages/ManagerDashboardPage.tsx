@@ -132,6 +132,15 @@ export function ManagerDashboardPage() {
     const fromUrl = tabFromSearchParam(searchParams.get('tab'))
     if (fromUrl) setTab(fromUrl)
   }, [searchParams])
+
+  // Force le remount des onglets de suivi pour rafraîchir les données à chaque changement
+  const activeTabRef = useRef<Tab>(tab)
+  useEffect(() => {
+    if (activeTabRef.current !== tab) {
+      activeTabRef.current = tab
+      setSuiviRefreshKey((k) => k + 1)
+    }
+  }, [tab])
   const [managerName, setManagerName] = useState('')
   const [currentManagerId, setCurrentManagerId] = useState('')
   const [managerRole, setManagerRole] = useState<'admin' | 'manager'>('manager')
@@ -606,16 +615,17 @@ export function ManagerDashboardPage() {
             onTasksChanged={bumpTasks}
           />
         )}
-        {tab === 'livreurs' && <EquipeTab handleAuth={handleAuth} isAdmin={isAdmin} canInviteManagers={isAdmin} initialChip="livreurs" />}
+        {tab === 'livreurs' && <EquipeTab key={`livreurs-${suiviRefreshKey}`} handleAuth={handleAuth} isAdmin={isAdmin} canInviteManagers={isAdmin} initialChip="livreurs" />}
           {tab === 'gestionnaires' && isAdmin && (
-          <EquipeTab handleAuth={handleAuth} isAdmin={isAdmin} canInviteManagers={isAdmin} currentManagerId={currentManagerId} initialChip="gestionnaires" />
+          <EquipeTab key={`gestionnaires-${suiviRefreshKey}`} handleAuth={handleAuth} isAdmin={isAdmin} canInviteManagers={isAdmin} currentManagerId={currentManagerId} initialChip="gestionnaires" />
         )}
-        {tab === 'points'   && <PointsTab handleAuth={handleAuth} onPointsChanged={bumpCatalog} />}
+        {tab === 'points'   && <PointsTab key={`points-${suiviRefreshKey}`} handleAuth={handleAuth} onPointsChanged={bumpCatalog} />}
         {(tab === 'produits' || tab === 'unites' || tab === 'fournisseurs') && (
-          <CatalogueTab initialChip={tab === 'fournisseurs' ? 'fournisseurs' : tab === 'unites' ? 'unites' : 'produits'} />
+          <CatalogueTab key={`catalog-${suiviRefreshKey}`} initialChip={tab === 'fournisseurs' ? 'fournisseurs' : tab === 'unites' ? 'unites' : 'produits'} />
         )}
         {tab === 'taches'   && (
           <TachesTab
+            key={`taches-${suiviRefreshKey}`}
             handleAuth={handleAuth}
             onOpenDelivery={openDeliveryFromTask}
             onOpenTour={openTourFromTask}
@@ -625,6 +635,7 @@ export function ManagerDashboardPage() {
         )}
         {tab === 'achats' && (
           <AchatsTab
+            key={`achats-${suiviRefreshKey}`}
             handleAuth={handleAuth}
             procurementRole={procurementRole}
             managerName={managerName}
@@ -640,11 +651,11 @@ export function ManagerDashboardPage() {
             onOpenSuiviChantier={() => setTab('suiviChantier')}
           />
         )}
-        {tab === 'suiviBc' && <SuiviBcTab handleAuth={handleAuth} />}
+        {tab === 'suiviBc' && <SuiviBcTab key={`suiviBc-${suiviRefreshKey}`} handleAuth={handleAuth} />}
         {tab === 'suiviChantier' && (
-          <SuiviChantierTab handleAuth={handleAuth} procurementRole={procurementRole} />
+          <SuiviChantierTab key={`suiviChantier-${suiviRefreshKey}`} handleAuth={handleAuth} procurementRole={procurementRole} />
         )}
-        {tab === 'maJournee' && <MaJourneeTab handleAuth={handleAuth} />}
+        {tab === 'maJournee' && <MaJourneeTab key={`maJournee-${suiviRefreshKey}`} handleAuth={handleAuth} />}
         </div>
       </div>
     </div>
