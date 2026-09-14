@@ -57,7 +57,7 @@ export async function applyMigrations(): Promise<void> {
       } catch (err) {
         await client.query('rollback')
         const msg = err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)
-        throw new Error(`[migrations] FAIL ${m.name} : ${msg}`)
+        throw new Error(`[migrations] FAIL ${m.name} : ${msg}`, { cause: err })
       }
     }
     console.log(`[migrations] ${applied} appliquée(s), ${unique.length - applied} déjà en place`)
