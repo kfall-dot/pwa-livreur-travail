@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
-import { patchBcRegisterFollowup, uploadBcInvoiceFile } from './procurementApi'
+import { fetchBcInvoiceFile, patchBcRegisterFollowup, uploadBcInvoiceFile } from './procurementApi'
 import type { BcRegisterMonth, BcRegisterRecapGroup, BcRegisterRow } from './procurementTypes'
 import { AlertBox, formatFcfa } from './procurementUi'
 
@@ -112,7 +112,6 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   const [fInvoice, setFInvoice] = useState<InvoiceFilter>('')
   const [preview, setPreview] = useState<{ url: string; fileName: string; contentType: string } | null>(null)
   const previewUrlRef = useRef<string | null>(null)
-  const [invoiceUploadId, setInvoiceUploadId] = useState<string | null>(null)
   const invoiceInputRef = useRef<HTMLInputElement | null>(null)
   const invoiceUploadRowRef = useRef<BcRegisterRow | null>(null)
 
@@ -210,18 +209,30 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     URL.revokeObjectURL(url)
   }
 
-  // Transmission de la copie de facture au comptable (PDF ou image).
+  // Ouverture du sélecteur de fichier pour joindre / remplacer la copie de facture.
   const openInvoicePicker = (row: BcRegisterRow) => {
     invoiceUploadRowRef.current = row
-    setInvoiceUploadId(row.purchaseOrderId)
     invoiceInputRef.current?.click()
+  }
+
+  // Aperçu intégré de la facture jointe (image ou PDF).
+  const openInvoicePreview = async (row: BcRegisterRow) => {
+    if (!row.invoiceFile) return
+    try {
+      const { blob } = await fetchBcInvoiceFile(row.purchaseOrderId)
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+      const url = URL.createObjectURL(blob)
+      previewUrlRef.current = url
+      setPreview({ url, fileName: row.invoiceFile.fileName, contentType: blob.type })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Aperçu indisponible')
+    }
   }
 
   const handleInvoiceFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const row = invoiceUploadRowRef.current
     const file = e.target.files?.[0]
     e.target.value = ''
-    setInvoiceUploadId(null)
     invoiceUploadRowRef.current = null
     if (!row || !file) return
     try {
@@ -445,6 +456,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                     <th>MODE DE PAIEMENT</th>
                     <th>MONTANT (XOF)</th>
                     <th>N° FACTURE</th>
+                    <th>FACTURE</th>
                     <th>OBSERVATION</th>
                     <th>VÉRIFICATION</th>
                     <th>DOC EN ATTACHE</th>
@@ -462,6 +474,34 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                         <td>{row.paymentMode}</td>
                         <td className="mono tot">{row.amountLabel}</td>
                         <td>{followupInput(row, 'invoice', 'n° facture…')}</td>
+                        <td>
+                          {row.invoiceTransmitted ? (
+                            <span
+                              className="pill pill-green"
+                              data-testid={`mgr-suivi-bc-invoice-transmitted-${row.purchaseOrderId}`}
+                            >
+                              ✓ Transmis
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ padding: '4px 10px', fontSize: 12 }}
+                              disabled={!row.invoice.trim() || !row.invoiceFile}
+                              title={
+                                !row.invoiceFile
+                                  ? 'Joindre la facture pour transmettre'
+                                  : !row.invoice.trim()
+                                    ? 'Saisir le numéro de facture pour transmettre'
+                                    : 'Transmettre la facture au comptable'
+                              }
+                              data-testid={`mgr-suivi-bc-invoice-transmit-${row.purchaseOrderId}`}
+                              onClick={() => void transmitInvoice(row)}
+                            >
+                              Transmettre
+                            </button>
+                          )}
+                        </td>
                         <td>{followupInput(row, 'observation', 'à compléter…')}</td>
                         <td>
                           {row.verification.trim() ? (
@@ -481,48 +521,37 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                         </td>
                         <td>
                           {row.invoiceFile ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <button
                                 type="button"
                                 className="att"
                                 data-testid={`mgr-suivi-bc-invoice-${row.purchaseOrderId}`}
+                                onClick={() => void openInvoicePreview(row)}
+                                title="Aperçu de la facture (image ou PDF)"
+                              >
+                                📎 {row.invoiceFile.fileName}
+                              </button>
+                              <button
+                                type="button"
+                                className="att"
+                                style={{ padding: '2px 7px' }}
+                                data-testid={`mgr-suivi-bc-invoice-replace-${row.purchaseOrderId}`}
                                 onClick={() => openInvoicePicker(row)}
                                 title="Remplacer la facture"
                               >
-                                ✕ {row.invoiceFile.fileName}
+                                ✕
                               </button>
-                              {row.invoiceTransmitted ? (
-                                <span
-                                  className="pill pill-green"
-                                  data-testid={`mgr-suivi-bc-invoice-transmitted-${row.purchaseOrderId}`}
-                                >
-                                  ✓ Transmis au CMPT
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="btn"
-                                  style={{ padding: '4px 10px', fontSize: 12 }}
-                                  disabled={!row.invoice.trim()}
-                                  title={row.invoice.trim() ? 'Transmettre la facture au comptable' : 'Saisir le numéro de facture pour transmettre'}
-                                  data-testid={`mgr-suivi-bc-invoice-transmit-${row.purchaseOrderId}`}
-                                  onClick={() => void transmitInvoice(row)}
-                                >
-                                  Transmettre au CMPT
-                                </button>
-                              )}
                             </div>
                           ) : (
                             <button
                               type="button"
                               className="btn"
                               style={{ padding: '4px 10px', fontSize: 12 }}
-                              disabled={invoiceUploadId === row.purchaseOrderId || !row.invoice.trim()}
-                              title={row.invoice.trim() ? 'Joindre la copie de la facture' : 'Saisir le numéro de facture pour joindre'}
                               data-testid={`mgr-suivi-bc-invoice-attach-${row.purchaseOrderId}`}
                               onClick={() => openInvoicePicker(row)}
+                              title="Joindre la copie de la facture (PDF ou image)"
                             >
-                              Joindre
+                              📎 Joindre
                             </button>
                           )}
                         </td>
@@ -533,8 +562,9 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
               </table>
             </div>
             <p className="legend">
-              ● Champs FACTURE / JUSTIFS / OBSERVATION / VÉRIFICATION éditables en ligne (sauvegarde auto à la sortie du champ,
-              comme aujourd'hui) — pastille verte = champ complété. ● Pièces jointes : clic → aperçu intégré (image ou PDF).
+              ● Champs N° FACTURE / OBSERVATION / VÉRIFICATION éditables en ligne (sauvegarde auto à la sortie du champ). ●
+              Facture : 📎 Joindre la copie (PDF ou image) → clic sur le nom = aperçu, ✕ = remplacer → bouton Transmettre
+              actif une fois le n° saisi → pastille verte ✓ Transmis.
             </p>
           </div>
         ) : null}
