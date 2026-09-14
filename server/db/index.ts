@@ -35,34 +35,52 @@ function createDb() {
   // overload (TS2345) — seul ce membre extrait passe.
   type DrizzleConfigArg = Exclude<Parameters<typeof drizzle>[0], string>
 
-  // Ne JAMAIS réutiliser une connexion idle : Neon suspend les branches (~5 min
-  // d'inactivité) et le routeur/NAT peut tuer les TCP idle SANS FIN — la
-  // connexion morte hang alors toutes les queries suivantes (sans timeout
-  // par requête, cf. hang « Validation… » en e2e). On ferme les connexions
-  // idle après 30s et on fail-fast si l'établissement dépasse 10s.
-  const poolOptions = {
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
-  }
+  return drizzle({ client: getPool(), schema } as unknown as DrizzleConfigArg)
+}
 
-  const netlifyUrl = process.env.NETLIFY_DB_URL?.trim()
-  if (netlifyUrl && isRemoteNeonUrl(netlifyUrl)) {
-    const pool = new Pool({ connectionString: netlifyUrl, ...poolOptions })
-    guardPoolAgainstNeonIdleErrors(pool)
-    return drizzle({ client: pool, schema } as unknown as DrizzleConfigArg)
+/**
+ * Résout l'URL Neon distante : NETLIFY_DB_URL (nom hérité, utilisé sur Railway)
+ * puis E2E_DATABASE_URL (branche e2e). Lève si aucune URL distante valide.
+ */
+export function resolveDatabaseUrl(): string {
+  const candidates = [process.env.NETLIFY_DB_URL?.trim(), process.env.E2E_DATABASE_URL?.trim()]
+  for (const url of candidates) {
+    if (url && isRemoteNeonUrl(url)) return url
   }
-
-  // netlify:dev injecte souvent un Postgres local (sans tables) à la place de NETLIFY_DB_URL.
-  const e2eUrl = process.env.E2E_DATABASE_URL?.trim()
-  if (e2eUrl && isRemoteNeonUrl(e2eUrl)) {
-    const pool = new Pool({ connectionString: e2eUrl, ...poolOptions })
-    guardPoolAgainstNeonIdleErrors(pool)
-    return drizzle({ client: pool, schema } as unknown as DrizzleConfigArg)
-  }
-
   throw new Error('NETLIFY_DB_URL (ou E2E_DATABASE_URL) doit être définie avec une URL Neon distante.')
 }
 
+/**
+ * Pool partagé (migrations + client applicatif) — créé paresseusement.
+ * Ne JAMAIS réutiliser une connexion idle : Neon suspend les branches (~5 min
+ * d'inactivité) et le routeur/NAT peut tuer les TCP idle SANS FIN — la
+ * connexion morte hang alors toutes les queries suivantes (sans timeout
+ * par requête, cf. hang « Validation… » en e2e). On ferme les connexions
+ * idle après 30s et on fail-fast si l'établissement dépasse 10s.
+ */
+export function getPool(): Pool {
+  cachedPool ??= (() => {
+    const pool = new Pool({
+      connectionString: resolveDatabaseUrl(),
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+    })
+    guardPoolAgainstNeonIdleErrors(pool)
+    return pool
+  })()
+  return cachedPool
+}
+
+let cachedPool: Pool | undefined
+
+/**
+ * Client applicatif — NE PAS créer au chargement du module.
+ *
+ * L'évaluation du bundle (Netlify, Railway build, etc.) se fait sans variables
+ * d'environnement DB : un `new Pool()` exécuté au top-level lèverait une erreur.
+ * Le client est donc construit paresseusement à la première utilisation
+ * (une requête), quand les variables d'environnement sont réellement disponibles.
+ */
 /**
  * Client applicatif — NE PAS créer au chargement du module.
  *

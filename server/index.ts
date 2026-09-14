@@ -6,6 +6,7 @@ import { validateProductionBypassAtStartup } from './config/production.js'
 import { validateProductionSecurityAtStartup } from './config/productionAudit.js'
 import { initSentry } from './lib/sentry.js'
 import { testBypass } from './testBypass.js'
+import { applyMigrations } from './db/applyMigrations.js'
 
 initSentry()
 validateJwtSecretAtStartup()
@@ -19,6 +20,16 @@ export const app = createApp()
 // par server/worker.entry.ts dans tsconfig.server.json.
 const runningInWorkers = 'WebSocketPair' in globalThis
 if (!runningInWorkers) {
+  // Migrations idempotentes au démarrage (Railway) — avant l'écoute HTTP.
+  // Désactivation ponctuelle : SKIP_MIGRATIONS=1.
+  if (process.env.SKIP_MIGRATIONS !== '1') {
+    try {
+      await applyMigrations()
+    } catch (err) {
+      console.error('[migrations] échec au démarrage :', err instanceof Error ? err.message : err)
+      process.exit(1)
+    }
+  }
   const PORT = Number(process.env.PORT ?? 3002)
   app.listen(PORT, () => {
     console.log(`API Livreur → http://localhost:${PORT}/api`)

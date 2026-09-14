@@ -34,7 +34,7 @@
     "db:fingerprint": "bash scripts/db-fingerprint.sh",
     "netlify": "netlify",
     "netlify:dev": "bash scripts/netlify-dev.sh",
-    "db:migrate": "netlify database migrations apply",
+    "db:migrate": "npm run build:server && node dist-server/server/db/applyMigrations.js",
     "pages:dev": "bash scripts/cloudflare-dev.sh",
     "pages:build:frontend": "npm run build",
     "pages:build:worker": "npm run build:server",
