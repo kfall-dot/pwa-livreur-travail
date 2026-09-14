@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
-import { fetchBcInvoiceFile, fetchRequestLineAttachment, patchBcRegisterFollowup, uploadBcInvoiceFile } from './procurementApi'
+import { patchBcRegisterFollowup, uploadBcInvoiceFile } from './procurementApi'
 import type { BcRegisterMonth, BcRegisterRecapGroup, BcRegisterRow } from './procurementTypes'
 import { AlertBox, formatFcfa } from './procurementUi'
 
@@ -89,13 +89,6 @@ function daysSince(dateStr: string): number | null {
   return Math.floor((Date.now() - d.getTime()) / 86400000)
 }
 
-/** Emoji de pièce jointe façon maquette : 📄 PDF, 📷 image, 📎 sinon. */
-function attIcon(fileName: string): string {
-  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
-  if (ext === 'pdf') return '📄'
-  if (['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(ext)) return '📷'
-  return '📎'
-}
 
 function uniqueValues(rows: BcRegisterRow[], key: 'siteName' | 'supplierName' | 'paymentMode'): string[] {
   return [...new Set(rows.map((r) => String(r[key] ?? '').trim() || '—'))].sort((a, b) => a.localeCompare(b, 'fr'))
@@ -244,18 +237,6 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     }
   }
 
-  const openInvoicePreview = async (row: BcRegisterRow) => {
-    if (!row.invoiceFile) return
-    try {
-      const file = await fetchBcInvoiceFile(row.purchaseOrderId)
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
-      const url = URL.createObjectURL(file.blob)
-      previewUrlRef.current = url
-      setPreview({ url, fileName: file.fileName ?? row.invoiceFile.fileName, contentType: file.blob.type })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Facture introuvable')
-    }
-  }
 
   const saveFollowup = async (row: BcRegisterRow, field: FollowupField, value: string) => {
     const next = value.trim()
@@ -265,18 +246,6 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
       setRows((prev) => prev.map((r) => (r.purchaseOrderId === updated.purchaseOrderId ? updated : r)))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Enregistrement impossible')
-    }
-  }
-
-  const openAttachment = async (row: BcRegisterRow, lineId: string, fileName: string) => {
-    try {
-      const file = await fetchRequestLineAttachment(row.purchaseRequestId, lineId)
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
-      const url = URL.createObjectURL(file.blob)
-      previewUrlRef.current = url
-      setPreview({ url, fileName: file.fileName || fileName, contentType: file.contentType })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Pièce jointe introuvable')
     }
   }
 

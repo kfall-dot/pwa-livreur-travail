@@ -1,4 +1,3 @@
-import { css } from '../procurementUi'
 
 export type FollowupField = 'invoice' | 'observation' | 'verification' | 'justifs'
 

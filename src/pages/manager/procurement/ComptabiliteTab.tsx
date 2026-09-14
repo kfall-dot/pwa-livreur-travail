@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
-import { fetchBcInvoiceFile, fetchRequestLineAttachment, patchBcRegisterFollowup } from './procurementApi'
+import { fetchBcInvoiceFile, patchBcRegisterFollowup } from './procurementApi'
 import type { BcRegisterMonth, BcRegisterRow } from './procurementTypes'
 
 /**
@@ -217,18 +217,6 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
 
   const [preview, setPreview] = useState<{ url: string; fileName: string; contentType: string } | null>(null)
   const previewUrlRef = useRef<string | null>(null)
-
-  const openAttachment = async (row: BcRegisterRow, lineId: string, fileName: string) => {
-    try {
-      const file = await fetchRequestLineAttachment(row.purchaseRequestId, lineId)
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
-      const url = URL.createObjectURL(file.blob)
-      previewUrlRef.current = url
-      setPreview({ url, fileName: file.fileName || fileName, contentType: file.contentType })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Pièce jointe introuvable')
-    }
-  }
 
   /** Ouvre la copie de facture transmise par le SA (aperçu). */
   const openInvoiceFile = async (row: BcRegisterRow) => {

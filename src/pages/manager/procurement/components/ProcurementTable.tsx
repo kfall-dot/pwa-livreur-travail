@@ -1,4 +1,3 @@
-import { css } from '../procurementUi'
 
 export interface ProcurementColumn<T> {
   key: string
