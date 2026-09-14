@@ -228,10 +228,22 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
       await uploadBcInvoiceFile(row.purchaseOrderId, file)
       setRows((prev) =>
         prev.map((r) =>
-          r.purchaseOrderId === row.purchaseOrderId ? { ...r, invoiceFile: { fileName: file.name } } : r,
+          r.purchaseOrderId === row.purchaseOrderId ? { ...r, invoiceFile: { fileName: file.name }, invoiceTransmitted: false } : r,
         ),
       )
-      toast.show(`Facture transmise au comptable · ${file.name}`)
+      toast.show(`Facture jointe · ${file.name}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Jointure impossible')
+    }
+  }
+
+  // Transmettre la facture au comptable (CMPT) : PJ + n° de facture requis.
+  const transmitInvoice = async (row: BcRegisterRow) => {
+    if (!row.invoiceFile || !row.invoice.trim()) return
+    try {
+      const updated = await patchBcRegisterFollowup(row.purchaseOrderId, { invoiceTransmitted: true })
+      setRows((prev) => prev.map((r) => (r.purchaseOrderId === updated.purchaseOrderId ? updated : r)))
+      toast.show(`Facture ${row.invoice.trim()} transmise au comptable`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Transmission impossible')
     }
@@ -469,7 +481,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                         </td>
                         <td>
                           {row.invoiceFile ? (
-                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                               <button
                                 type="button"
                                 className="att"
@@ -479,6 +491,26 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                               >
                                 ✕ {row.invoiceFile.fileName}
                               </button>
+                              {row.invoiceTransmitted ? (
+                                <span
+                                  className="pill pill-green"
+                                  data-testid={`mgr-suivi-bc-invoice-transmitted-${row.purchaseOrderId}`}
+                                >
+                                  ✓ Transmis au CMPT
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  style={{ padding: '4px 10px', fontSize: 12 }}
+                                  disabled={!row.invoice.trim()}
+                                  title={row.invoice.trim() ? 'Transmettre la facture au comptable' : 'Saisir le numéro de facture pour transmettre'}
+                                  data-testid={`mgr-suivi-bc-invoice-transmit-${row.purchaseOrderId}`}
+                                  onClick={() => void transmitInvoice(row)}
+                                >
+                                  Transmettre au CMPT
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <button

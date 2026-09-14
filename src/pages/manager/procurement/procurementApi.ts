@@ -40,7 +40,7 @@ export async function fetchProcurementConfig(): Promise<ProcurementConfig> {
 
 export async function patchBcRegisterFollowup(
   purchaseOrderId: string,
-  patch: { invoice?: string; justifs?: string; observation?: string; verification?: string; invoicePaid?: boolean },
+  patch: { invoice?: string; justifs?: string; observation?: string; verification?: string; invoicePaid?: boolean; invoiceTransmitted?: boolean },
 ): Promise<BcRegisterRow> {
   const res = await authFetch(`${BASE}/bc-register/${encodeURIComponent(purchaseOrderId)}`, {
     method: 'PATCH',

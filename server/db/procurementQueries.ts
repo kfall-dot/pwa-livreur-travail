@@ -1589,6 +1589,7 @@ export type BcRegisterRow = {
   verification: string
   invoicePaid: boolean
   invoiceFile: { fileName: string } | null
+  invoiceTransmitted: boolean
   attachment: string
   attachments: Array<{ lineId: string; fileName: string }>
 }
@@ -1613,6 +1614,7 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       saVerification: purchaseOrders.saVerification,
       saInvoicePaid: purchaseOrders.saInvoicePaid,
       saInvoiceFileName: purchaseOrders.saInvoiceFileName,
+      saInvoiceTransmitted: purchaseOrders.saInvoiceTransmitted,
     })
     .from(purchaseOrders)
     .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
@@ -1684,6 +1686,7 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       verification: (row.saVerification ?? '').trim() || '—',
       invoicePaid: row.saInvoicePaid,
       invoiceFile: (row.saInvoiceFileName ?? '').trim() ? { fileName: row.saInvoiceFileName!.trim() } : null,
+      invoiceTransmitted: row.saInvoiceTransmitted,
       attachment: bcRegisterAttachments(supplierLines),
       attachments,
     }
@@ -1699,6 +1702,7 @@ export async function updateBcRegisterFollowup(
     observation?: string
     verification?: string
     invoicePaid?: boolean
+    invoiceTransmitted?: boolean
   },
 ): Promise<BcRegisterRow | null> {
   const set: Partial<{
@@ -1707,12 +1711,14 @@ export async function updateBcRegisterFollowup(
     saObservation: string
     saVerification: string
     saInvoicePaid: boolean
+    saInvoiceTransmitted: boolean
   }> = {}
   if (patch.invoice !== undefined) set.saInvoice = patch.invoice
   if (patch.justifs !== undefined) set.saJustifs = patch.justifs
   if (patch.observation !== undefined) set.saObservation = patch.observation
   if (patch.verification !== undefined) set.saVerification = patch.verification
   if (patch.invoicePaid !== undefined) set.saInvoicePaid = patch.invoicePaid
+  if (patch.invoiceTransmitted !== undefined) set.saInvoiceTransmitted = patch.invoiceTransmitted
   if (Object.keys(set).length === 0) {
     const rows = await listDeliveredBcRegister(companyId)
     return rows.find((r) => r.purchaseOrderId === purchaseOrderId) ?? null
@@ -1739,12 +1745,14 @@ export async function setBcInvoiceFile(
         saInvoiceFileName: file.fileName,
         saInvoiceContentType: file.contentType,
         saInvoiceUploadedAt: new Date(),
+        saInvoiceTransmitted: false,
       }
     : {
         saInvoiceBlobKey: null,
         saInvoiceFileName: null,
         saInvoiceContentType: null,
         saInvoiceUploadedAt: null,
+        saInvoiceTransmitted: false,
       }
   const [updated] = await db
     .update(purchaseOrders)

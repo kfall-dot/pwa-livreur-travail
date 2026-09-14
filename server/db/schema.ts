@@ -618,6 +618,7 @@ export const purchaseOrders = pgTable('purchase_orders', {
   saInvoiceFileName: text('sa_invoice_file_name'),
   saInvoiceContentType: text('sa_invoice_content_type'),
   saInvoiceUploadedAt: timestamp('sa_invoice_uploaded_at'),
+  saInvoiceTransmitted: boolean('sa_invoice_transmitted').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

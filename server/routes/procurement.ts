@@ -263,6 +263,7 @@ const bcRegisterFollowupSchema = z.object({
   observation: z.string().max(500).optional(),
   verification: z.string().max(500).optional(),
   invoicePaid: z.boolean().optional(),
+  invoiceTransmitted: z.boolean().optional(),
 })
 
 procurementRouter.patch(

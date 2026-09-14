@@ -284,6 +284,7 @@ export interface BcRegisterRow {
   verification: string
   invoicePaid: boolean
   invoiceFile: { fileName: string } | null
+  invoiceTransmitted: boolean
   attachment: string
   attachments: Array<{ lineId: string; fileName: string }>
 }
