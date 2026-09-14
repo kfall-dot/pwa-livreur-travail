@@ -38,6 +38,7 @@ const ROLE_LABELS: Record<string, string> = {
   chef_chantier: 'Chef de chantier',
   daf: 'DAF',
   pdg: 'PDG',
+  accountant: 'Comptabilité',
 };
 
 const EQ_CSS = `
@@ -295,6 +296,7 @@ export default function EquipeTab({
                 <option value="controle_gestion">Contrôle de gestion</option>
                 <option value="daf">DAF</option>
                 <option value="pdg">PDG</option>
+                <option value="accountant">Comptabilité</option>
               </select>
             </label>
             <label>Espace de travail *
@@ -307,6 +309,7 @@ export default function EquipeTab({
                 <option value="daf">DAF</option>
                 <option value="pdg">PDG</option>
                 <option value="site_manager">Chef de chantier (CdC)</option>
+                <option value="accountant">Comptabilité</option>
               </select>
             </label>
             <button type="submit" className="btn btn-primary" disabled={savingI} data-testid="mgr-invite-send">{savingI ? 'Envoi…' : 'Envoyer l\u2019invitation'}</button>
@@ -393,6 +396,7 @@ export default function EquipeTab({
                 <option value="controle_gestion">Contrôle de gestion</option>
                 <option value="daf">DAF</option>
                 <option value="pdg">PDG</option>
+                <option value="accountant">Comptabilité</option>
               </select>
             </label>
             <label style={{ display: 'block', marginBottom: 16, fontSize: 12, color: '#64748b' }}>Espace de travail
@@ -405,6 +409,7 @@ export default function EquipeTab({
                 <option value="daf">DAF</option>
                 <option value="pdg">PDG</option>
                 <option value="site_manager">Chef de chantier (CdC)</option>
+                <option value="accountant">Comptabilité</option>
               </select>
             </label>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

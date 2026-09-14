@@ -8,6 +8,7 @@ export type ProcurementRole =
   | 'pdg'
   | 'controle_gestion'
   | 'site_manager'
+  | 'accountant'
 
 export type PurchaseRequestStatus =
   | 'whatsapp_ingested'
@@ -281,6 +282,8 @@ export interface BcRegisterRow {
   justifs: string
   observation: string
   verification: string
+  invoicePaid: boolean
+  invoiceFile: { fileName: string } | null
   attachment: string
   attachments: Array<{ lineId: string; fileName: string }>
 }

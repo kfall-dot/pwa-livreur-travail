@@ -165,6 +165,7 @@ export const PROCUREMENT_ROLE_LABELS: Record<ProcurementRole, string> = {
   pdg: 'PDG',
   controle_gestion: 'Contrôle de gestion',
   site_manager: 'Chef de chantier',
+  accountant: 'Comptabilité',
 }
 
 export function approvalDecisionLabel(role: ProcurementRole, decision: string): string {
@@ -191,7 +192,8 @@ export function isProcurementWorkspaceRole(role: string | null | undefined): boo
     role === 'purchasing' ||
     role === 'daf' ||
     role === 'pdg' ||
-    role === 'controle_gestion'
+    role === 'controle_gestion' ||
+    role === 'accountant'
   )
 }
 

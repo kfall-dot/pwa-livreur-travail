@@ -28,6 +28,8 @@ import {
   listDrafts,
   listDeliveredBcRegister,
   updateBcRegisterFollowup,
+  setBcInvoiceFile,
+  getBcInvoiceFile,
   listSiteStock,
   listPurchaseRequests,
   listSites,
@@ -78,7 +80,7 @@ import { createBlankEbDraft, createDraftFromPastedText } from '../services/ebPas
 import { EB_FICHE_SERVICE, ficheLinesFromParsed, generateEbFicheHtml, signoffFromApprovalSteps } from '../services/ebFiche.js'
 import { buildEbObjet } from '../services/ebParser.js'
 import { needsPdgApproval, sumLineAmountsFcfa } from '../services/ebPricing.js'
-import { notifyRequestStatusChange } from '../services/procurementNotifications.js'
+import { notifyRequestStatusChange, notifyManagersByProcurementRole } from '../services/procurementNotifications.js'
 import {
   assertEtapeForRole,
   clientIpFromReq,
@@ -237,7 +239,7 @@ procurementRouter.get('/config', (_req, res) => {
 
 procurementRouter.get(
   '/bc-register',
-  requireProcurementRole('purchasing', 'daf', 'pdg'),
+  requireProcurementRole('purchasing', 'daf', 'pdg', 'accountant'),
   async (req, res) => {
     const { manager } = req as unknown as ManagerRequest
     try {
@@ -260,11 +262,12 @@ const bcRegisterFollowupSchema = z.object({
   justifs: z.string().max(500).optional(),
   observation: z.string().max(500).optional(),
   verification: z.string().max(500).optional(),
+  invoicePaid: z.boolean().optional(),
 })
 
 procurementRouter.patch(
   '/bc-register/:poId',
-  requireProcurementRole('purchasing'),
+  requireProcurementRole('purchasing', 'accountant'),
   async (req, res) => {
     const body = parseBody(bcRegisterFollowupSchema, req.body, res)
     if (!body) return
@@ -280,6 +283,93 @@ procurementRouter.patch(
       console.error('[procurement] bc-register patch error', err)
       res.status(500).json({ message: 'Enregistrement suivi BC impossible' })
     }
+  },
+)
+
+// ── Transmission de la facture (copie) du SA vers le comptable ────────────────
+
+const MAX_BC_INVOICE_BYTES = LINE_ATTACHMENT_MAX_BYTES
+
+procurementRouter.post(
+  '/bc-register/:poId/invoice-file',
+  requireProcurementRole('purchasing'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    const poId = String(req.params.poId)
+    const file = parseJsonAttachment(req.body)
+    if ('error' in file) {
+      res.status(400).json({ message: file.error })
+      return
+    }
+    if (file.buffer.length === 0 || file.buffer.length > MAX_BC_INVOICE_BYTES) {
+      res.status(400).json({ message: 'Fichier trop volumineux (max. 5 Mo)' })
+      return
+    }
+    const contentType = resolveLineAttachmentMime(file.originalname, file.mimetype)
+    if (!contentType) {
+      res.status(400).json({ message: 'Type de fichier non autorisé (PDF ou image attendu)' })
+      return
+    }
+    const key = `sa-invoice/${poId}/${randomUUID()}`
+    try {
+      await putLineAttachment(key, file.buffer, { contentType, fileName: file.originalname })
+    } catch (err) {
+      console.error('[procurement] bc invoice store', err)
+      res.status(503).json({ message: 'Stockage des pièces jointes indisponible' })
+      return
+    }
+    const ok = await setBcInvoiceFile(manager.companyId, poId, {
+      blobKey: key,
+      fileName: file.originalname,
+      contentType,
+    })
+    if (!ok) {
+      res.status(404).json({ message: 'BC introuvable dans le registre' })
+      return
+    }
+    // Notification du comptable (e-mail + in-app + SMS).
+    try {
+      await notifyManagersByProcurementRole(
+        manager.companyId,
+        ['accountant'],
+        `Facture transmise — ${file.originalname}`,
+        `Le Service Achats a transmis la copie de facture « ${file.originalname} » (BC ${poId}). Elle est disponible dans l'onglet Factures de la Comptabilité.`,
+        { refType: 'purchase_order', refId: poId, notificationType: 'task_assigned' },
+      )
+    } catch (err) {
+      console.error('[procurement] bc invoice notify', err)
+    }
+    res.json({ ok: true, fileName: file.originalname })
+  },
+)
+
+procurementRouter.get(
+  '/bc-register/:poId/invoice-file',
+  requireProcurementRole('purchasing', 'accountant'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    const stored = await getBcInvoiceFile(manager.companyId, String(req.params.poId))
+    if (!stored) {
+      res.status(404).json({ message: 'Aucune facture transmise pour ce BC' })
+      return
+    }
+    let blob: { data: Buffer } | null
+    try {
+      blob = await getLineAttachment(stored.blobKey)
+    } catch (err) {
+      console.error('[procurement] bc invoice read', err)
+      res.status(503).json({ message: 'Stockage des pièces jointes indisponible' })
+      return
+    }
+    if (!blob?.data?.length) {
+      res.status(404).json({ message: 'Fichier introuvable' })
+      return
+    }
+    res.setHeader('Content-Type', stored.contentType || 'application/octet-stream')
+    if (stored.fileName) {
+      res.setHeader('Content-Disposition', `inline; filename="${stored.fileName.replace(/"/g, '')}"`)
+    }
+    res.send(blob.data)
   },
 )
 

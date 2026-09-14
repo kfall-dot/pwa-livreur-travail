@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TraceO - Connexion</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;color:#1a1a1a;line-height:1.6;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0b4a2c 0%,#073520 50%,#0d5530 100%);padding:24px}.login-container{display:grid;grid-template-columns:1fr 1fr;max-width:900px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}.login-info{background:linear-gradient(135deg,#0b4a2c,#073520);color:#fff;padding:48px 40px;display:flex;flex-direction:column;justify-content:center}.login-info h1{font-size:2rem;font-weight:800;margin-bottom:16px}.login-info h1 span{color:#86efac}.login-info p{opacity:.85;margin-bottom:32px;line-height:1.7}.feature-list{list-style:none}.feature-list li{padding:8px 0;display:flex;align-items:center;gap:12px}.feature-list li::before{content:"\2713";width:24px;height:24px;background:rgba(134,239,172,.2);color:#86efac;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0}.login-form{padding:48px 40px;display:flex;flex-direction:column;justify-content:center}.form-header{text-align:center;margin-bottom:32px}.form-header .logo{font-size:1.5rem;font-weight:800;color:#0b4a2c;margin-bottom:8px}.form-header h2{font-size:1.5rem;font-weight:700;margin-bottom:8px}.form-header p{color:#6b7280;font-size:.95rem}.form-group{margin-bottom:20px}.form-group label{display:block;font-weight:600;margin-bottom:6px;font-size:.9rem;color:#374151}.form-group input{width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:8px;font-size:1rem;transition:border-color .2s}.form-group input:focus{outline:none;border-color:#0b4a2c}.form-options{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;font-size:.9rem}.form-options a{color:#0b4a2c;text-decoration:none;font-weight:600}.form-options a:hover{text-decoration:underline}.form-options label{display:flex;align-items:center;gap:6px;color:#6b7280;cursor:pointer}.form-options input[type="checkbox"]{width:16px;height:16px;accent-color:#0b4a2c}.btn{width:100%;padding:14px;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:transform .1s}.btn:active{transform:scale(.98)}.btn-primary{background:#0b4a2c;color:#fff;margin-bottom:16px}.btn-primary:hover{background:#083a22}.btn-google{border:2px solid #e5e7eb;background:#fff;color:#374151;display:flex;align-items:center;justify-content:center;gap:10px}.btn-google:hover{border-color:#0b4a2c}.btn-google svg{width:18px;height:18px}.divider{display:flex;align-items:center;margin:24px 0;color:#9ca3af;font-size:.85rem}.divider::before,.divider::after{content:"";flex:1;height:1px;background:#e5e7eb}.divider span{padding:0 16px}.signup-link{text-align:center;margin-top:24px;color:#6b7280;font-size:.9rem}.signup-link a{color:#0b4a2c;font-weight:600;text-decoration:none}.signup-link a:hover{text-decoration:underline}@media(max-width:768px){.login-container{grid-template-columns:1fr}.login-info{display:none}}</style>
+</head>
+<body>
+<div class="login-container">
+<div class="login-info">
+<h1>TraceO</h1>
+<p>La tracabilit&eacute; au service de vos livraisons</p>
+<ul class="feature-list">
+<li>Suivi en temps r&eacute;el de vos livreurs</li>
+<li>Preuves photographiques et g&eacute;olocalisation</li>
+<li>Certification de chaque livraison</li>
+<li>Tableaux de bord et analytics</li>
+</ul>
+</div>
+<div class="login-form">
+<div class="form-header">
+<div class="logo">TraceO</div>
+<h2>Connexion</h2>
+<p>Acc&eacute;dez &agrave; votre espace de gestion</p>
+</div>
+<form>
+<div class="form-group">
+<label for="email">Email</label>
+<input type="email" id="email" placeholder="votre@email.com" required>
+</div>
+<div class="form-group">
+<label for="password">Mot de passe</label>
+<input type="password" id="password" placeholder="Votre mot de passe" required>
+</div>
+<div class="form-options">
+<label><input type="checkbox"> Se souvenir de moi</label>
+<a href="#">Mot de passe oubli&eacute;?</a>
+</div>
+<button type="submit" class="btn btn-primary">Se connecter</button>
+</form>
+<div class="divider"><span>ou</span></div>
+<button class="btn btn-google">
+<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+Continuer avec Google
+</button>
+</form>
+<p class="signup-link">Pas encore de compte? <a href="#">Cr&eacute;er un compte</a></p>
+</div>
+</div>
+</body>
+</html>

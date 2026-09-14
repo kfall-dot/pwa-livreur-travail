@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { authFetch } from '../managerApi'
-import { fetchRequestLineAttachment, patchBcRegisterFollowup } from './procurementApi'
+import { fetchBcInvoiceFile, fetchRequestLineAttachment, patchBcRegisterFollowup, uploadBcInvoiceFile } from './procurementApi'
 import type { BcRegisterMonth, BcRegisterRecapGroup, BcRegisterRow } from './procurementTypes'
 import { AlertBox, formatFcfa } from './procurementUi'
 
@@ -117,9 +117,11 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   const [fSupplier, setFSupplier] = useState('')
   const [fPayment, setFPayment] = useState('')
   const [fInvoice, setFInvoice] = useState<InvoiceFilter>('')
-  const [invoiceEditId, setInvoiceEditId] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ url: string; fileName: string; contentType: string } | null>(null)
   const previewUrlRef = useRef<string | null>(null)
+  const [invoiceUploadId, setInvoiceUploadId] = useState<string | null>(null)
+  const invoiceInputRef = useRef<HTMLInputElement | null>(null)
+  const invoiceUploadRowRef = useRef<BcRegisterRow | null>(null)
 
   const load = useCallback(
     async (selectedMonth?: string | null) => {
@@ -195,10 +197,10 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   const exportXls = () => {
     const esc = (v: unknown) =>
       String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    const headers = ['Chantier', 'Fournisseur', 'Date', 'N° BC', 'Paiement', 'Montant (XOF)', 'Facture', 'Justifs', 'Observation', 'Vérification']
+    const headers = ['Chantier', 'Fournisseur', 'Date', 'N° BC', 'Paiement', 'Montant (XOF)', 'N° Facture', 'Observation', 'Vérification']
     const body = filteredRows
       .map((r) => {
-        const cells = [r.siteName, r.supplierName, r.date, r.bon, r.paymentMode, r.amountFcfa ?? '', r.invoice, r.justifs, r.observation, r.verification]
+        const cells = [r.siteName, r.supplierName, r.date, r.bon, r.paymentMode, r.amountFcfa ?? '', r.invoice, r.observation, r.verification]
         return '<tr>' + cells.map((v, i) => (i === 5 ? `<td x:num>${esc(v)}</td>` : `<td>${esc(v)}</td>`)).join('') + '</tr>'
       })
       .join('')
@@ -213,6 +215,46 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     a.download = `points-fournisseurs-bc-${month ?? 'tous'}.xls`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // Transmission de la copie de facture au comptable (PDF ou image).
+  const openInvoicePicker = (row: BcRegisterRow) => {
+    invoiceUploadRowRef.current = row
+    setInvoiceUploadId(row.purchaseOrderId)
+    invoiceInputRef.current?.click()
+  }
+
+  const handleInvoiceFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const row = invoiceUploadRowRef.current
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    setInvoiceUploadId(null)
+    invoiceUploadRowRef.current = null
+    if (!row || !file) return
+    try {
+      await uploadBcInvoiceFile(row.purchaseOrderId, file)
+      setRows((prev) =>
+        prev.map((r) =>
+          r.purchaseOrderId === row.purchaseOrderId ? { ...r, invoiceFile: { fileName: file.name } } : r,
+        ),
+      )
+      toast.show(`Facture transmise au comptable · ${file.name}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Transmission impossible')
+    }
+  }
+
+  const openInvoicePreview = async (row: BcRegisterRow) => {
+    if (!row.invoiceFile) return
+    try {
+      const file = await fetchBcInvoiceFile(row.purchaseOrderId)
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+      const url = URL.createObjectURL(file.blob)
+      previewUrlRef.current = url
+      setPreview({ url, fileName: file.fileName ?? row.invoiceFile.fileName, contentType: file.blob.type })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Facture introuvable')
+    }
   }
 
   const saveFollowup = async (row: BcRegisterRow, field: FollowupField, value: string) => {
@@ -258,6 +300,14 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   return (
     <div className="sbc" data-testid="mgr-suivi-bc">
       <style>{SBC_CSS}</style>
+      <input
+        ref={invoiceInputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => void handleInvoiceFileChange(e)}
+        data-testid="mgr-suivi-bc-invoice-input"
+      />
       <div className="page">
         <div className="topbar">
           <div>
@@ -413,8 +463,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                     <th>BON</th>
                     <th>MODE DE PAIEMENT</th>
                     <th>MONTANT (XOF)</th>
-                    <th>FACTURE</th>
-                    <th>JUSTIFS</th>
+                    <th>N° FACTURE</th>
                     <th>OBSERVATION</th>
                     <th>VÉRIFICATION</th>
                     <th>DOC EN ATTACHE</th>
@@ -431,47 +480,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                         <td className="bon">{row.bon}</td>
                         <td>{row.paymentMode}</td>
                         <td className="mono tot">{row.amountLabel}</td>
-                        <td>
-                          {row.invoice.trim() && invoiceEditId !== row.purchaseOrderId ? (
-                            <span
-                              className="pill pill-green"
-                              style={{ cursor: 'pointer' }}
-                              title="Cliquer pour modifier la facture"
-                              data-testid={`mgr-suivi-bc-invoice-${row.purchaseOrderId}`}
-                              onClick={() => setInvoiceEditId(row.purchaseOrderId)}
-                            >
-                              {row.invoice}
-                            </span>
-                          ) : (
-                            <>
-                              {!row.invoice.trim() && <span className="pill pill-red">Manquante</span>}
-                              <div style={{ marginTop: 4, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                                {followupInput(row, 'invoice', 'n° facture…')}
-                                <button
-                                  type="button"
-                                  className="pill pill-green"
-                                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-                                  title="Marquer la facture comme reçue"
-                                  onClick={() => { void saveFollowup(row, 'invoice', 'reçue'); setInvoiceEditId(null) }}
-                                >
-                                  ✓ Reçue
-                                </button>
-                                {row.invoice.trim() && (
-                                  <button
-                                    type="button"
-                                    className="pill pill-gray"
-                                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-                                    title="Annuler la modification"
-                                    onClick={() => setInvoiceEditId(null)}
-                                  >
-                                    ✕
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </td>
-                        <td>{followupInput(row, 'justifs', 'à compléter…')}</td>
+                        <td>{followupInput(row, 'invoice', 'n° facture…')}</td>
                         <td>{followupInput(row, 'observation', 'à compléter…')}</td>
                         <td>
                           {row.verification.trim() ? (
@@ -490,20 +499,30 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                           )}
                         </td>
                         <td>
-                          {(row.attachments ?? []).length === 0 ? (
-                            <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
-                          ) : (
-                            (row.attachments ?? []).map((att) => (
+                          {row.invoiceFile ? (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                               <button
-                                key={att.lineId}
                                 type="button"
                                 className="att"
-                                data-testid={`mgr-suivi-bc-attach-${row.purchaseOrderId}`}
-                                onClick={() => void openAttachment(row, att.lineId, att.fileName)}
+                                data-testid={`mgr-suivi-bc-invoice-${row.purchaseOrderId}`}
+                                onClick={() => openInvoicePicker(row)}
+                                title="Remplacer la facture"
                               >
-                                {attIcon(att.fileName)} {att.fileName}
+                                ✕ {row.invoiceFile.fileName}
                               </button>
-                            ))
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ padding: '4px 10px', fontSize: 12 }}
+                              disabled={invoiceUploadId === row.purchaseOrderId || !row.invoice.trim()}
+                              title={row.invoice.trim() ? 'Joindre la copie de la facture' : 'Saisir le numéro de facture pour joindre'}
+                              data-testid={`mgr-suivi-bc-invoice-attach-${row.purchaseOrderId}`}
+                              onClick={() => openInvoicePicker(row)}
+                            >
+                              Joindre
+                            </button>
                           )}
                         </td>
                       </tr>

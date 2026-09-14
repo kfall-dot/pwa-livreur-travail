@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TraceO - Rapports</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,sans-serif;color:#1e293b;line-height:1.6;background:#f8fafc;min-height:100vh}
+.header{background:#1e3a5f;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center}
+.header h1{font-size:1.25rem;font-weight:700}
+.header .user{font-size:.85rem;opacity:.8}
+.nav{background:#fff;border-bottom:1px solid #e2e8f0;padding:0 24px;display:flex;gap:8px}
+.nav button{padding:12px 20px;border:none;background:none;font-family:inherit;font-size:.9rem;font-weight:600;color:#64748b;cursor:pointer;border-bottom:3px solid transparent}
+.nav button.active{color:#1e3a5f;border-bottom-color:#1e3a5f}
+.container{max-width:1280px;margin:0 auto;padding:24px}
+.page-title{font-size:1.25rem;font-weight:700;color:#1e3a5f;margin-bottom:16px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:16px;padding:20px}
+.card h3{font-size:1rem;font-weight:700;margin-bottom:16px}
+.summary-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px}
+.summary-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px}
+.summary-card h4{font-size:.85rem;color:#64748b;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.summary-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9}
+.summary-item:last-child{border-bottom:none;font-weight:700}
+.btn-export{background:#1e3a5f;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:16px}
+.btn-export:hover{background:#152d4a}
+.kpi-label{display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot-credit{background:#3b82f6}
+.dot-comptant{background:#10b981}
+.dot-cheque{background:#f59e0b}
+.dot-virement{background:#8b5cf6}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{text-align:left;padding:12px;color:#1e3a5f;border-bottom:2px solid #e2e8f0;font-size:.75rem;text-transform:uppercase;letter-spacing:.4px;background:#f8fafc}
+td{padding:12px;border-bottom:1px solid #e2e8f0;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.btn-sm{background:#1e3a5f;color:#fff;border:none;padding:6px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:.85rem}
+.btn-sm:hover{background:#152d4a}
+@media(max-width:768px){.summary-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="header">
+<h1>TraceO - Comptabilit&eacute;</h1>
+<span class="user">Comptabilit&eacute; (sa@btp-pilote.ci)</span>
+</header>
+<nav class="nav">
+<button>Tableau de bord</button>
+<button>Suivi BC</button>
+<button>Factures</button>
+<button class="active">Rapports</button>
+</nav>
+<div class="container">
+<h1 class="page-title">Rapports &amp; Analytiques</h1>
+<div class="summary-grid">
+<div class="summary-card">
+<h4>R&eacute;partition par mode de paiement</h4>
+<div class="summary-item">
+<span class="kpi-label"><span class="dot dot-credit"></span> Cr&eacute;dit</span>
+<span>11 650 000 FCFA (12 BC)</span>
+</div>
+<div class="summary-item">
+<span class="kpi-label"><span class="dot dot-comptant"></span> Comptant</span>
+<span>4 030 000 FCFA (23 BC)</span>
+</div>
+<div class="summary-item">
+<span class="kpi-label"><span class="dot dot-cheque"></span> Ch&egrave;que</span>
+<span>3 550 000 FCFA (8 BC)</span>
+</div>
+<div class="summary-item">
+<span class="kpi-label"><span class="dot dot-virement"></span> Virement</span>
+<span>7 950 000 FCFA (4 BC)</span>
+</div>
+<div class="summary-item">
+<span>Total</span>
+<span>27 180 000 FCFA</span>
+</div>
+</div>
+<div class="summary-card">
+<h4>R&eacute;partition par fournisseur</h4>
+<div class="summary-item">
+<span>Lafarge C&ocirc;te d&rsquo;Ivoire</span>
+<span>11 650 000 FCFA</span>
+</div>
+<div class="summary-item">
+<span>Bollor&eacute; Logistics</span>
+<span>7 950 000 FCFA</span>
+</div>
+<div class="summary-item">
+<span>TotalEnergies</span>
+<span>4 030 000 FCFA</span>
+</div>
+<div class="summary-item">
+<span>Colas CI</span>
+<span>3 550 000 FCFA</span>
+</div>
+</div>
+</div>
+<div class="card">
+<h3>Rapports disponibles</h3>
+<p style="color:#64748b;margin-bottom:16px">S&eacute;lectionnez un rapport &agrave; g&eacute;n&eacute;rer ou exporter.</p>
+<table>
+<thead>
+<tr>
+<th>Rapport</th>
+<th>Description</th>
+<th>Format</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="font-weight:700">Suivi BC</td>
+<td>Liste des BC avec d&eacute;tails fournisseurs et paiements</td>
+<td>XLSX</td>
+<td><button class="btn-sm">Exporter</button></td>
+</tr>
+<tr>
+<td style="font-weight:700">Factures</td>
+<td>Liste des factures avec statut de paiement</td>
+<td>XLSX</td>
+<td><button class="btn-sm">Exporter</button></td>
+</tr>
+<tr>
+<td style="font-weight:700">Recap fournisseur</td>
+<td>R&eacute;capitulatif group&eacute; par fournisseur</td>
+<td>PDF</td>
+<td><button class="btn-sm">Exporter</button></td>
+</tr>
+<tr>
+<td style="font-weight:700">Suivi paiements</td>
+<td>&Eacute;tat des paiements par mode</td>
+<td>XLSX</td>
+<td><button class="btn-sm">Exporter</button></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</body>
+</html>

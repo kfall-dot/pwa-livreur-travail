@@ -40,7 +40,7 @@ export async function fetchProcurementConfig(): Promise<ProcurementConfig> {
 
 export async function patchBcRegisterFollowup(
   purchaseOrderId: string,
-  patch: { invoice?: string; justifs?: string; observation?: string; verification?: string },
+  patch: { invoice?: string; justifs?: string; observation?: string; verification?: string; invoicePaid?: boolean },
 ): Promise<BcRegisterRow> {
   const res = await authFetch(`${BASE}/bc-register/${encodeURIComponent(purchaseOrderId)}`, {
     method: 'PATCH',
@@ -392,6 +392,47 @@ export async function fetchRequestLineAttachment(
 export function lineAttachmentUrl(requestId: string, lineId: string): string {
   const apiBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '') || '/api/v1'
   return `${apiBase}${BASE}/requests/${encodeURIComponent(requestId)}/lines/${encodeURIComponent(lineId)}/attachment`
+}
+
+/** SA : transmet la copie d'une facture au comptable (base64, max 5 Mo). */
+export async function uploadBcInvoiceFile(poId: string, file: File): Promise<void> {
+  const buf = new Uint8Array(await file.arrayBuffer())
+  const chunk = 8192
+  let binary = ''
+  for (let i = 0; i < buf.length; i += chunk) {
+    binary += String.fromCharCode(...Array.from(buf.subarray(i, i + chunk)))
+  }
+  const res = await authFetch(`${BASE}/bc-register/${encodeURIComponent(poId)}/invoice-file`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+      data: btoa(binary),
+    }),
+  })
+  if (!res.ok) {
+    throw await apiErrorMessage(res, 'Transmission de la facture refusée')
+  }
+}
+
+/** SA + comptable : télécharge la copie de facture transmise. */
+export async function fetchBcInvoiceFile(poId: string): Promise<{ blob: Blob; fileName: string | null }> {
+  const res = await fetch(`${API_ROOT}${BASE}/bc-register/${encodeURIComponent(poId)}/invoice-file`, {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+  })
+  if (!res.ok) {
+    throw await apiErrorMessage(res, 'Facture introuvable')
+  }
+  const blob = new Blob([await res.arrayBuffer()], { type: res.headers.get('content-type') || 'application/octet-stream' })
+  const named = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] ?? null
+  return { blob, fileName: named }
+}
+
+export function bcInvoiceFileUrl(poId: string): string {
+  const apiBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '') || '/api/v1'
+  return `${apiBase}${BASE}/bc-register/${encodeURIComponent(poId)}/invoice-file`
 }
 
 export function documentHtmlUrl(poId: string): string {

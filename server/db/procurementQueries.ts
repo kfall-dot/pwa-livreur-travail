@@ -36,7 +36,6 @@ import { normalizeEbSpendCategory } from '../../shared/ebSpendCategory.js'
 import {
   bcRegisterAttachments,
   bcRegisterDate,
-  bcRegisterInvoice,
   deliveredAmountFcfa,
   formatBcRegisterAmount,
   parseDeclaredQuantities,
@@ -1588,6 +1587,8 @@ export type BcRegisterRow = {
   justifs: string
   observation: string
   verification: string
+  invoicePaid: boolean
+  invoiceFile: { fileName: string } | null
   attachment: string
   attachments: Array<{ lineId: string; fileName: string }>
 }
@@ -1610,6 +1611,8 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       saJustifs: purchaseOrders.saJustifs,
       saObservation: purchaseOrders.saObservation,
       saVerification: purchaseOrders.saVerification,
+      saInvoicePaid: purchaseOrders.saInvoicePaid,
+      saInvoiceFileName: purchaseOrders.saInvoiceFileName,
     })
     .from(purchaseOrders)
     .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
@@ -1675,10 +1678,12 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       quantities: quantitiesFromDelivery(supplierLines, declaration),
       amountFcfa,
       amountLabel: formatBcRegisterAmount(amountFcfa),
-      invoice: (row.saInvoice ?? '').trim() || bcRegisterInvoice(paymentMode),
+      invoice: (row.saInvoice ?? '').trim(),
       justifs: (row.saJustifs ?? '').trim() || 'RAS',
       observation: (row.saObservation ?? '').trim() || 'RAS',
       verification: (row.saVerification ?? '').trim() || '—',
+      invoicePaid: row.saInvoicePaid,
+      invoiceFile: (row.saInvoiceFileName ?? '').trim() ? { fileName: row.saInvoiceFileName!.trim() } : null,
       attachment: bcRegisterAttachments(supplierLines),
       attachments,
     }
@@ -1693,6 +1698,7 @@ export async function updateBcRegisterFollowup(
     justifs?: string
     observation?: string
     verification?: string
+    invoicePaid?: boolean
   },
 ): Promise<BcRegisterRow | null> {
   const set: Partial<{
@@ -1700,11 +1706,13 @@ export async function updateBcRegisterFollowup(
     saJustifs: string
     saObservation: string
     saVerification: string
+    saInvoicePaid: boolean
   }> = {}
   if (patch.invoice !== undefined) set.saInvoice = patch.invoice
   if (patch.justifs !== undefined) set.saJustifs = patch.justifs
   if (patch.observation !== undefined) set.saObservation = patch.observation
   if (patch.verification !== undefined) set.saVerification = patch.verification
+  if (patch.invoicePaid !== undefined) set.saInvoicePaid = patch.invoicePaid
   if (Object.keys(set).length === 0) {
     const rows = await listDeliveredBcRegister(companyId)
     return rows.find((r) => r.purchaseOrderId === purchaseOrderId) ?? null
@@ -1717,6 +1725,53 @@ export async function updateBcRegisterFollowup(
   if (!updated) return null
   const rows = await listDeliveredBcRegister(companyId)
   return rows.find((r) => r.purchaseOrderId === purchaseOrderId) ?? null
+}
+
+/** Enregistre (ou retire, avec null) la copie de facture transmise au comptable. */
+export async function setBcInvoiceFile(
+  companyId: string,
+  purchaseOrderId: string,
+  file: { blobKey: string; fileName: string; contentType: string } | null,
+): Promise<boolean> {
+  const set = file
+    ? {
+        saInvoiceBlobKey: file.blobKey,
+        saInvoiceFileName: file.fileName,
+        saInvoiceContentType: file.contentType,
+        saInvoiceUploadedAt: new Date(),
+      }
+    : {
+        saInvoiceBlobKey: null,
+        saInvoiceFileName: null,
+        saInvoiceContentType: null,
+        saInvoiceUploadedAt: null,
+      }
+  const [updated] = await db
+    .update(purchaseOrders)
+    .set(set)
+    .where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId)))
+    .returning({ id: purchaseOrders.id })
+  return Boolean(updated)
+}
+
+/** Lit les métadonnées de la facture transmise (clé blob + nom + type). */
+export async function getBcInvoiceFile(
+  companyId: string,
+  purchaseOrderId: string,
+): Promise<{ blobKey: string; fileName: string | null; contentType: string | null } | null> {
+  const rows = await db
+    .select({
+      blobKey: purchaseOrders.saInvoiceBlobKey,
+      fileName: purchaseOrders.saInvoiceFileName,
+      contentType: purchaseOrders.saInvoiceContentType,
+    })
+    .from(purchaseOrders)
+    .where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId)))
+    .limit(1)
+  const row = rows[0]
+  const blobKey = row?.blobKey?.trim()
+  if (!row || !blobKey) return null
+  return { blobKey, fileName: row.fileName, contentType: row.contentType }
 }
 
 export type SiteStockRow = {

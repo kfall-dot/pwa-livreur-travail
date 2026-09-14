@@ -34,6 +34,7 @@ export const procurementRoleEnum = pgEnum('procurement_role', [
   'pdg',
   'controle_gestion',
   'site_manager',
+  'accountant',
 ])
 
 export const siteBudgetAmendmentStatusEnum = pgEnum('site_budget_amendment_status', [
@@ -612,6 +613,11 @@ export const purchaseOrders = pgTable('purchase_orders', {
   saJustifs: text('sa_justifs'),
   saObservation: text('sa_observation'),
   saVerification: text('sa_verification'),
+  saInvoicePaid: boolean('sa_invoice_paid').notNull().default(false),
+  saInvoiceBlobKey: text('sa_invoice_blob_key'),
+  saInvoiceFileName: text('sa_invoice_file_name'),
+  saInvoiceContentType: text('sa_invoice_content_type'),
+  saInvoiceUploadedAt: timestamp('sa_invoice_uploaded_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

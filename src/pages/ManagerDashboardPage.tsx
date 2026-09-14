@@ -46,6 +46,7 @@ import { EditSupermarketModal } from './manager/modals/EditSupermarketModal'
 import { EditTourModal } from './manager/modals/EditTourModal'
 import { AchatsTab } from './manager/procurement/AchatsTab'
 import { SuiviBcTab } from './manager/procurement/SuiviBcTab'
+import { ComptabiliteTab } from './manager/procurement/ComptabiliteTab'
 import { SuiviChantierTab } from './manager/procurement/SuiviChantierTab'
 import { MaJourneeTab } from './manager/procurement/MaJourneeTab'
 import { fetchDraftInboxCount } from './manager/procurement/procurementApi'
@@ -54,11 +55,12 @@ import type { ProcurementRole, ProcurementTourPrefill } from './manager/procurem
 import { PROCUREMENT_ROLE_LABELS, canSeeSuiviChantier, isProcurementWorkspaceRole, isSiteManagerRole } from './manager/procurement/procurementUi'
 import EquipeTab from './manager/EquipeTab'
 
-type Tab = 'suivi' | 'suiviBc' | 'suiviChantier' | 'planifier' | 'livreurs' | 'gestionnaires' | 'points' | 'produits' | 'unites' | 'fournisseurs' | 'taches' | 'achats' | 'maJournee'
+type Tab = 'suivi' | 'suiviBc' | 'suiviChantier' | 'planifier' | 'livreurs' | 'gestionnaires' | 'points' | 'produits' | 'unites' | 'fournisseurs' | 'taches' | 'achats' | 'maJournee' | 'comptabilite'
 /* Icônes et sections de la sidebar — reproduit la maquette docs/mockups/sidebar-manager-v1.html */
 const SIDEBAR_ICONS: Partial<Record<string, string>> = {
   maJournee: '🗓️',
   achats: '🛒',
+  comptabilite: '🧾',
   suiviChantier: '🏗️',
   suiviBc: '📋',
   suivi: '🚚',
@@ -88,6 +90,8 @@ const TAB_FROM_QUERY = new Set<Tab>([
   'fournisseurs',
   'taches',
   'achats',
+  'maJournee',
+  'comptabilite',
 ])
 
 function tabFromSearchParam(value: string | null): Tab | null {
@@ -233,7 +237,9 @@ export function ManagerDashboardPage() {
     if (isSiteManagerRole(procurementRole)) {
       setTab('maJournee')
     }
-    if (isProcurementWorkspaceRole(procurementRole)) {
+    if (procurementRole === 'accountant') {
+      setTab('comptabilite')
+    } else if (isProcurementWorkspaceRole(procurementRole)) {
       setTab('achats')
     }
   }, [procurementRole, searchParams])
@@ -241,6 +247,10 @@ export function ManagerDashboardPage() {
   useEffect(() => {
     if (isSiteManagerRole(procurementRole) && tab !== 'maJournee' && tab !== 'suiviChantier') {
       setTab('maJournee')
+      return
+    }
+    if (procurementRole === 'accountant') {
+      if (tab !== 'comptabilite') setTab('comptabilite')
       return
     }
     if (!isProcurementWorkspaceRole(procurementRole)) return
@@ -287,6 +297,8 @@ export function ManagerDashboardPage() {
         { id: 'maJournee', label: 'Ma journée', tab: 'maJournee' },
         { id: 'suiviChantier' as const, label: 'Suivi chantier', tab: 'suiviChantier' as Tab },
       ]
+    : procurementRole === 'accountant'
+    ? [{ id: 'comptabilite' as const, label: 'Comptabilité', tab: 'comptabilite' as Tab }]
     : procurementWorkspace
     ? [
         { id: 'achats', label: 'Achats chantier', tab: 'achats', badge: procurementInboxCount },
@@ -653,6 +665,8 @@ export function ManagerDashboardPage() {
           />
         )}
         {tab === 'suiviBc' && <SuiviBcTab key={`suiviBc-${suiviRefreshKey}`} handleAuth={handleAuth} />}
+        {tab === 'comptabilite' && <ComptabiliteTab key={`comptabilite-${suiviRefreshKey}`} handleAuth={handleAuth} />}
+
         {tab === 'suiviChantier' && (
           <SuiviChantierTab key={`suiviChantier-${suiviRefreshKey}`} handleAuth={handleAuth} procurementRole={procurementRole} refreshKey={suiviRefreshKey} />
         )}
