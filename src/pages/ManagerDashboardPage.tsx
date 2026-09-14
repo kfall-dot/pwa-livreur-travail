@@ -9,7 +9,6 @@ import { isValidContactEmail, normalizeContactEmail } from '../../shared/email'
 import { authFetch, fetchSupermarkets, setSupermarketActiveState } from './manager/managerApi'
 import { CatalogueTab } from './manager/CatalogueTab'
 import { SITE_TYPES, isSiteType } from '../../shared/catalogEnums'
-import { todayIso, tourLifecycleLabel } from './manager/managerConstants'
 import {
   type ProductRow,
   type UnitRow,
