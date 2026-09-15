@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
-import { authFetch } from '../managerApi'
+import { useProcurementStore } from '../../../stores/procurementStore'
 import { fetchBcInvoiceFile, patchBcRegisterFollowup } from './procurementApi'
-import type { BcRegisterMonth, BcRegisterRow } from './procurementTypes'
+import type { BcRegisterRow } from './procurementTypes'
 
 /**
  * Espace « Comptabilité » — nouvel utilisateur comptable (cmpt@btp-pilote.ci).
@@ -136,47 +136,23 @@ function isoDate(d: string): string {
 
 export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) => boolean }) {
   const [subTab, setSubTab] = useState<SubTab>('dashboard')
-  const [rows, setRows] = useState<BcRegisterRow[]>([])
-  const [months, setMonths] = useState<BcRegisterMonth[]>([])
-  const [month, setMonth] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // Registre BC partagé (store Zustand) : même source que SuiviBcTab (SA).
+  const rows = useProcurementStore((s) => s.rows)
+  const months = useProcurementStore((s) => s.months)
+  const month = useProcurementStore((s) => s.month)
+  const loading = useProcurementStore((s) => s.loading)
+  const error = useProcurementStore((s) => s.error)
+  const load = useProcurementStore((s) => s.load)
+  const applyRow = useProcurementStore((s) => s.applyRow)
   const [fPayment, setFPayment] = useState('')
   const [fSupplier, setFSupplier] = useState('')
   const [fSite, setFSite] = useState('')
   const [fDateStart, setFDateStart] = useState('')
   const [fDateEnd, setFDateEnd] = useState('')
 
-  const load = useCallback(
-    async (selectedMonth?: string | null) => {
-      setLoading(true)
-      setError(null)
-      try {
-        const q = selectedMonth ? `?month=${encodeURIComponent(selectedMonth)}` : ''
-        const res = await authFetch(`/procurement/bc-register${q}`)
-        if (handleAuth(res.status)) return
-        if (!res.ok) throw new Error('Registre BC indisponible')
-        const data = (await res.json()) as {
-          rows?: BcRegisterRow[]
-          months?: BcRegisterMonth[]
-          month?: string | null
-        }
-        setRows(data.rows ?? [])
-        setMonths(data.months ?? [])
-        setMonth(data.month ?? null)
-      } catch (err) {
-        setRows([])
-        setError(err instanceof Error ? err.message : 'Registre indisponible')
-      } finally {
-        setLoading(false)
-      }
-    },
-    [handleAuth],
-  )
-
   useEffect(() => {
-    void load()
-  }, [load])
+    void load(handleAuth)
+  }, [load, handleAuth])
 
   const filteredRows = useMemo(
     () =>
@@ -240,7 +216,7 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
   const toggleInvoicePaid = async (row: BcRegisterRow) => {
     try {
       const updated = await patchBcRegisterFollowup(row.purchaseOrderId, { invoicePaid: !row.invoicePaid })
-      setRows((prev) => prev.map((r) => (r.purchaseOrderId === updated.purchaseOrderId ? updated : r)))
+      applyRow(updated)
       toast.show(!row.invoicePaid ? 'Facture marquée payée' : 'Facture marquée non payée')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Enregistrement impossible')
@@ -270,11 +246,11 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
 
   const gotoNeighbor = (delta: -1 | 1) => {
     const next = months[monthIndex + delta]
-    if (next) void load(next.key)
+    if (next) void load(handleAuth, next.key)
   }
 
   const sessionExport = () => {
-    void load()
+    void load(handleAuth)
     toast.show('Registre à jour')
   }
 return (

@@ -67,7 +67,8 @@
     "workbox-window": "^7.4.1",
     "ws": "^8.21.1",
     "xlsx": "^0.18.5",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

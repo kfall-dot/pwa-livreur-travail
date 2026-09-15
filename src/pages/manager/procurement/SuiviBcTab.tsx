@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
-import { authFetch } from '../managerApi'
+import { useProcurementStore } from '../../../stores/procurementStore'
 import { fetchBcInvoiceFile, patchBcRegisterFollowup, uploadBcInvoiceFile } from './procurementApi'
-import type { BcRegisterMonth, BcRegisterRecapGroup, BcRegisterRow } from './procurementTypes'
+import type { BcRegisterRow } from './procurementTypes'
 import { AlertBox, formatFcfa } from './procurementUi'
 
 /**
@@ -99,13 +99,17 @@ type FollowupField = 'invoice' | 'justifs' | 'observation' | 'verification'
 type InvoiceFilter = '' | 'received' | 'missing'
 
 export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boolean }) {
-  const [rows, setRows] = useState<BcRegisterRow[]>([])
-  const [recap, setRecap] = useState<BcRegisterRecapGroup[]>([])
-  const [months, setMonths] = useState<BcRegisterMonth[]>([])
-  const [month, setMonth] = useState<string | null>(null)
+  // Registre BC partagé (store Zustand) : même source que ComptabiliteTab.
+  const rows = useProcurementStore((s) => s.rows)
+  const recap = useProcurementStore((s) => s.recap)
+  const months = useProcurementStore((s) => s.months)
+  const month = useProcurementStore((s) => s.month)
+  const loading = useProcurementStore((s) => s.loading)
+  const error = useProcurementStore((s) => s.error)
+  const load = useProcurementStore((s) => s.load)
+  const applyRow = useProcurementStore((s) => s.applyRow)
+  const patchRow = useProcurementStore((s) => s.patchRow)
   const [sheet, setSheet] = useState<Sheet>('mois')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [fSite, setFSite] = useState('')
   const [fSupplier, setFSupplier] = useState('')
   const [fPayment, setFPayment] = useState('')
@@ -115,39 +119,9 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   const invoiceInputRef = useRef<HTMLInputElement | null>(null)
   const invoiceUploadRowRef = useRef<BcRegisterRow | null>(null)
 
-  const load = useCallback(
-    async (selectedMonth?: string | null) => {
-      setLoading(true)
-      setError(null)
-      try {
-        const q = selectedMonth ? `?month=${encodeURIComponent(selectedMonth)}` : ''
-        const res = await authFetch(`/procurement/bc-register${q}`)
-        if (handleAuth(res.status)) return
-        if (!res.ok) throw new Error('Registre BC indisponible')
-        const data = (await res.json()) as {
-          rows?: BcRegisterRow[]
-          recap?: BcRegisterRecapGroup[]
-          months?: BcRegisterMonth[]
-          month?: string | null
-        }
-        setRows(data.rows ?? [])
-        setRecap(data.recap ?? [])
-        setMonths(data.months ?? [])
-        setMonth(data.month ?? null)
-      } catch (err) {
-        setRows([])
-        setRecap([])
-        setError(err instanceof Error ? err.message : 'Registre indisponible')
-      } finally {
-        setLoading(false)
-      }
-    },
-    [handleAuth],
-  )
-
   useEffect(() => {
-    void load()
-  }, [load])
+    void load(handleAuth)
+  }, [load, handleAuth])
 
   const filteredRows = useMemo(
     () =>
@@ -237,11 +211,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     if (!row || !file) return
     try {
       await uploadBcInvoiceFile(row.purchaseOrderId, file)
-      setRows((prev) =>
-        prev.map((r) =>
-          r.purchaseOrderId === row.purchaseOrderId ? { ...r, invoiceFile: { fileName: file.name }, invoiceTransmitted: false } : r,
-        ),
-      )
+      patchRow(row.purchaseOrderId, { invoiceFile: { fileName: file.name }, invoiceTransmitted: false })
       toast.show(`Facture jointe · ${file.name}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Jointure impossible')
@@ -253,7 +223,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     if (!row.invoiceFile || !row.invoice.trim()) return
     try {
       const updated = await patchBcRegisterFollowup(row.purchaseOrderId, { invoiceTransmitted: true })
-      setRows((prev) => prev.map((r) => (r.purchaseOrderId === updated.purchaseOrderId ? updated : r)))
+      applyRow(updated)
       toast.show(`Facture ${row.invoice.trim()} transmise au comptable`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Transmission impossible')
@@ -266,7 +236,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     if (next === row[field]) return
     try {
       const updated = await patchBcRegisterFollowup(row.purchaseOrderId, { [field]: next })
-      setRows((prev) => prev.map((r) => (r.purchaseOrderId === updated.purchaseOrderId ? updated : r)))
+      applyRow(updated)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Enregistrement impossible')
     }
@@ -310,7 +280,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
             <button type="button" className="btn" onClick={exportXls} data-testid="mgr-suivi-bc-export">
               ↳ Exporter (xlsx)
             </button>
-            <button type="button" className="btn btn-primary" onClick={() => void load(month)} data-testid="mgr-suivi-bc-refresh">
+            <button type="button" className="btn btn-primary" onClick={() => void load(handleAuth, month)} data-testid="mgr-suivi-bc-refresh">
               ⟳ Actualiser
             </button>
           </div>
@@ -362,7 +332,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                 type="button"
                 className={`chip${m.key === month ? ' active' : ''}`}
                 data-testid={`mgr-suivi-bc-month-${m.key}`}
-                onClick={() => void load(m.key)}
+                onClick={() => void load(handleAuth, m.key)}
               >
                 {monthTitle(m.key)}
               </button>
