@@ -116,8 +116,14 @@ export function computeBudgetKpis(input: {
   const varianceFcfa = budgetTotalFcfa - realizedFcfa
   const variancePct = roundPct((varianceFcfa / budgetTotalFcfa) * 100)
   const engagementPct = roundPct((engagedFcfa / budgetTotalFcfa) * 100)
-  const trafficLight: BudgetTrafficLight =
+  let trafficLight: BudgetTrafficLight =
     variancePct >= -BUDGET_TOLERANCE_PCT ? 'ok' : variancePct > -BUDGET_ALERT_PCT ? 'watch' : 'alert'
+  // I74 : un BC hors enveloppe SANS avenant approuvé allume le feu dès
+  // l'ENGAGEMENT — la variance sur le réalisé peut rester « ok » tant que
+  // les livraisons n'ont pas rattrapé les BC émis.
+  if (trafficLight === 'ok' && totals.overBudget && approvedAmendmentCount === 0) {
+    trafficLight = engagementPct > 100 + BUDGET_ALERT_PCT ? 'alert' : 'watch'
+  }
 
   const overrunDate =
     input.overrunSinceAt == null

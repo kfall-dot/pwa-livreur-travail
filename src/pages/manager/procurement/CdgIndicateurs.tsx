@@ -43,7 +43,8 @@ const ROWS: Array<{
   },
   {
     id: 'variance',
-    label: 'Écart (budget – réalisé)',
+    // I76 — convention Koestrem : positif = dépassement (réalisé > budget).
+    label: 'Écart (réalisé – budget)',
     value: (s) => formatSignedFcfa(s.varianceFcfa),
     mark: (s) => formatPct(s.variancePct),
   },
@@ -75,8 +76,9 @@ const PAGE: Record<
       'Cumul quotidien du montant des livraisons confirmées depuis la première dépense du chantier (quantités acceptées × PU des lignes BC). Ce n’est pas l’engagé BC.',
   },
   variance: {
-    title: 'Écart (budget – réalisé)',
-    formula: 'À date jour : budget total − dépenses réalisées cumulées (enveloppe + avenants).',
+    title: 'Écart (réalisé – budget)',
+    formula:
+      'À date jour : dépenses réalisées cumulées − budget total (enveloppe + avenants). Positif = dépassement (convention Koestrem).',
   },
   materials: {
     title: 'Part des matériaux dans les dépenses',

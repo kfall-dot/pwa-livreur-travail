@@ -118,6 +118,36 @@ describe('siteBudget F01', () => {
     assert.equal(covered.trafficLight, 'watch')
   })
 
+  it('BC hors enveloppe sans avenant : feu allumé dès l’engagement, pas seulement au réalisé (I74)', () => {
+    const t = computeBudgetTotals({
+      budgetInitialFcfa: 1000,
+      budgetFrozenAt: '2026-09-16',
+      approvedAmendmentSumFcfa: 0,
+      engagedFcfa: 5000,
+      realizedFcfa: 0,
+    })
+    const k = computeBudgetKpis({ totals: t, approvedAmendmentCount: 0 })
+    assert.equal(k.trafficLight, 'alert')
+    assert.equal(k.missingAmendment, true)
+
+    // Avenant approuvé couvrant : pas d'escalade, la variance réalisée décide.
+    const covered = computeBudgetKpis({ totals: t, approvedAmendmentCount: 1 })
+    assert.equal(covered.trafficLight, 'ok')
+
+    // Dépassement d'engagement dans la tolérance d'alerte → vigilance.
+    const mild = computeBudgetKpis({
+      totals: computeBudgetTotals({
+        budgetInitialFcfa: 1000,
+        budgetFrozenAt: '2026-09-16',
+        approvedAmendmentSumFcfa: 0,
+        engagedFcfa: 1025,
+        realizedFcfa: 0,
+      }),
+      approvedAmendmentCount: 0,
+    })
+    assert.equal(mild.trafficLight, 'watch')
+  })
+
   it('firstOverrunAt = premier BC qui fait dépasser le total', () => {
     const a = new Date('2026-06-01T08:00:00.000Z')
     const b = new Date('2026-07-15T08:00:00.000Z')
@@ -142,56 +172,3 @@ describe('siteBudget F01', () => {
   })
 })
 
-
-describe('siteBudget F01', () => {
-  it('KPI « — » tant que l’enveloppe n’est pas gelée', () => {
-    const t = computeBudgetTotals({
-      budgetInitialFcfa: null,
-      budgetFrozenAt: null,
-      approvedAmendmentSumFcfa: 0,
-      engagedFcfa: 1000,
-      realizedFcfa: 500,
-    })
-    assert.equal(t.budgetInitialFcfa, null)
-    assert.equal(t.budgetTotalFcfa, null)
-    assert.equal(t.remainingFcfa, null)
-    assert.equal(t.overBudget, false)
-    assert.equal(t.engagedFcfa, 1000)
-  })
-
-  it('total = initial + avenants ; reste = total − engagé', () => {
-    const t = computeBudgetTotals({
-      budgetInitialFcfa: '100000000',
-      budgetFrozenAt: new Date(),
-      approvedAmendmentSumFcfa: 15_000_000,
-      engagedFcfa: 7_850_000,
-      realizedFcfa: 5_000_000,
-    })
-    assert.equal(t.budgetInitialFcfa, 100_000_000)
-    assert.equal(t.budgetTotalFcfa, 115_000_000)
-    assert.equal(t.remainingFcfa, 107_150_000)
-    assert.equal(t.overBudget, false)
-  })
-
-  it('overBudget si engagé > total (warning, pas un calcul bloqué)', () => {
-    const t = computeBudgetTotals({
-      budgetInitialFcfa: 1000,
-      budgetFrozenAt: '2026-08-19',
-      approvedAmendmentSumFcfa: 0,
-      engagedFcfa: 50_000,
-      realizedFcfa: 30_000,
-    })
-    assert.equal(t.overBudget, true)
-    assert.equal(t.remainingFcfa, 1000 - 50_000)
-  })
-
-  it('avenant de baisse sous l’engagé est détecté', () => {
-    assert.equal(amendmentWouldUndercutEngaged(5_000_000, -4_800_000, 350_000), true)
-    assert.equal(amendmentWouldUndercutEngaged(5_000_000, -100_000, 350_000), false)
-  })
-
-  it('toFcfaInt tronque les numériques string', () => {
-    assert.equal(toFcfaInt('7850000'), 7_850_000)
-    assert.equal(toFcfaInt(null), 0)
-  })
-})

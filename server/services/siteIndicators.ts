@@ -242,7 +242,7 @@ export function buildSiteIndicators(input: {
         0,
       ),
     )
-    const varianceFcfa = input.budgetTotalFcfa == null ? null : input.budgetTotalFcfa - realized
+    const varianceFcfa = input.budgetTotalFcfa == null ? null : realized - input.budgetTotalFcfa
     daily.push({
       date,
       realizedFcfa: Math.round(realized),
@@ -256,7 +256,7 @@ export function buildSiteIndicators(input: {
 
   const last = daily[daily.length - 1]
   const realizedFcfa = last?.realizedFcfa ?? 0
-  const varianceFcfa = last?.varianceFcfa ?? (input.budgetTotalFcfa == null ? null : input.budgetTotalFcfa - 0)
+  const varianceFcfa = last?.varianceFcfa ?? (input.budgetTotalFcfa == null ? null : 0 - input.budgetTotalFcfa)
   const realizedPct =
     input.budgetTotalFcfa != null && input.budgetTotalFcfa > 0
       ? roundPct((realizedFcfa / input.budgetTotalFcfa) * 100)

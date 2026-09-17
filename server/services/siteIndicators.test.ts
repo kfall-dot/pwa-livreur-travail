@@ -38,8 +38,8 @@ describe('siteIndicators Koestrem', () => {
     assert.equal(snap.daily[0]?.realizedFcfa, 10_000_000)
     assert.equal(snap.daily[1]?.realizedFcfa, 10_000_000)
     assert.equal(snap.realizedFcfa, 17_730_182)
-    assert.equal(snap.varianceFcfa, -450_130)
-    assert.equal(snap.variancePct, -2.6)
+    assert.equal(snap.varianceFcfa, 450_130)
+    assert.equal(snap.variancePct, 2.6)
     assert.equal(snap.realizedPct, 102.6)
     assert.equal(snap.materialsFcfa, 17_730_182)
     assert.equal(snap.materialsSharePct, 102.6)
@@ -69,15 +69,15 @@ describe('siteIndicators Koestrem', () => {
     assert.ok((top3[0]?.shareOfInitialPct ?? 0) > (top3[1]?.shareOfInitialPct ?? 0))
   })
 
-  it('écart du jour = budget total − réalisé cumulé', () => {
+  it('écart du jour = réalisé cumulé − budget total (positif = dépassement, Koestrem)', () => {
     const snap = buildSiteIndicators({
       asOf: '2026-08-21',
       budgetInitialFcfa: 1_000_000,
       budgetTotalFcfa: 1_000_000,
       events: [{ date: '2026-08-21', amountFcfa: 70_000, products: [{ label: 'Ciment', amountFcfa: 70_000 }] }],
     })
-    assert.equal(snap.varianceFcfa, 930_000)
-    assert.equal(snap.daily[0]?.varianceFcfa, 930_000)
+    assert.equal(snap.varianceFcfa, -930_000)
+    assert.equal(snap.daily[0]?.varianceFcfa, -930_000)
   })
 
   it('sans livraison : réalisé 0, série vide', () => {
@@ -91,7 +91,7 @@ describe('siteIndicators Koestrem', () => {
     assert.equal(snap.firstExpenseOn, null)
     assert.equal(snap.daily.length, 0)
     assert.equal(snap.materialsSharePct, null)
-    assert.equal(snap.varianceFcfa, 1_000_000)
+    assert.equal(snap.varianceFcfa, -1_000_000)
   })
 
   it('préfère la date de tournée à l’horodatage de déclaration', () => {
