@@ -261,16 +261,16 @@ return (
         <p className="sub">BC émis, suivi points fournisseurs, factures et rapports — {monthLabel}</p>
 
         <div className="tabs">
-          <button type="button" className={`chip${subTab === 'dashboard' ? ' active' : ''}`} onClick={() => setSubTab('dashboard')}>
+          <button type="button" className={`chip${subTab === 'dashboard' ? ' active' : ''}`} data-testid="cmpt-subtab-dashboard" onClick={() => setSubTab('dashboard')}>
             Tableau de bord
           </button>
-          <button type="button" className={`chip${subTab === 'suivi' ? ' active' : ''}`} onClick={() => setSubTab('suivi')}>
+          <button type="button" className={`chip${subTab === 'suivi' ? ' active' : ''}`} data-testid="cmpt-subtab-suivi" onClick={() => setSubTab('suivi')}>
             Suivi BC
           </button>
-          <button type="button" className={`chip${subTab === 'factures' ? ' active' : ''}`} onClick={() => setSubTab('factures')}>
+          <button type="button" className={`chip${subTab === 'factures' ? ' active' : ''}`} data-testid="cmpt-subtab-factures" onClick={() => setSubTab('factures')}>
             Factures
           </button>
-          <button type="button" className={`chip${subTab === 'rapports' ? ' active' : ''}`} onClick={() => setSubTab('rapports')}>
+          <button type="button" className={`chip${subTab === 'rapports' ? ' active' : ''}`} data-testid="cmpt-subtab-rapports" onClick={() => setSubTab('rapports')}>
             Rapports
           </button>
         </div>
@@ -296,12 +296,12 @@ return (
             {subTab === 'dashboard' && (
               <>
                 <div className="kpis two">
-                  <div className="kpi">
+                  <div className="kpi" data-testid="cmpt-kpi-total-bc">
                     <div className="lbl">Total BC émis</div>
                     <div className="val">{rows.length}</div>
                     <div className="det">BC ce mois</div>
                   </div>
-                  <div className="kpi">
+                  <div className="kpi" data-testid="cmpt-kpi-total-invoices">
                     <div className="lbl">Total factures</div>
                     <div className="val">{invoicedRows.length}</div>
                     <div className="det">factures saisies ce mois</div>
@@ -363,7 +363,7 @@ return (
                   {filteredRows.length === 0 ? (
                     <p style={{ color: '#64748b', fontSize: 13 }}>Aucun BC pour ces filtres.</p>
                   ) : (
-                    <table>
+                    <table data-testid="cmpt-table-bc-mois">
                       <thead>
                         <tr>
                           <th>N° BC</th>
@@ -502,7 +502,7 @@ return (
                   {filteredRows.length === 0 ? (
                     <p style={{ color: '#64748b', fontSize: 13 }}>Aucun BC pour ce filtre.</p>
                   ) : (
-                    <table>
+                    <table data-testid="cmpt-suivi-table">
                       <thead>
                         <tr>
                           <th>Chantier</th>
@@ -568,7 +568,7 @@ return (
                     return <p style={{ color: '#64748b', fontSize: 13 }}>Aucune facture saisie ce mois.</p>
                   }
                   return (
-                    <table>
+                    <table data-testid="cmpt-factures-table">
                       <thead>
                         <tr>
                           <th>N° Facture</th>
@@ -594,6 +594,7 @@ return (
                             <td>
                               <button
                                 type="button"
+                                data-testid={`cmpt-facture-paid-${r.purchaseOrderId}`}
                                 onClick={() => void toggleInvoicePaid(r)}
                                 className={`cmpt-badge gray`}
                                 style={{ cursor: 'pointer', border: 'none', fontFamily: 'inherit' }}
@@ -604,14 +605,18 @@ return (
                             </td>
                             <td>
                               {r.invoiceFile ? (
-                                <span className="cmpt-badge gray">Reçu</span>
+                                <span className="cmpt-badge gray" data-testid={`cmpt-facture-status-${r.purchaseOrderId}`}>
+                                  Reçu
+                                </span>
                               ) : (
-                                <span className="cmpt-badge gray">À recevoir</span>
+                                <span className="cmpt-badge gray" data-testid={`cmpt-facture-status-${r.purchaseOrderId}`}>
+                                  À recevoir
+                                </span>
                               )}
                             </td>
                             <td>
                               {r.invoiceFile ? (
-                                <button type="button" className="pill-doc" onClick={() => void openInvoiceFile(r)}>
+                                <button type="button" className="pill-doc" data-testid={`cmpt-facture-open-${r.purchaseOrderId}`} onClick={() => void openInvoiceFile(r)}>
                                   📄 {r.invoiceFile.fileName}
                                 </button>
                               ) : (
@@ -722,6 +727,7 @@ return (
         {preview && (
           <div
             role="dialog"
+            data-testid="cmpt-preview"
             style={{
               position: 'fixed',
               inset: 0,
@@ -739,7 +745,7 @@ return (
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
                 <strong>{preview.fileName}</strong>
-                <button type="button" className="btn" onClick={closePreview}>
+                <button type="button" className="btn" data-testid="cmpt-preview-close" onClick={closePreview}>
                   Fermer
                 </button>
               </div>

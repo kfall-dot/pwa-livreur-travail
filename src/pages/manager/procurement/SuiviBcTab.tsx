@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { useProcurementStore } from '../../../stores/procurementStore'
-import { fetchBcInvoiceFile, patchBcRegisterFollowup, uploadBcInvoiceFile } from './procurementApi'
+import {
+  fetchBcInvoiceFile,
+  fetchRequestLineAttachment,
+  patchBcRegisterFollowup,
+  uploadBcInvoiceFile,
+} from './procurementApi'
 import type { BcRegisterRow } from './procurementTypes'
 import { AlertBox, formatFcfa } from './procurementUi'
 
@@ -200,6 +205,19 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
       setPreview({ url, fileName: row.invoiceFile.fileName, contentType: blob.type })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Aperçu indisponible')
+    }
+  }
+
+  // Consultation d'une pièce jointe fournisseur portée par la ligne de la demande liée au BC.
+  const openAttachment = async (row: BcRegisterRow, lineId: string, fileName: string) => {
+    try {
+      const { blob, fileName: servedName } = await fetchRequestLineAttachment(row.purchaseRequestId, lineId)
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+      const url = URL.createObjectURL(blob)
+      previewUrlRef.current = url
+      setPreview({ url, fileName: servedName || fileName, contentType: blob.type })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Pièce jointe indisponible')
     }
   }
 
@@ -489,13 +507,29 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                             </>
                           )}
                         </td>
-                        <td>
+                        <td data-testid={`mgr-suivi-bc-attach-cell-${row.purchaseOrderId}`}>
+                          {(row.attachments ?? []).length > 0 && (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
+                              {(row.attachments ?? []).map((att) => (
+                                <button
+                                  key={att.lineId}
+                                  type="button"
+                                  className="att"
+                                  data-testid={`mgr-suivi-bc-attach-${row.purchaseOrderId}`}
+                                  onClick={() => void openAttachment(row, att.lineId, att.fileName)}
+                                  title="Consulter la pièce jointe fournisseur"
+                                >
+                                  📎 {att.fileName}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           {row.invoiceFile ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <button
                                 type="button"
                                 className="att"
-                                data-testid={`mgr-suivi-bc-invoice-${row.purchaseOrderId}`}
+                                data-testid={`mgr-suivi-bc-invoice-preview-${row.purchaseOrderId}`}
                                 onClick={() => void openInvoicePreview(row)}
                                 title="Aperçu de la facture (image ou PDF)"
                               >

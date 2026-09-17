@@ -20,6 +20,7 @@ export const BTP_PILOT = {
   PDG_EMAIL: 'pdg@btp-pilote.ci',
   SA_EMAIL: 'sa@btp-pilote.ci',
   CDG_EMAIL: 'cdg@btp-pilote.ci',
+  CMPT_EMAIL: 'cmpt@btp-pilote.ci',
   PASSWORD: 'admin1234',
   WHATSAPP_PHONE: '+2250701888001',
   EB_MESSAGE: '50 sacs ciment, 20 barres fer pour chantier',
@@ -78,9 +79,12 @@ export async function simulateWhatsappEb(
   return body
 }
 
+/** Rôles BTP du seed pilote (`cmpt` = comptable — voir seedBtpPilot CMPT_EMAIL). */
+export type BtpRole = 'dt' | 'daf' | 'sa' | 'pdg' | 'cdg' | 'cmpt'
+
 export async function loginBtpApi(
   request: APIRequestContext,
-  role: 'dt' | 'daf' | 'sa' | 'pdg' | 'cdg',
+  role: BtpRole,
 ): Promise<void> {
   const email =
     role === 'dt'
@@ -91,7 +95,9 @@ export async function loginBtpApi(
           ? BTP_PILOT.PDG_EMAIL
           : role === 'cdg'
             ? BTP_PILOT.CDG_EMAIL
-          : BTP_PILOT.SA_EMAIL
+            : role === 'cmpt'
+              ? BTP_PILOT.CMPT_EMAIL
+              : BTP_PILOT.SA_EMAIL
   const login = await request.post(`${API_BASE}/api/v1/auth/login-dashboard`, {
     data: { email, password: BTP_PILOT.PASSWORD },
   })
@@ -288,7 +294,7 @@ export async function simulateEbToPo(
   return completePoAfterCdg(request, submitted.id)
 }
 
-export async function loginBtpManager(page: Page, role: 'dt' | 'daf' | 'sa' | 'pdg' | 'cdg'): Promise<void> {
+export async function loginBtpManager(page: Page, role: BtpRole): Promise<void> {
   const email =
     role === 'dt'
       ? BTP_PILOT.DT_EMAIL
@@ -298,7 +304,9 @@ export async function loginBtpManager(page: Page, role: 'dt' | 'daf' | 'sa' | 'p
           ? BTP_PILOT.PDG_EMAIL
           : role === 'cdg'
             ? BTP_PILOT.CDG_EMAIL
-          : BTP_PILOT.SA_EMAIL
+            : role === 'cmpt'
+              ? BTP_PILOT.CMPT_EMAIL
+              : BTP_PILOT.SA_EMAIL
 
   await page.context().clearCookies()
   await page.goto('/manager/login', { waitUntil: 'domcontentloaded' })
@@ -385,4 +393,119 @@ export async function confirmScheduledBtpDelivery(
     data: { otp, lat, lng },
   })
   expect(confirmed.ok(), await confirmed.text()).toBeTruthy()
+}
+
+// ── Registre BC : suivi SA (n° facture, transmission) et côté comptable (CMPT) ──
+
+/** Ligne du registre BC telle que renvoyée par `GET /procurement/bc-register`. */
+export type BcRegisterRowApi = {
+  purchaseOrderId: string
+  bon: string
+  siteName: string
+  supplierName: string
+  date: string
+  paymentMode: string
+  amountFcfa: number
+  amountLabel: string
+  invoice: string
+  invoicePaid: boolean
+  invoiceTransmitted: boolean
+  invoiceFile: { fileName: string } | null
+  observation: string
+  verification: string
+}
+
+export async function listBcRegisterRows(
+  request: APIRequestContext,
+  role: BtpRole = 'sa',
+): Promise<{ month: string | null; rows: BcRegisterRowApi[] }> {
+  await loginBtpApi(request, role)
+  const res = await request.get(`${API_BASE}/api/v1/procurement/bc-register`)
+  expect(res.ok(), await res.text()).toBeTruthy()
+  return (await res.json()) as { month: string | null; rows: BcRegisterRowApi[] }
+}
+
+/** Ligne du registre pour un BC donné — échoue si le BC n'est pas (encore) au registre. */
+export async function getBcRegisterRow(
+  request: APIRequestContext,
+  role: BtpRole,
+  poId: string,
+): Promise<BcRegisterRowApi> {
+  const { month, rows } = await listBcRegisterRows(request, role)
+  const row = rows.find((r) => r.purchaseOrderId === poId)
+  expect(row, `BC ${poId} absent du registre BC (mois ${month})`).toBeTruthy()
+  return row!
+}
+
+/** Patch partiel du suivi SA/comptable (n° facture, paiement, transmission…). */
+export async function patchBcFollowupApi(
+  request: APIRequestContext,
+  role: BtpRole,
+  poId: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number }> {
+  await loginBtpApi(request, role)
+  const res = await request.patch(`${API_BASE}/api/v1/procurement/bc-register/${poId}`, { data: body })
+  return { status: res.status() }
+}
+
+/** SA : joint la copie de facture (PDF binaire) au BC — `POST bc-register/:poId/invoice-file`. */
+export async function attachBcInvoiceApi(
+  request: APIRequestContext,
+  poId: string,
+  fileName = 'facture-sa.pdf',
+): Promise<{ status: number }> {
+  await loginBtpApi(request, 'sa')
+  const res = await request.post(`${API_BASE}/api/v1/procurement/bc-register/${poId}/invoice-file`, {
+    data: { fileName, contentType: 'application/pdf', data: binaryPdfFixture().toString('base64') },
+  })
+  return { status: res.status() }
+}
+
+/** SA : n° de facture + copie, puis transmission au comptable (équivalent API du parcours UI). */
+export async function transmitBcInvoiceApi(
+  request: APIRequestContext,
+  poId: string,
+  invoiceNumber = 'FAC-E2E-0001',
+): Promise<void> {
+  const patch = await patchBcFollowupApi(request, 'sa', poId, { invoice: invoiceNumber })
+  expect(patch.status, `patch n° facture ${poId}`).toBe(200)
+  const attach = await attachBcInvoiceApi(request, poId, `${invoiceNumber}.pdf`)
+  expect(attach.status, `copie facture ${poId}`).toBe(200)
+  const transmit = await patchBcFollowupApi(request, 'sa', poId, { invoiceTransmitted: true })
+  expect(transmit.status, `transmission ${poId}`).toBe(200)
+}
+
+/**
+ * Parcours complet EB WhatsApp → BC émis **et livré** : le registre BC ne liste
+ * que les bons dont la livraison est confirmée (cf. test I63).
+ */
+export async function simulateDeliveredBcViaApi(
+  request: APIRequestContext,
+  unitPriceFcfa = 1500,
+): Promise<{ purchaseOrderId: string; bon: string; amountFcfa: number }> {
+  const simulated = await simulateWhatsappEb(request)
+  const submitted = await dtSubmitDraft(request, simulated.draftId)
+  const quoted = await saPriceSubmitCdgApprove(request, submitted.id, unitPriceFcfa)
+  expect(quoted.request.status).toBe('daf_review')
+  await approveBtpRequest(request, submitted.id, 'daf')
+
+  await loginBtpApi(request, 'sa')
+  const po = await request.post(`${API_BASE}/api/v1/procurement/requests/${submitted.id}/create-po`, {
+    data: { supplierId: BTP_PILOT.SUPPLIER_ACCOUNT_ID },
+  })
+  expect(po.ok(), await po.text()).toBeTruthy()
+
+  const schedule = await request.post(
+    `${API_BASE}/api/v1/procurement/requests/${submitted.id}/schedule-delivery`,
+    { data: { driverId: BTP_PILOT.DRIVER_ID, date: localTodayIso() } },
+  )
+  expect(schedule.ok(), await schedule.text()).toBeTruthy()
+  const { tourId } = (await schedule.json()) as { tourId: string }
+  await confirmScheduledBtpDelivery(request, tourId)
+
+  const { rows } = await listBcRegisterRows(request, 'sa')
+  expect(rows.length, 'registre BC vide après livraison confirmée').toBeGreaterThanOrEqual(1)
+  const row = rows[0]!
+  return { purchaseOrderId: row.purchaseOrderId, bon: row.bon, amountFcfa: row.amountFcfa }
 }

@@ -104,6 +104,11 @@ Chaque ligne = une règle que les tests doivent empêcher de recasser.
 | I78 | DT : après soumission d’une EB, le compteur **Demandes actives** (accueil Achats / Boîte EB) est **> 0** | `btp-procurement.spec.ts` |
 | I79 | Seed BTP : chantiers et fournisseurs du fichier **POINTS FOURNISSEURS DES BC NEWS** sont dans le catalogue TraceO (Chantiers + Fournisseurs) | `btp-procurement.spec.ts` |
 | I80 | Unité **seau** de l’EB est conservée sur la tournée (pas convertie en colis ni palette) | `btp-procurement.spec.ts` |
+| I81 | SA : le **n° de facture** saisi sur Suivi BC survit à un changement d’onglet **et** est persisté en base (le registre n’est plus remonté à chaque bascule) | `btp-invoice-cmpt.spec.ts` |
+| I82 | SA : **Transmettre** reste verrouillé tant que le n° **et** la copie de facture (PDF/image) ne sont pas fournis ; après transmission → pastille **✓ Transmis** (`invoiceTransmitted = true`), conservée après changement d’onglet | `btp-invoice-cmpt.spec.ts` |
+| I83 | CMPT : la facture transmise apparaît **Reçu** dans l’onglet **Factures**, copie consultable en aperçu, paiement **Oui/Non** persistant — et **aucun** champ de saisie du registre SA n’est monté côté comptable | `btp-invoice-cmpt.spec.ts` |
+| I84 | Rôle comptable : lecture du registre + de la copie facture et **paiement** autorisés ; **joindre/transmettre** une facture refusé (**403**, réservé au SA) | `btp-invoice-cmpt.spec.ts` |
+| I85 | CMPT : l’espace n’expose que **Comptabilité** (ni Achats ni Suivi BC) ; KPI du mois = BC livrés / factures saisies ; suivi filtrable par mode de paiement | `btp-invoice-cmpt.spec.ts` |
 
 ---
 
@@ -117,6 +122,7 @@ Chaque ligne = une règle que les tests doivent empêcher de recasser.
 | PJ écrase le chiffrage SA | Joindre une PJ recharge le détail serveur et vide PU/montant | I49 |
 | PJ non consultable | `window.open` après fetch → popup bloquée ; nom de fichier non cliquable dans le tableau | I50 |
 | PJ introuvable après jointure | PDF binaire renvoyé en utf8 → proxy Netlify 500 « Could not proxy request » ; toast « Pièce jointe introuvable » | I44 GET octets + I50 |
+| Saisie SA effacée sur **Suivi BC** / **Comptabilité** | Bascule d’onglet → registre remonté (`key={…}`) → n° facture, observation, vérification perdus | I81–I82 + `src/stores/procurementStore.ts` |
 
 Logique quantité livrée : **`src/lib/deliveredQuantity.ts`** uniquement (pas de copie dans les composants).
 
