@@ -1099,15 +1099,25 @@ export async function createEbParseRun(input: {
   error?: string | null
 }) {
   const id = `epr-${randomUUID()}`
-  await db.insert(ebParseRuns).values({
-    id,
-    draftId: input.draftId,
-    promptVersion: input.promptVersion,
-    inputSummary: input.inputSummary ?? null,
-    extractedJson: input.extractedJson ?? null,
-    confidenceScore: input.confidenceScore != null ? String(input.confidenceScore) : null,
-    error: input.error ?? null,
-  })
+  try {
+    await db.insert(ebParseRuns).values({
+      id,
+      draftId: input.draftId,
+      promptVersion: input.promptVersion,
+      inputSummary: input.inputSummary ?? null,
+      extractedJson: input.extractedJson ?? null,
+      confidenceScore: input.confidenceScore != null ? String(input.confidenceScore) : null,
+      error: input.error ?? null,
+    })
+  } catch (err) {
+    // 23503 (FK draft_id) : le brouillon a été supprimé pendant l'écriture
+    // (soft-delete concurrent, reset e2e entre deux tests). Une trace de parse
+    // pour un brouillon inexistant n'a pas de sens — on ignore silencieusement
+    // au lieu de renvoyer un 500 au client (DrizzleQueryError /auto-save DT).
+    const pgCode = (err as { cause?: { code?: string } } | null)?.cause?.code
+    if (pgCode === '23503') return
+    throw err
+  }
 }
 
 // ─── Purchase requests ───────────────────────────────────────────────────────
