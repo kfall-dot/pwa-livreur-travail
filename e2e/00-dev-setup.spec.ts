@@ -251,7 +251,12 @@ test.describe('Environnement e2e (Express :8888, build dist)', () => {
         'scripts/e2e-sql.mjs',
         "UPDATE delivery_points SET contact_phone = NULL WHERE id = 'del-1';",
       ],
-      { cwd: process.cwd(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, E2E_DATABASE_URL: process.env.E2E_DATABASE_URL ?? '' },
+      },
     )
 
     const driver = await request.post(`${API_BASE}/api/v1/auth/login-driver`, {

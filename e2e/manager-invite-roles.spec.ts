@@ -30,11 +30,13 @@ test.describe('Manager invite & roles', () => {
 
   test('admin voit l’onglet Gestionnaires et peut inviter', async ({ page, request }) => {
     await loginManager(page)
+    // Entrée par la sidebar (le sous-nav Équipe n'existe qu'une fois l'onglet ouvert).
     await page.getByTestId('mgr-tab-livreurs').click()
     await expect(page.getByTestId('mgr-tab-gestionnaires')).toBeVisible()
     await page.getByTestId('mgr-tab-gestionnaires').click()
     await page.getByTestId('mgr-invite-name').fill('Collègue Test')
     await page.getByTestId('mgr-invite-email').fill('collegue@test.fr')
+    await page.getByTestId('mgr-invite-procurement-role').selectOption('purchasing')
     await page.getByTestId('mgr-invite-send').click()
     await expect(page.getByText(/Invitation créée/i)).toBeVisible({ timeout: UI_READY_TIMEOUT })
 
@@ -44,7 +46,6 @@ test.describe('Manager invite & roles', () => {
     await page.getByTestId('mgr-invite-password').fill('secret1234')
     await page.getByTestId('mgr-invite-confirm').fill('secret1234')
     await page.getByTestId('mgr-invite-submit').click()
-    // Redirection possible vers /manager?tab=achats selon le rôle invité
     await page.waitForURL(/\/manager/, { timeout: UI_READY_TIMEOUT })
 
     await page.getByTestId('mgr-tab-livreurs').click()

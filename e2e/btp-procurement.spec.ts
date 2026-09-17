@@ -380,7 +380,9 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByText('Botte', { exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: 'Équipe' }).click()
-    await expect(page.getByText('Livreurs enregistrés')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    // La refonte UI « équipe » (059146d) a remplacé le titre « Livreurs enregistrés »
+    // par le KPI « Livreurs actifs » + la carte #eq-livreurs.
+    await expect(page.getByText('Livreurs actifs')).toBeVisible({ timeout: UI_READY_TIMEOUT })
     await expect(page.getByText('Livreur BTP Pilote')).toBeVisible()
 
     await page.getByTestId('mgr-tab-taches').click()

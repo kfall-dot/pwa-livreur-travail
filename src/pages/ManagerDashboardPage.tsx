@@ -5,6 +5,7 @@ import { DemoBanner } from '../components/DemoBanner'
 import { toast } from '../lib/toast'
 import { authFetch } from './manager/managerApi'
 import { CatalogueTab } from './manager/CatalogueTab'
+import { FournisseursTab } from './manager/FournisseursTab'
 import { css } from './manager/managerUi'
 import { AchatsTab } from './manager/procurement/AchatsTab'
 import { SuiviBcTab } from './manager/procurement/SuiviBcTab'
@@ -477,7 +478,7 @@ export function ManagerDashboardPage() {
             <nav style={css.catalogueSubnav} aria-label="Sous-navigation équipe">
               <button
                 type="button"
-                data-testid="mgr-tab-livreurs"
+                data-testid="mgr-subnav-livreurs"
                 onClick={() => setTab('livreurs')}
                 style={tab === 'livreurs' ? css.tabActive : css.tab}
               >
@@ -600,8 +601,14 @@ export function ManagerDashboardPage() {
           <EquipeTab key={`gestionnaires-${suiviRefreshKey}`} handleAuth={handleAuth} isAdmin={isAdmin} canInviteManagers={isAdmin} currentManagerId={currentManagerId} initialChip="gestionnaires" />
         )}
         {tab === 'points'   && <PointsTab key={`points-${suiviRefreshKey}`} handleAuth={handleAuth} onPointsChanged={bumpCatalog} />}
-        {(tab === 'produits' || tab === 'unites' || tab === 'fournisseurs') && (
-          <CatalogueTab key={`catalog-${suiviRefreshKey}`} initialChip={tab === 'fournisseurs' ? 'fournisseurs' : tab === 'unites' ? 'unites' : 'produits'} />
+        {(tab === 'produits' || tab === 'unites') && (
+          <CatalogueTab
+            key={`catalog-${suiviRefreshKey}`}
+            initialChip={tab === 'unites' ? 'unites' : 'produits'}
+          />
+        )}
+        {tab === 'fournisseurs' && (
+          <FournisseursTab key={`fournisseurs-${suiviRefreshKey}`} handleAuth={handleAuth} />
         )}
         {tab === 'taches'   && (
           <TachesTab

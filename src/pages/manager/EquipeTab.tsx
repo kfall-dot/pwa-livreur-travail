@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { authFetch } from './managerApi';
+import { EditDriverModal } from './modals/EditDriverModal';
 
 type Chip = 'gestionnaires' | 'livreurs' | 'chantiers';
 
@@ -421,21 +422,11 @@ export default function EquipeTab({
       )}
 
       {editModal === 'drv' && editingDrv && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setEditModal(null)}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 420, maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, color: '#1e3a5f' }}>Modifier le livreur</h3>
-            <label style={{ display: 'block', marginBottom: 10, fontSize: 12, color: '#64748b' }}>Nom
-              <input type="text" value={editingDrv.name} onChange={(e) => setEditingDrv({ ...editingDrv, name: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, marginTop: 4 }} />
-            </label>
-            <label style={{ display: 'block', marginBottom: 16, fontSize: 12, color: '#64748b' }}>Téléphone
-              <input type="text" value={editingDrv.phone || ''} onChange={(e) => setEditingDrv({ ...editingDrv, phone: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, marginTop: 4 }} />
-            </label>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" className="btn" onClick={() => setEditModal(null)}>Annuler</button>
-              <button type="button" className="btn btn-primary" disabled={savingEdit} onClick={async () => { setSavingEdit(true); try { await authFetch(`/dashboard/drivers/${editingDrv.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingDrv.name, phone: editingDrv.phone || null }) }); setEditModal(null); void load(); } finally { setSavingEdit(false); } }}>{savingEdit ? 'Sauvegarde…' : 'Enregistrer'}</button>
-            </div>
-          </div>
-        </div>
+        <EditDriverModal
+          id={editingDrv.id}
+          drivers={drivers}
+          onClose={() => { setEditModal(null); void load(); }}
+        />
       )}
 
       {editModal === 'point' && editingPoint && (
@@ -464,6 +455,3 @@ export default function EquipeTab({
     </div>
   );
 }
-
-
-/*__SUITE3__*/

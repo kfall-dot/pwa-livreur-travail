@@ -171,6 +171,22 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
   }
 
 
+  const handleCreateSupplier = async () => {
+    if (!supForm.name.trim()) { toast.error(''); return }
+    const res = await authFetch('/dashboard/suppliers', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: supForm.name.trim(),
+        contactName: supForm.contactName.trim() || null,
+        contactEmail: supForm.contactEmail.trim() || null,
+        contactPhone: supForm.contactPhone.trim() || null,
+        address: supForm.address.trim() || null,
+      }),
+    })
+    if (res.ok) { toast.success(''); setModal(null); void load() }
+    else toast.error('')
+  }
+
   const submit = async () => {
     if (modal === 'product') {
       if (!form.label.trim() || !form.unit) { toast.error(''); return }
@@ -560,36 +576,27 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
             {modal === 'supplier' && (
               <>
                 <h3>Nouveau fournisseur</h3>
-                <label>Nom (raison sociale) *
-                  <input value={supForm.name} onChange={e => setSupForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex. SOCIETE ACTION SOCIAM" />
-                </label>
-                <label>Contact (nom & prénom)
-                  <input value={supForm.contactName} onChange={e => setSupForm(f => ({ ...f, contactName: e.target.value }))} placeholder="Ex. Konan Yao" />
-                </label>
-                <label>eMail
-                  <input type="email" value={supForm.contactEmail} onChange={e => setSupForm(f => ({ ...f, contactEmail: e.target.value }))} placeholder="contact@fournisseur.ci (optionnel)" />
-                </label>
-                <label>Téléphone
-                  <input value={supForm.contactPhone} onChange={e => setSupForm(f => ({ ...f, contactPhone: e.target.value }))} placeholder="+225 07 00 00 00 00 (optionnel)" />
-                </label>
-                <label>Adresse
-                  <input value={supForm.address} onChange={e => setSupForm(f => ({ ...f, address: e.target.value }))} placeholder="Adresse du fournisseur (optionnel)" />
-                </label>
-                <div className="ctg-modal-actions">
-                  <button className="btn" onClick={() => setModal(null)}>Annuler</button>
-                  <button className="btn btn-primary" onClick={async () => {
-                    if (!supForm.name.trim()) { toast.error(''); return }
-                    const res = await authFetch('/dashboard/suppliers', { method: 'POST', body: JSON.stringify({
-                      name: supForm.name.trim(),
-                      contactName: supForm.contactName.trim() || null,
-                      contactEmail: supForm.contactEmail.trim() || null,
-                      contactPhone: supForm.contactPhone.trim() || null,
-                      address: supForm.address.trim() || null,
-                    }) })
-                    if (res.ok) { toast.success(''); setModal(null); void load() }
-                    else toast.error('')
-                  }}>Créer</button>
-                </div>
+                <form data-testid="mgr-supplier-modal-form" onSubmit={(e) => { e.preventDefault(); void handleCreateSupplier() }}>
+                  <label>Nom (raison sociale) *
+                    <input value={supForm.name} onChange={e => setSupForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex. SOCIETE ACTION SOCIAM" required />
+                  </label>
+                  <label>Contact (nom & prénom)
+                    <input value={supForm.contactName} onChange={e => setSupForm(f => ({ ...f, contactName: e.target.value }))} placeholder="Ex. Konan Yao" />
+                  </label>
+                  <label>eMail
+                    <input type="email" value={supForm.contactEmail} onChange={e => setSupForm(f => ({ ...f, contactEmail: e.target.value }))} placeholder="contact@fournisseur.ci (optionnel)" />
+                  </label>
+                  <label>Téléphone
+                    <input value={supForm.contactPhone} onChange={e => setSupForm(f => ({ ...f, contactPhone: e.target.value }))} placeholder="+225 07 00 00 00 00 (optionnel)" />
+                  </label>
+                  <label>Adresse
+                    <input value={supForm.address} onChange={e => setSupForm(f => ({ ...f, address: e.target.value }))} placeholder="Adresse du fournisseur (optionnel)" />
+                  </label>
+                  <div className="ctg-modal-actions">
+                    <button type="button" className="btn" onClick={() => setModal(null)}>Annuler</button>
+                    <button type="submit" className="btn btn-primary">Créer</button>
+                  </div>
+                </form>
               </>
             )}
           </div>

@@ -92,7 +92,7 @@ test.describe('Déverrouillage login livreur', () => {
     await page.context().clearCookies()
     await loginManager(page)
     await page.getByRole('button', { name: /Équipe/i }).click()
-    await page.getByRole('button', { name: /^Livreurs$/ }).click()
+    await page.getByTestId('mgr-subnav-livreurs').click()
     // Cibler la ligne du livreur démo par son téléphone (le seed en crée 2 —
     // .first() peut ouvrir le modal de l'autre livreur et déverrouiller le mauvais).
     const demoRow = page.locator('tr', { hasText: DEMO_DRIVER.phone })
