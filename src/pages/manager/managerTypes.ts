@@ -13,6 +13,11 @@ export interface DeliveryRow {
   products?: Array<{ label: string; qty: number; unit: string }> | null
   declarationOutcome?: string | null
   declarationLines?: unknown
+  /** Point du catalogue de l'arrêt (tournées planifiées depuis le catalogue). */
+  supermarketId?: string | null
+  /** Chantier achats relié via le BC de la tournée (livraisons planifiées en achats). */
+  siteId?: string | null
+  siteName?: string | null
 }
 
 export interface DriverRow { id: string; name: string; phone: string; status: string }

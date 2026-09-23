@@ -140,7 +140,7 @@ export default function EquipeTab({
     setLoading(true);
     setError('');
     try {
-      const rmP = isAdmin ? authFetch('/dashboard/managers') : Promise.resolve(null)
+      const rmP = authFetch('/dashboard/managers')
       const riP = isAdmin ? authFetch('/dashboard/managers/invites') : Promise.resolve(null)
       const [rm, ri] = await Promise.all([rmP, riP])
       const [rd, rp] = await Promise.all([
@@ -177,7 +177,9 @@ export default function EquipeTab({
       setError('Impossible de charger les données de l\u2019équipe.');
     }
     setLoading(false);
-  }, [handleAuth]);
+    // isAdmin peut passer de false à true après le chargement de /auth/me
+    // (managerRole asynchrone) — il faut recréer load pour récupérer les gestionnaires.
+  }, [handleAuth, isAdmin]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -327,7 +329,7 @@ export default function EquipeTab({
                 <td className="mono">{m.phone || '—'}</td>
                 <td>{roleLabel(m.role)}</td>
                 <td>{m.pending ? <span className="pill pill-amber">En attente</span> : m.status === 'active' ? <span className="pill pill-green">Actif</span> : <span className="pill pill-gray">Inactif</span>}</td>
-                <td style={{ textAlign: 'right' }}>{!m.pending && <button type="button" className="mini" onClick={() => { setEditingMgr(m); setEditModal('mgr'); }}>Modifier</button>}</td>
+                <td style={{ textAlign: 'right' }}>{isAdmin && !m.pending && <button type="button" className="mini" onClick={() => { setEditingMgr(m); setEditModal('mgr'); }}>Modifier</button>}</td>
               </tr>
             ))}
             {mgrs.length === 0 && <tr><td colSpan={5} className="sm">Aucun gestionnaire.</td></tr>}

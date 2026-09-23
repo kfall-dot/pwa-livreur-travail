@@ -63,6 +63,12 @@ const SBC_CSS = `
 .sbc .tot{font-weight:800;background:var(--navy-soft)}
 .sbc .sup-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .sbc .sup-head h3{font-size:14px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.4px}
+/* RECAP : largeurs de colonnes figées identiques d'un fournisseur à l'autre */
+.sbc .recap-tbl{table-layout:fixed;width:100%}
+.sbc .recap-tbl th:nth-child(3),.sbc .recap-tbl td:nth-child(3){text-align:right}
+/* Sélecteur de mois */
+.sbc .month-pick{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--navy)}
+.sbc .month-select{font-family:inherit;font-size:13px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;color:#1e293b;min-width:170px;background:#fff;cursor:pointer}
 .sbc .sup-total{font-size:14px;font-weight:800;color:var(--navy)}
 .sbc .grand{display:flex;justify-content:flex-end;gap:12px;align-items:baseline;margin-top:14px;padding:12px 16px;background:var(--navy);border-radius:10px;color:#fff}
 .sbc .grand .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.5px;opacity:.75}
@@ -119,6 +125,10 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   const [fSupplier, setFSupplier] = useState('')
   const [fPayment, setFPayment] = useState('')
   const [fInvoice, setFInvoice] = useState<InvoiceFilter>('')
+  const monthOptions = useMemo(() => {
+    if (month && !months.some((m) => m.key === month)) return [{ key: month, label: monthTitle(month) }, ...months]
+    return months
+  }, [months, month])
   const [preview, setPreview] = useState<{ url: string; fileName: string; contentType: string } | null>(null)
   const previewUrlRef = useRef<string | null>(null)
   const invoiceInputRef = useRef<HTMLInputElement | null>(null)
@@ -344,17 +354,21 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
 
         {months.length > 0 && (
           <div className="tabs" data-testid="mgr-suivi-bc-month-tabs">
-            {months.map((m) => (
-              <button
-                key={m.key}
-                type="button"
-                className={`chip${m.key === month ? ' active' : ''}`}
-                data-testid={`mgr-suivi-bc-month-${m.key}`}
-                onClick={() => void load(handleAuth, m.key)}
+            <label className="month-pick">
+              Mois
+              <select
+                className="month-select"
+                value={month ?? ''}
+                onChange={(e) => { const key = e.target.value; if (key) void load(handleAuth, key) }}
+                data-testid="mgr-suivi-bc-month-select"
               >
-                {monthTitle(m.key)}
-              </button>
-            ))}
+                {monthOptions.map((m) => (
+                  <option key={m.key} value={m.key} data-testid={`mgr-suivi-bc-month-${m.key}`}>
+                    {monthTitle(m.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
             {month && (
               <>
                 <span className="sheet-note">Feuille active :</span>
@@ -589,7 +603,14 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                     <span className="sup-total mono">Total : {group.totalLabel} XOF</span>
                   </div>
                   <div style={{ overflowX: 'auto' }}>
-                    <table>
+                    <table className="recap-tbl">
+                      <colgroup>
+                        <col style={{ width: '12%' }} />
+                        <col style={{ width: '16%' }} />
+                        <col style={{ width: '17%' }} />
+                        <col style={{ width: '25%' }} />
+                        <col style={{ width: '30%' }} />
+                      </colgroup>
                       <thead>
                         <tr>
                           <th>DATE</th>

@@ -102,7 +102,7 @@ export function EditSupermarketModal({
             <input type="text" value={form.contactName} style={css.input} onChange={(e) => setForm((p) => ({ ...p, contactName: e.target.value }))} />
           </Field>
           <Field label="E-mail responsable *">
-            <input type="email" required value={form.contactEmail} style={css.input} onChange={(e) => setForm((p) => ({ ...p, contactEmail: e.target.value }))} />
+            <input type="email" required value={form.contactEmail} style={css.input} data-testid="mgr-chantier-email-edit" onChange={(e) => setForm((p) => ({ ...p, contactEmail: e.target.value }))} />
           </Field>
           <div style={{ display: 'flex', gap: 8 }}>
             <Field label="Latitude">

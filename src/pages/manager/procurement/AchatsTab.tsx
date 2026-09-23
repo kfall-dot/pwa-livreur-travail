@@ -914,7 +914,7 @@ export function AchatsTab({
     <div data-testid="mgr-achats-tab">
       <h2 style={{ ...css.sectionTitle, marginBottom: '0.25rem' }}>
         {procurementRole === 'technical_director'
-          ? 'Espace Directeur technique'
+          ? 'Espace Direction technique'
           : procurementRole === 'purchasing'
             ? 'Espace Service achats'
             : procurementRole === 'daf'
@@ -2053,6 +2053,24 @@ function RequestDetailPanel({
               ? 'Vérifiez le chiffrage et consultez les pièces jointes, puis approuvez. Le dossier sera transmis au DAF.'
               : 'Vérifiez le chiffrage et consultez les pièces jointes, puis approuvez. Le SA émettra le BC ensuite.'}
           </p>
+          {showTreasury && (
+            <p
+              data-testid="mgr-achats-bt-approve-notice"
+              style={{
+                fontSize: 12,
+                marginTop: 8,
+                padding: '6px 10px',
+                borderRadius: 8,
+                background: '#fef9c3',
+                border: '1px solid #fde047',
+                color: '#713f12',
+              }}
+            >
+              {procurementRole === 'daf' || procurementRole === 'pdg'
+                ? 'Votre approbation (NIP) vaut aussi validation du bon de trésorerie : votre signature sera apposée sur la Demande d’avance de trésorerie.'
+                : 'Le bon de trésorerie joint sera également approuvé : le DAF puis le PDG y apposeront leur signature.'}
+            </p>
+          )}
           {showTreasury && (
             <p style={{ fontSize: 13, marginTop: 8 }}>
               Bon de trésorerie {treasuryOrder!.reference}

@@ -22,12 +22,21 @@ import {
   saPriceAndSubmitFinance,
   saPriceSubmitCdgApprove,
   saPriceLines,
+  simulateDeliveredBcViaApi,
   simulateEbToPo,
   simulateWhatsappEb,
 } from './btp-helpers'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+/** Mois précédent au format `YYYY-MM` (navigation dans les mois passés). */
+function previousMonthIso(): string {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 test.describe('Achats chantier BTP (procurement)', () => {
@@ -341,7 +350,7 @@ test.describe('Achats chantier BTP (procurement)', () => {
     })
     await expect(page.getByTestId('mgr-achats-tab')).toBeVisible()
     await expect(page.getByTestId('mgr-achats-paste')).toBeVisible()
-    await expect(page.getByText('Espace Directeur technique')).toBeVisible()
+    await expect(page.getByText('Espace Direction technique')).toBeVisible()
     await expect(page.getByTestId('mgr-tab-planifier')).toHaveCount(0)
     await expect(page.getByTestId('mgr-tab-catalogue')).toHaveCount(0)
     await expect(page.getByTestId('mgr-tab-taches')).toHaveCount(0)
@@ -367,14 +376,27 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByTestId('mgr-tab-suivi-chantier')).toHaveCount(0)
     await expect(page.getByTestId('mgr-achats-suivi-chantier')).toHaveCount(0)
 
+    // I89 : barre latérale du SA — « Livraisons » apparaît avant « Suivi » (registre BC).
+    const sidebarLabels = () => page.locator('.manager-sidebar .manager-sidebar__item-label').allTextContents()
+    const labelsAchats = await sidebarLabels()
+    expect(labelsAchats.indexOf('Livraisons')).toBeGreaterThanOrEqual(0)
+    expect(labelsAchats.indexOf('Livraisons')).toBeLessThan(labelsAchats.indexOf('Suivi'))
+
     await page.getByTestId('mgr-tab-catalogue').click()
-    await expect(page.getByTestId('mgr-tab-points')).toBeVisible({ timeout: UI_READY_TIMEOUT })
-    await expect(page.getByTestId('mgr-tab-points')).toHaveText('Chantiers')
-    await page.getByTestId('mgr-tab-points').click()
-    await expect(page.getByTestId('mgr-tab-fournisseurs')).toBeVisible()
+    // Les 4 boutons de sous-navigation catalogue (Chantiers / Fournisseurs /
+    // Catalogue produits / Unités de mesure) ne s'affichent plus au-dessus des
+    // tuiles : les chips de `CatalogueTab` sont les seuls points d'entrée.
+    const chips = page.locator('.ctg .tabs')
+    await expect(chips).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await expect(page.getByTestId('mgr-tab-points')).toHaveCount(0)
+    await expect(page.getByTestId('mgr-tab-fournisseurs')).toHaveCount(0)
+    await expect(page.getByTestId('mgr-tab-produits')).toHaveCount(0)
+    await expect(page.getByTestId('mgr-tab-unites')).toHaveCount(0)
+
+    await chips.getByRole('button', { name: 'Chantiers', exact: true }).click()
     await expect(page.getByText('Résidence Cocody — Tour A')).toBeVisible({ timeout: UI_READY_TIMEOUT })
-    await expect(page.getByTestId('mgr-tab-unites')).toBeVisible()
-    await page.getByTestId('mgr-tab-unites').click()
+
+    await chips.getByRole('button', { name: 'Catégories & unités' }).click()
     await expect(page.getByText('Sac', { exact: true })).toBeVisible({ timeout: UI_READY_TIMEOUT })
     await expect(page.getByText('Tonne', { exact: true })).toBeVisible()
     await expect(page.getByText('Botte', { exact: true })).toBeVisible()
@@ -389,6 +411,10 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByTestId('mgr-tasks-pending')).toBeVisible({ timeout: UI_READY_TIMEOUT })
     await expect(page.getByText('Tâches gestionnaire')).toBeVisible()
 
+    // I89 : l'ordre de la barre latérale ne dépend pas de la page affichée.
+    const labelsTaches = await sidebarLabels()
+    expect(labelsTaches.indexOf('Livraisons')).toBeLessThan(labelsTaches.indexOf('Suivi'))
+
     await loginBtpManager(page, 'cdg')
     await expect(page).toHaveURL(/tab=achats/)
     await expect(page.getByTestId('mgr-sidebar-role')).toHaveText(/contrôle de gestion/i, {
@@ -398,6 +424,11 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByText('Espace Contrôle de gestion')).toBeVisible()
     await expect(page.getByTestId('mgr-tab-suivi-chantier')).toBeVisible()
     await expect(page.getByTestId('mgr-tab-planifier')).toHaveCount(0)
+
+    // I89 : le CdG affiche « Livraisons » avant « Suivi chantier ».
+    const labelsCdg = await page.locator('.manager-sidebar .manager-sidebar__item-label').allTextContents()
+    expect(labelsCdg.indexOf('Achats chantier')).toBeLessThan(labelsCdg.indexOf('Livraisons'))
+    expect(labelsCdg.indexOf('Livraisons')).toBeLessThan(labelsCdg.indexOf('Suivi chantier'))
   })
 
   test('SA chiffre PU×qté puis envoie au CdG si < 500 000 XOF (I44)', async ({ request }) => {
@@ -1698,5 +1729,64 @@ test.describe('Achats chantier BTP (procurement)', () => {
     expect(tour.stops[0]?.products?.[0]?.unit).toBe('seau')
     expect(tour.stops[0]?.unitType).not.toBe('colis')
     expect(tour.stops[0]?.unitType).not.toBe('palette')
+  })
+
+  test('CdG : Livraisons — mois courant par défaut, filtres jour / mois / chantier (I91)', async ({ page, request }) => {
+    test.setTimeout(180_000)
+    await simulateDeliveredBcViaApi(request)
+
+    await loginBtpManager(page, 'cdg')
+    await page.getByTestId('mgr-tab-suivi').click()
+
+    // Vue par défaut : toutes les livraisons du mois courant (et non du seul jour).
+    const title = page.getByTestId('mgr-suivi-list-title')
+    const monthFr = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+    await expect(title).toContainText(monthFr, { timeout: UI_READY_TIMEOUT })
+    await expect(page.getByTestId('mgr-suivi-deliveries-table')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    // Vue mensuelle : aucune chip de tournée (« 02/09/2026 · <livreur> · 1 livraison »).
+    await expect(page.getByTestId('mgr-suivi-tourbar')).toHaveCount(0)
+
+    // Mois passé : la livraison du BC (aujourd'hui) disparaît de la liste.
+    await page.getByTestId('mgr-suivi-month').fill(previousMonthIso())
+    await expect(page.getByText('Aucune livraison pour ce mois.')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+
+    // Retour au mois courant : elle réapparaît.
+    await page.getByTestId('mgr-suivi-month').fill(localTodayIso().slice(0, 7))
+    await expect(page.getByTestId('mgr-suivi-deliveries-table')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+
+    // Filtre d'une journée (les chips de tournée n'apparaissent qu'à ce niveau),
+    // puis retour à toutes les demandes du mois.
+    await page.getByTestId('mgr-suivi-filter-day').click()
+    await expect(title).toContainText('Livraisons du', { timeout: UI_READY_TIMEOUT })
+    await expect(page.getByTestId('mgr-suivi-tourbar')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await page.getByTestId('mgr-suivi-filter-month').click()
+    await expect(title).toContainText(monthFr, { timeout: UI_READY_TIMEOUT })
+
+    // Menu Chantier : alimenté par les chantiers ayant des BC émis.
+    const siteSelect = page.getByTestId('mgr-suivi-site')
+    expect(await siteSelect.locator('option').count()).toBeGreaterThan(1)
+    const siteValue = await siteSelect.locator('option').nth(1).getAttribute('value')
+    expect(siteValue).toBeTruthy()
+    await siteSelect.selectOption(siteValue!)
+    // Rattachement tournée → BC → chantier : la livraison du BC reste listée.
+    await expect(page.getByTestId('mgr-suivi-deliveries-table')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+
+    // Tuiles = compteurs de la période (mois + chantier), indépendants des chips.
+    const kpiDelivered = Number((await page.getByTestId('mgr-suivi-kpi-delivered').textContent())?.trim())
+    const kpiFailed = Number((await page.getByTestId('mgr-suivi-kpi-failed').textContent())?.trim())
+    expect(kpiDelivered).toBeGreaterThan(0)
+
+    // Chips de statut : le tableau suit EXACTEMENT la tuile correspondante…
+    const rows = page.locator('[data-testid="mgr-suivi-deliveries-table"] tbody tr')
+    await page.getByTestId('mgr-suivi-chip-partial').click()
+    await expect(rows).toHaveCount(kpiFailed)
+    await page.getByTestId('mgr-suivi-chip-delivered').click()
+    await expect(rows).toHaveCount(kpiDelivered)
+    await page.getByTestId('mgr-suivi-chip-otp').click()
+    await expect(rows).toHaveCount(0)
+
+    // …et les tuiles ne s'ajustent pas sur les chips.
+    await expect(page.getByTestId('mgr-suivi-kpi-delivered')).toHaveText(String(kpiDelivered))
+    await expect(page.getByTestId('mgr-suivi-kpi-failed')).toHaveText(String(kpiFailed))
   })
 })

@@ -244,14 +244,94 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
 
   const monthIndex = useMemo(() => months.findIndex((m) => m.key === month), [months, month])
 
+  // `months` est trié du plus récent au plus ancien (mois par défaut = le plus
+  // récent) : avancer dans le temps = revenir vers le début du tableau.
   const gotoNeighbor = (delta: -1 | 1) => {
-    const next = months[monthIndex + delta]
+    const next = months[monthIndex - delta]
     if (next) void load(handleAuth, next.key)
   }
 
-  const sessionExport = () => {
-    void load(handleAuth)
-    toast.show('Registre à jour')
+  /** Télécharge un tableau au format Excel (.xls SpreadsheetML — sans dépendance externe). */
+  const downloadXls = (fileName: string, headers: string[], lines: Array<Array<string | number>>) => {
+    const esc = (v: unknown) =>
+      String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const body = lines
+      .map(
+        (cells) =>
+          '<tr>' +
+          cells.map((v) => (typeof v === 'number' ? `<td x:num>${v}</td>` : `<td>${esc(v)}</td>`)).join('') +
+          '</tr>',
+      )
+      .join('')
+    const html =
+      '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>' +
+      `<table border="1"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>` +
+      '</body></html>'
+    const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  /**
+   * Exports du sous-onglet Rapports : données réelles du mois affiché
+   * (registre BC du store — même source que le tableau de bord).
+   */
+  const exportReport = (kind: 'suivi-bc' | 'factures' | 'recap-fournisseur' | 'suivi-paiements') => {
+    const suffix = month ?? 'tous'
+    if (kind === 'suivi-bc') {
+      downloadXls(
+        `cmpt-suivi-bc-${suffix}.xls`,
+        ['Chantier', 'Fournisseur', 'Date', 'N° BC', 'Paiement', 'Montant (XOF)', 'N° Facture', 'Observation', 'Vérification'],
+        filteredRows.map((r) => [
+          r.siteName,
+          r.supplierName,
+          r.date,
+          r.bon,
+          paymentLabel(r.paymentMode),
+          r.amountFcfa ?? 0,
+          r.invoice,
+          r.observation,
+          r.verification,
+        ]),
+      )
+      toast.show(`Suivi BC exporté (${filteredRows.length} BC)`)
+    } else if (kind === 'factures') {
+      downloadXls(
+        `cmpt-factures-${suffix}.xls`,
+        ['Chantier', 'Fournisseur', 'Date', 'N° BC', 'N° Facture', 'Montant (XOF)', 'Payée', 'Transmise'],
+        invoicedRows.map((r) => [
+          r.siteName,
+          r.supplierName,
+          r.date,
+          r.bon,
+          r.invoice,
+          r.amountFcfa ?? 0,
+          r.invoicePaid ? 'Oui' : 'Non',
+          r.invoiceTransmitted ? 'Oui' : 'Non',
+        ]),
+      )
+      toast.show(`Factures exportées (${invoicedRows.length})`)
+    } else if (kind === 'recap-fournisseur') {
+      const counts: Record<string, number> = {}
+      for (const r of rows) counts[r.supplierName.trim()] = (counts[r.supplierName.trim()] ?? 0) + 1
+      downloadXls(
+        `cmpt-recap-fournisseur-${suffix}.xls`,
+        ['Fournisseur', 'Nombre de BC', 'Montant total (XOF)'],
+        supplierTotals.map(([name, total]) => [name, counts[name] ?? 0, total]),
+      )
+      toast.show(`Récap fournisseur exporté (${supplierTotals.length} fournisseurs)`)
+    } else {
+      downloadXls(
+        `cmpt-suivi-paiements-${suffix}.xls`,
+        ['Mode de paiement', 'Nombre de BC', 'Montant (XOF)'],
+        Object.entries(kpi.byMode).map(([mode, b]) => [paymentLabel(mode), b.count, b.amount]),
+      )
+      toast.show('Suivi paiements exporté')
+    }
   }
 return (
     <div className="cmpt">
@@ -284,11 +364,11 @@ return (
         ) : (
           <>
             <div className="month-nav">
-              <button type="button" className="btn" onClick={() => gotoNeighbor(-1)} disabled={monthIndex <= 0}>
+              <button type="button" className="btn" onClick={() => gotoNeighbor(-1)} disabled={monthIndex < 0 || monthIndex >= months.length - 1}>
                 &lt; Précédent
               </button>
               <span className="current">{monthLabel}</span>
-              <button type="button" className="btn" onClick={() => gotoNeighbor(1)} disabled={monthIndex < 0 || monthIndex >= months.length - 1}>
+              <button type="button" className="btn" onClick={() => gotoNeighbor(1)} disabled={monthIndex <= 0}>
                 Suivant &gt;
               </button>
             </div>
@@ -696,25 +776,61 @@ return (
                         <td style={{ fontWeight: 700 }}>Suivi BC</td>
                         <td>Liste des BC avec détails fournisseurs et paiements</td>
                         <td>XLSX</td>
-                        <td><button type="button" className="chip" onClick={sessionExport}>Exporter</button></td>
+                        <td>
+                          <button
+                            type="button"
+                            className="chip"
+                            data-testid="cmpt-export-suivi-bc"
+                            onClick={() => exportReport('suivi-bc')}
+                          >
+                            Exporter
+                          </button>
+                        </td>
                       </tr>
                       <tr>
                         <td style={{ fontWeight: 700 }}>Factures</td>
                         <td>Liste des factures avec statut de paiement</td>
                         <td>XLSX</td>
-                        <td><button type="button" className="chip" onClick={sessionExport}>Exporter</button></td>
+                        <td>
+                          <button
+                            type="button"
+                            className="chip"
+                            data-testid="cmpt-export-factures"
+                            onClick={() => exportReport('factures')}
+                          >
+                            Exporter
+                          </button>
+                        </td>
                       </tr>
                       <tr>
                         <td style={{ fontWeight: 700 }}>Recap fournisseur</td>
                         <td>Récapitulatif groupé par fournisseur</td>
-                        <td>PDF</td>
-                        <td><button type="button" className="chip" onClick={sessionExport}>Exporter</button></td>
+                        <td>XLSX</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="chip"
+                            data-testid="cmpt-export-recap-fournisseur"
+                            onClick={() => exportReport('recap-fournisseur')}
+                          >
+                            Exporter
+                          </button>
+                        </td>
                       </tr>
                       <tr>
                         <td style={{ fontWeight: 700 }}>Suivi paiements</td>
                         <td>État des paiements par mode</td>
                         <td>XLSX</td>
-                        <td><button type="button" className="chip" onClick={sessionExport}>Exporter</button></td>
+                        <td>
+                          <button
+                            type="button"
+                            className="chip"
+                            data-testid="cmpt-export-suivi-paiements"
+                            onClick={() => exportReport('suivi-paiements')}
+                          >
+                            Exporter
+                          </button>
+                        </td>
                       </tr>
                     </tbody>
                   </table>

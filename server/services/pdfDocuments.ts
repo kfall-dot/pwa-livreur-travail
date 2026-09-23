@@ -44,7 +44,14 @@ export type BtTemplateData = {
   reconciliationDate?: string
   employeeId?: string
   structureCode?: string
-  lines?: Array<{ reference?: string; objet: string; amountFcfa: number }>
+  lines?: Array<{
+    reference?: string
+    objet: string
+    /** « 50 sacs » — quantité + unité. Vide sur la ligne de repli (avance forfaitaire). */
+    quantity?: string
+    unitPriceFcfa?: number
+    amountFcfa: number
+  }>
   quotationUrls?: string[] | null
   notes?: string | null
   createdAt: string
@@ -173,7 +180,7 @@ const DEFAULT_BT_TEMPLATE = `<!DOCTYPE html>
   table.meta th, table.meta td, table.lines th, table.lines td { border: 1px solid #1e3a5f; padding: 6px 8px; font-size: 12px; }
   table.meta th { width: 32%; background: #eef3f8; text-align: left; font-size: 11px; text-transform: uppercase; }
   table.lines th { background: #eef3f8; font-size: 11px; text-transform: uppercase; }
-  table.lines td.amt { text-align: right; white-space: nowrap; }
+  table.lines td.qty, table.lines td.pu, table.lines td.amt { text-align: right; white-space: nowrap; }
   .valid { display: flex; gap: 10px; margin-top: 12px; }
   .valid .box { flex: 1; border: 1px solid #1e3a5f; min-height: 72px; padding: 6px 8px; font-size: 12px; font-weight: 700; white-space: pre-line; }
   .instr { margin-top: 12px; font-size: 10px; line-height: 1.4; color: #333; }
@@ -198,7 +205,7 @@ const DEFAULT_BT_TEMPLATE = `<!DOCTYPE html>
       <tr><th>Chantier</th><td>{{siteName}}</td></tr>
     </table>
     <table class="lines" style="margin-top:10px">
-      <thead><tr><th>N° de référence</th><th>Objet</th><th>Montant</th></tr></thead>
+      <thead><tr><th>N° de référence</th><th>Objet</th><th>Quantité</th><th>Prix unitaire</th><th>Montant</th></tr></thead>
       <tbody>{{linesRows}}</tbody>
     </table>
     <div class="valid">
@@ -276,11 +283,11 @@ function btLinesRows(data: BtTemplateData): string {
   const body = rows
     .map(
       (l) =>
-        `<tr><td>${escapeHtml(l.reference ?? data.reference)}</td><td>${escapeHtml(l.objet)}</td><td class="amt">${escapeHtml(formatFcfa(l.amountFcfa))}</td></tr>`,
+        `<tr><td>${escapeHtml(l.reference ?? data.reference)}</td><td>${escapeHtml(l.objet)}</td><td class="qty">${escapeHtml(l.quantity ?? '')}</td><td class="pu">${escapeHtml(l.unitPriceFcfa != null ? formatFcfa(l.unitPriceFcfa) : '')}</td><td class="amt">${escapeHtml(formatFcfa(l.amountFcfa))}</td></tr>`,
     )
     .join('')
   const total = rows.reduce((s, l) => s + l.amountFcfa, 0) || data.amountFcfa
-  return `${body}<tr class="totals"><td colspan="2"><strong>Total</strong></td><td class="amt"><strong>${escapeHtml(formatFcfa(total))}</strong></td></tr>`
+  return `${body}<tr class="totals"><td colspan="4"><strong>Total</strong></td><td class="amt"><strong>${escapeHtml(formatFcfa(total))}</strong></td></tr>`
 }
 
 function btValidationBox(
@@ -383,7 +390,11 @@ export function buildBtDataFromRequest(
     .filter((l) => l.label.trim())
     .map((l) => ({
       reference: request.reference,
-      objet: `${l.label} — ${l.quantity} ${l.unit}${l.supplierName ? ` (${l.supplierName})` : ''}`,
+      // La quantité et le prix unitaire ont leurs colonnes dédiées : l'objet
+      // reste le libellé (+ fournisseur), sans « 50 sacs » redondant.
+      objet: `${l.label}${l.supplierName ? ` (${l.supplierName})` : ''}`,
+      quantity: `${l.quantity} ${l.unit}`.trim(),
+      unitPriceFcfa: Number(l.unitPriceFcfa ?? 0) || undefined,
       amountFcfa: Number(l.amountFcfa ?? 0) || Number(l.unitPriceFcfa ?? 0) * Number(l.quantity ?? 0),
     }))
   const amountFcfa = mapped.reduce((s, l) => s + l.amountFcfa, 0) || Number(treasury.amountFcfa)

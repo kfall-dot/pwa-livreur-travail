@@ -270,6 +270,10 @@ export function ManagerDashboardPage() {
     : procurementWorkspace
     ? [
         { id: 'achats', label: 'Achats chantier', tab: 'achats', badge: procurementInboxCount },
+        // Section « Gestion » : Achats chantier → Livraisons → [Suivi chantier] → Suivi (registre BC).
+        // « Livraisons » précède donc « Suivi » et « Suivi chantier », pour tous les rôles
+        // (SA, DT, CdG, DAF, PDG), sur toutes les pages du dashboard.
+        { id: 'suivi', label: 'Livraisons', tab: 'suivi' },
         ...(canSeeSuiviChantier(procurementRole)
           ? [{ id: 'suiviChantier' as const, label: 'Suivi chantier', tab: 'suiviChantier' as Tab }]
           : []),
@@ -282,7 +286,6 @@ export function ManagerDashboardPage() {
               { id: 'suiviBc' as const, label: 'Suivi', tab: 'suiviBc' as Tab },
             ]
           : []),
-        { id: 'suivi', label: 'Livraisons', tab: 'suivi' },
       ]
     : [
         { id: 'suivi', label: 'Suivi livraisons', tab: 'suivi' },
@@ -496,42 +499,9 @@ export function ManagerDashboardPage() {
               )}
             </nav>
           )}
-          {isCatalogueTab && (
-            <nav style={css.catalogueSubnav} aria-label="Sous-navigation catalogue">
-              <button
-                type="button"
-                data-testid="mgr-tab-points"
-                onClick={() => setTab('points')}
-                style={tab === 'points' ? css.tabActive : css.tab}
-              >
-                Chantiers
-              </button>
-              <button
-                type="button"
-                data-testid="mgr-tab-fournisseurs"
-                onClick={() => setTab('fournisseurs')}
-                style={tab === 'fournisseurs' ? css.tabActive : css.tab}
-              >
-                Fournisseurs
-              </button>
-              <button
-                type="button"
-                data-testid="mgr-tab-produits"
-                onClick={() => setTab('produits')}
-                style={tab === 'produits' ? css.tabActive : css.tab}
-              >
-                Catalogue produits
-              </button>
-              <button
-                type="button"
-                data-testid="mgr-tab-unites"
-                onClick={() => setTab('unites')}
-                style={tab === 'unites' ? css.tabActive : css.tab}
-              >
-                Unités de mesure
-              </button>
-            </nav>
-          )}
+          {/* La sous-navigation catalogue (4 boutons Chantiers / Fournisseurs /
+              Catalogue produits / Unités de mesure) a été retirée de l'UI : elle
+              dupliquait les chips de `CatalogueTab`, désormais seuls points d'entrée. */}
         {tab === 'suivi'    && (
           <SuiviTab
             key={`suivi-${suiviRefreshKey}`}

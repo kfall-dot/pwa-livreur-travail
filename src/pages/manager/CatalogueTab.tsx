@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { authFetch } from './managerApi'
+import { authFetch, fetchSupermarkets } from './managerApi'
+import { normalizeSupermarkets, type Supermarket } from './managerTypes'
+import { EditSupermarketModal } from './modals/EditSupermarketModal'
+import { SiteDetailModal } from './modals/SiteDetailModal'
+import { SUPPLIER_FAMILIES, isSupplierFamily, siteTypeLabel, supplierFamilyLabel } from '../../../shared/catalogEnums'
 import { toast } from '../../lib/toast'
 
 type ProductRow = { id: string; label: string; unit: string; category?: string; active: boolean; displayOrder?: number }
@@ -10,11 +14,27 @@ type SupplierRow = {
   name: string
   contactEmail?: string | null
   contactPhone?: string | null
+  /** Famille fournisseur (I56) : materiaux | services | sous_traitance */
+  family?: string | null
+  notes?: string | null
   active: boolean
 }
-type BcRegRow = { supplierName: string; amountFcfa: number | string }
+type BcRegRow = { supplierName: string; amountFcfa: number | string; siteName: string; date: string }
 type Chip = 'produits' | 'fournisseurs' | 'unites' | 'chantiers'
-type SiteRow = { id: string; name: string; status: string; deliveryCount: number }
+type SiteRow = { id: string; name: string; status: string; siteType?: string | null }
+
+/** Chantier achats (`sites`) tel que renvoyé par GET /procurement/sites. */
+type ProcurementSiteRow = { id: string; name: string; supermarketId?: string | null }
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
+/** Date registre BC « jj/mm/aaaa » → `Date` locale (`null` si non exploitable). */
+function parseFrDate(value: string): Date | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((value ?? '').trim())
+  if (!m) return null
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]))
+  return Number.isNaN(d.getTime()) ? null : d
+}
 
 const CAT_CSS = `
 .ctg{font-family:'Inter',sans-serif}
@@ -75,12 +95,16 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
   const [qS, setQS] = useState('')
   const [qU, setQU] = useState('')
   const [stU, setStU] = useState<'all' | 'active' | 'inactive'>('all')
-  const [modal, setModal] = useState<null | 'product' | 'unit' | 'site' | 'edit-product' | 'edit-supplier' | 'supplier'>(null)
+  const [modal, setModal] = useState<null | 'product' | 'unit' | 'edit-unit' | 'site' | 'edit-product' | 'edit-supplier' | 'supplier'>(null)
   const [form, setForm] = useState({ label: '', unit: '', code: '', category: '' })
   const [siteForm, setSiteForm] = useState({ name: '', siteType: 'prive', email: '', otpContact: '', phone: '', addrSiege: '', addrDepot: '', status: 'active' })
   const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null)
   const [editingSupplier, setEditingSupplier] = useState<SupplierRow | null>(null)
-  const [supForm, setSupForm] = useState({ name: '', contactName: '', contactEmail: '', contactPhone: '', address: '' })
+  const [editingUnit, setEditingUnit] = useState<UnitRow | null>(null)
+  const [editSiteId, setEditSiteId] = useState<string | null>(null)
+  const [detailSiteId, setDetailSiteId] = useState<string | null>(null)
+  const [editSitePoints, setEditSitePoints] = useState<Supermarket[]>([])
+  const [supForm, setSupForm] = useState({ name: '', contactName: '', contactEmail: '', contactPhone: '', address: '', family: 'materiaux', notes: '' })
   const fileRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
 
@@ -129,23 +153,45 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [rp, ru, rs, rsi] = await Promise.all([
+      const [rp, ru, rs, rsi, rps] = await Promise.all([
         authFetch('/dashboard/products'),
         authFetch('/dashboard/units'),
         authFetch('/dashboard/suppliers'),
         authFetch('/dashboard/supermarkets'),
+        authFetch('/procurement/sites'),
       ])
       if (rp.ok) setProducts(((await rp.json()) as { products?: ProductRow[] }).products ?? [])
       if (ru.ok) setUnits(((await ru.json()) as { units?: UnitRow[] }).units ?? [])
       if (rs.ok) setSuppliers(((await rs.json()) as { suppliers?: SupplierRow[] }).suppliers ?? [])
+      if (rps.ok) {
+        const pdata = await rps.json() as { sites?: ProcurementSiteRow[] }
+        const linked = new Map<string, string>()
+        for (const st of pdata.sites ?? []) {
+          if (st.supermarketId) linked.set(st.supermarketId, st.name)
+        }
+        setSiteNameBySmId(linked)
+      }
       if (rsi.ok) {
-        const data = await rsi.json() as { supermarkets?: { id: string; name: string; active: boolean }[] }
-        setSites((data.supermarkets ?? []).map((s) => ({ id: s.id, name: s.name, status: s.active ? 'active' : 'inactive', deliveryCount: 0 })))
+        const data = await rsi.json() as { supermarkets?: { id: string; name: string; active: boolean; siteType?: string }[] }
+        setSites((data.supermarkets ?? []).map((s) => ({ id: s.id, name: s.name, status: s.active ? 'active' : 'inactive', siteType: s.siteType ?? null })))
       }
       const rb = await authFetch('/procurement/bc-register')
       if (rb.ok) {
         const reg = await rb.json() as { rows?: BcRegRow[] }
-        setBcRows(reg.rows ?? [])
+        const rows = reg.rows ?? []
+        setBcRows(rows)
+        // Fenêtre glissante de 30 jours : comptage par chantier, calculé au
+        // chargement (jamais pendant le rendu : `Date.now` est impur).
+        const threshold = Date.now() - THIRTY_DAYS_MS
+        const counts = new Map<string, number>()
+        for (const row of rows) {
+          const key = (row.siteName ?? '').trim().toLowerCase()
+          if (key === '') continue
+          const d = parseFrDate(row.date ?? '')
+          if (d == null || d.getTime() < threshold) continue
+          counts.set(key, (counts.get(key) ?? 0) + 1)
+        }
+        setDeliveries30BySite(counts)
       }
     } finally {
       setLoading(false)
@@ -170,6 +216,24 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
     else toast.error('')
   }
 
+  /**
+   * Ouvre la modale « Modifier » d'un chantier. On recharge d'abord les points
+   * de livraison complets (type, adresse, contacts, GPS) pour pré-remplir le
+   * formulaire, puis on monte la modale.
+   */
+  const openEditSite = async (id: string) => {
+    try {
+      const res = await fetchSupermarkets()
+      if (res.ok) {
+        const data = await res.json() as { supermarkets?: Supermarket[] }
+        setEditSitePoints(normalizeSupermarkets(data.supermarkets ?? []))
+      }
+    } catch {
+      // Liste indisponible : la modale s'ouvrira avec les champs vides.
+      setEditSitePoints([])
+    }
+    setEditSiteId(id)
+  }
 
   const handleCreateSupplier = async () => {
     if (!supForm.name.trim()) { toast.error(''); return }
@@ -181,6 +245,8 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
         contactEmail: supForm.contactEmail.trim() || null,
         contactPhone: supForm.contactPhone.trim() || null,
         address: supForm.address.trim() || null,
+        family: supForm.family,
+        notes: supForm.notes.trim() || null,
       }),
     })
     if (res.ok) { toast.success(''); setModal(null); void load() }
@@ -229,6 +295,23 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
     }
     return m
   }, [bcRows])
+
+  /**
+   * Livraisons des 30 derniers jours par chantier : une ligne du registre BC
+   * = un BC livré, rattaché au chantier par son nom (même règle que la fiche
+   * détaillée), date au format « jj/mm/aaaa » dans la fenêtre glissante.
+   * Calculé au chargement (jamais pendant le rendu : `Date.now` est impur).
+   */
+  const [deliveries30BySite, setDeliveries30BySite] = useState<Map<string, number>>(() => new Map())
+  /** Lien point de livraison → nom du chantier achats relié (même règle que la fiche détaillée). */
+  const [siteNameBySmId, setSiteNameBySmId] = useState<Map<string, string>>(() => new Map())
+
+  const deliveries30For = (site: SiteRow): number => {
+    // Comme la fiche détaillée : on compte par le nom du chantier achats relié
+    // au point (repli sur le nom du point quand il n'est pas rattaché).
+    const name = siteNameBySmId.get(site.id) ?? site.name
+    return deliveries30BySite.get((name ?? '').trim().toLowerCase()) ?? 0
+  }
 
   return (
     <div className="ctg">
@@ -314,11 +397,11 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
                 <h1 style={{ fontSize: 15 }}>Fournisseurs</h1>
                 <p className="sub" style={{ fontSize: 12 }}>Points fournisseurs du référentiel — historique BC rattaché</p>
               </div>
-              <button className="btn btn-primary" onClick={() => { setSupForm({ name: '', contactName: '', contactEmail: '', contactPhone: '', address: '' }); setModal('supplier') }}>+ Nouveau fournisseur</button>
+              <button className="btn btn-primary" onClick={() => { setSupForm({ name: '', contactName: '', contactEmail: '', contactPhone: '', address: '', family: 'materiaux', notes: '' }); setModal('supplier') }}>+ Nouveau fournisseur</button>
             </div>
             <table>
               <thead><tr>
-                <th>Fournisseur</th><th>Contact</th><th>Téléphone</th><th>Produits liés</th>
+                <th>Fournisseur</th><th>Famille</th><th>Contact</th><th>Téléphone</th><th>Produits liés</th>
                 <th>BC du mois</th><th>Montant engagé (XOF)</th><th>Statut</th><th aria-hidden="true"></th>
               </tr></thead>
               <tbody>
@@ -327,6 +410,7 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
                   return (
                     <tr key={s.id}>
                       <td><strong>{s.name}</strong></td>
+                      <td>{supplierFamilyLabel(s.family)}</td>
                       <td>{s.contactEmail || '—'}</td>
                       <td className="mono">{s.contactPhone || '—'}</td>
                       <td className="mono">—</td>
@@ -337,7 +421,7 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
                     </tr>
                   )
                 })}
-                {suppliers.length === 0 && <tr><td colSpan={8} style={{ color: 'var(--muted,#64748b)' }}>Aucun fournisseur dans le référentiel.</td></tr>}
+                {suppliers.length === 0 && <tr><td colSpan={9} style={{ color: 'var(--muted,#64748b)' }}>Aucun fournisseur dans le référentiel.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -357,20 +441,30 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
             <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setModal('site')}>+ Nouveau chantier</button>
           </div>
           <table>
-            <thead><tr><th>Chantier</th><th>Livraisons 30 j</th><th>Statut</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
+            <thead><tr><th>Chantier</th><th>Type</th><th>Livraisons 30 j</th><th>Statut</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
             <tbody>
               {filteredSites.map(s => (
-                <tr key={s.id}>
+                <tr
+                  key={s.id}
+                  data-testid={`mgr-chantier-row-${s.id}`}
+                  title="Cliquer pour ouvrir la fiche détaillée du chantier"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setDetailSiteId(s.id)}
+                >
                   <td style={{ fontWeight: 600, color: 'var(--navy,#1e3a5f)' }}>{s.name}</td>
-                  <td className="mono">{s.deliveryCount}</td>
+                  <td><span className={s.siteType === 'public' ? 'pill pill-amber' : 'pill pill-gray'}>{siteTypeLabel(s.siteType)}</span></td>
+                  <td className="mono" data-testid={`mgr-chantier-d30-${s.id}`}>{deliveries30For(s)}</td>
                   <td>{s.status === 'active' ? <span className="pill pill-green">Actif</span> : <span className="pill pill-gray">Inactif</span>}</td>
-                  <td style={{ textAlign: 'right' }}><button className="edit" onClick={() => void toggleSite(s)}>{s.status === 'active' ? 'Désactiver' : 'Activer'}</button></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="edit" style={{ marginRight: 4 }} onClick={(e) => { e.stopPropagation(); void openEditSite(s.id) }}>Modifier</button>
+                    <button className="edit" onClick={(e) => { e.stopPropagation(); void toggleSite(s) }}>{s.status === 'active' ? 'Désactiver' : 'Activer'}</button>
+                  </td>
                 </tr>
               ))}
-              {filteredSites.length === 0 && <tr><td colSpan={4} style={{ color: 'var(--muted,#64748b)' }}>Aucun chantier dans le référentiel.</td></tr>}
+              {filteredSites.length === 0 && <tr><td colSpan={5} style={{ color: 'var(--muted,#64748b)' }}>Aucun chantier dans le référentiel.</td></tr>}
             </tbody>
           </table>
-          <p className="legend">● Les chantiers sont créés par le SA/CdG et assignés aux DT et livreurs pour les livraisons.</p>
+          <p className="legend">● Les chantiers sont créés par le SA/CdG et assignés aux DT et livreurs pour les livraisons. ● Cliquez un chantier pour ouvrir sa fiche détaillée (contacts, encadrement, budget, livraisons).</p>
         </div>
       ) : (
         <div className="card">
@@ -394,7 +488,10 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
                   <td className="mono">{u.code}</td>
                   <td>{u.label}</td>
                   <td>{u.active ? <span className="pill pill-green">Active</span> : <span className="pill pill-gray">Inactive</span>}</td>
-                  <td style={{ textAlign: 'right' }}><button className="edit" onClick={() => void toggleUnit(u)}>{u.active ? 'Désactiver' : 'Activer'}</button></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="edit" style={{ marginRight: 4 }} onClick={() => { setEditingUnit(u); setModal('edit-unit') }}>Modifier</button>
+                    <button className="edit" onClick={() => void toggleUnit(u)}>{u.active ? 'Désactiver' : 'Activer'}</button>
+                  </td>
                 </tr>
               ))}
               {fUnits.length === 0 && <tr><td colSpan={4} style={{ color: 'var(--muted,#64748b)' }}>Aucune unité ne correspond aux filtres.</td></tr>}
@@ -439,6 +536,35 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
                 <div className="ctg-modal-actions">
                   <button className="btn" onClick={() => setModal(null)}>Annuler</button>
                   <button className="btn btn-primary" onClick={() => void submit()}>Créer</button>
+                </div>
+              </>
+            )}
+            {modal === 'edit-unit' && editingUnit && (
+              <>
+                <h3>Modifier l'unité</h3>
+                <label>Code (non modifiable)
+                  <input value={editingUnit.code} disabled style={{ background: '#f1f5f9', color: 'var(--muted,#64748b)' }} />
+                </label>
+                <label>Libellé *
+                  <input value={editingUnit.label} onChange={e => setEditingUnit({ ...editingUnit, label: e.target.value })} placeholder="Ex. Sac de 50 kg" />
+                </label>
+                <label>Statut
+                  <select value={editingUnit.active ? 'active' : 'inactive'} onChange={e => setEditingUnit({ ...editingUnit, active: e.target.value === 'active' })}>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </label>
+                <div className="ctg-modal-actions">
+                  <button className="btn" onClick={() => { setModal(null); setEditingUnit(null) }}>Annuler</button>
+                  <button className="btn btn-primary" onClick={async () => {
+                    if (!editingUnit.label.trim()) { toast.error('Le libellé est requis'); return }
+                    const res = await authFetch(`/dashboard/units/${editingUnit.id}`, { method: 'PATCH', body: JSON.stringify({
+                      label: editingUnit.label.trim(),
+                      active: editingUnit.active,
+                    }) })
+                    if (res.ok) { toast.success('Unité modifiée'); setModal(null); setEditingUnit(null); void load() }
+                    else toast.error('Échec de la modification de l\'unité')
+                  }}>Enregistrer</button>
                 </div>
               </>
             )}
@@ -551,6 +677,23 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
                 <label>Téléphone
                   <input value={editingSupplier.contactPhone ?? ''} onChange={e => setEditingSupplier({ ...editingSupplier, contactPhone: e.target.value })} placeholder="+2250700000000 (optionnel)" />
                 </label>
+                <label>Famille
+                  <select
+                    value={isSupplierFamily(editingSupplier.family) ? editingSupplier.family : 'materiaux'}
+                    data-testid="mgr-supplier-family-edit"
+                    onChange={e => setEditingSupplier({ ...editingSupplier, family: isSupplierFamily(e.target.value) ? e.target.value : 'materiaux' })}
+                  >
+                    {SUPPLIER_FAMILIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
+                </label>
+                <label>Note
+                  <input
+                    value={editingSupplier.notes ?? ''}
+                    data-testid="mgr-supplier-notes-edit"
+                    onChange={e => setEditingSupplier({ ...editingSupplier, notes: e.target.value })}
+                    placeholder="Note interne (optionnel)"
+                  />
+                </label>
                 <label>Statut
                   <select value={editingSupplier.active ? 'active' : 'inactive'} onChange={e => setEditingSupplier({ ...editingSupplier, active: e.target.value === 'active' })}>
                     <option value="active">Actif</option>
@@ -565,6 +708,8 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
                       name: editingSupplier.name.trim(),
                       contactEmail: editingSupplier.contactEmail?.trim() || null,
                       contactPhone: editingSupplier.contactPhone?.trim() || null,
+                      family: editingSupplier.family ?? null,
+                      notes: editingSupplier.notes?.trim() || null,
                       active: editingSupplier.active,
                     }) })
                     if (res.ok) { toast.success(''); setModal(null); setEditingSupplier(null); void load() }
@@ -592,6 +737,23 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
                   <label>Adresse
                     <input value={supForm.address} onChange={e => setSupForm(f => ({ ...f, address: e.target.value }))} placeholder="Adresse du fournisseur (optionnel)" />
                   </label>
+                  <label>Famille
+                    <select
+                      value={supForm.family}
+                      data-testid="mgr-supplier-modal-family"
+                      onChange={e => setSupForm(f => ({ ...f, family: isSupplierFamily(e.target.value) ? e.target.value : 'materiaux' }))}
+                    >
+                      {SUPPLIER_FAMILIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                    </select>
+                  </label>
+                  <label>Note
+                    <input
+                      value={supForm.notes}
+                      data-testid="mgr-supplier-modal-notes"
+                      onChange={e => setSupForm(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Note interne (optionnel)"
+                    />
+                  </label>
                   <div className="ctg-modal-actions">
                     <button type="button" className="btn" onClick={() => setModal(null)}>Annuler</button>
                     <button type="submit" className="btn btn-primary">Créer</button>
@@ -601,6 +763,18 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
             )}
           </div>
         </div>
+      )}
+
+      {editSiteId && (
+        <EditSupermarketModal
+          id={editSiteId}
+          points={editSitePoints}
+          onClose={() => { setEditSiteId(null); void load() }}
+        />
+      )}
+
+      {detailSiteId && (
+        <SiteDetailModal siteId={detailSiteId} onClose={() => setDetailSiteId(null)} />
       )}
 
       <p className="legend">Catalogue partagé : les produits, unités et fournisseurs alimentent les demandes d'achat, les BC et le suivi fournisseurs.</p>

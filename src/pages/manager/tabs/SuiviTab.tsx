@@ -8,6 +8,7 @@ import type { ProcurementRole } from '../procurement/procurementTypes'
 import { AlertBox, EmptyHint, LoadingHint } from '../managerUi'
 import { suiviQuantityDisplay, formatProductQuantityLine } from '../productHelpers'
 import { toast } from '../../../lib/toast'
+import { deliveryBucket, type DeliveryBucket } from '../../../lib/deliveryBucket'
 
 interface SuiviTourGroup {
   tourId: string
@@ -28,9 +29,35 @@ interface SuiviTabProps {
   pendingDate?: string | null
   onPendingDateConsumed?: () => void
   refreshKey?: number
+  /** Plus monté par l'UI (bandeau « Voir les tâches » retiré — demande CMPT) ; conservé pour l'appelant. */
   pendingTaskCount?: number
+  /** Plus monté par l'UI (bandeau retiré) ; conservé pour l'appelant. */
   onGoToTasks?: () => void
 }
+
+/** Chantier proposé au filtre (chantiers ayant au moins un BC émis). */
+interface ChantierOption {
+  id: string
+  name: string
+  supermarketId: string | null
+  bcCount: number
+}
+
+/** « septembre 2026 » depuis `YYYY-MM` (en-tête de la vue mois). */
+function monthLabel(monthIso: string): string {
+  const [y, m] = monthIso.split('-').map(Number)
+  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return monthIso
+  return new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+}
+
+/** « 23/09/2026 » depuis `YYYY-MM-DD`. */
+function dayLabel(dayIso: string): string {
+  return dayIso.split('-').reverse().join('/')
+}
+
+// Classement des livraisons (tuiles, chips, badge) : source unique dans
+// src/lib/deliveryBucket.ts — voir ce module pour la règle « déclaration
+// (partielle / refusée) prime sur le statut delivered ».
 
 interface SuiviTourGroup {
   tourId: string
@@ -84,6 +111,7 @@ const LM_CSS = `
 .lvm .filters{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
 .lvm .filters select,.lvm .filters input{border:1px solid #cbd5e1;border-radius:8px;padding:7px 10px;font-size:13px;color:#334155;background:#fff;font-family:inherit}
 .lvm .filters .spacer{flex:1}
+.lvm .filters .field{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .lvm .chip{border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;background:#f1f5f9;color:#475569;cursor:pointer;border:none;font-family:inherit}
 .lvm .chip.active{background:#1e3a5f;color:#fff}
 .lvm .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
@@ -119,8 +147,10 @@ const LM_CSS = `
 // Statuts maquette livraison-manager-v1 : classes badge + libellés
 function lmStatusClass(status: string | null | undefined, declarationOutcome?: string | null): string {
   const s = (status ?? '').toLowerCase()
+  // La déclaration prime sur le statut : partielle / refusée = écart, même
+  // quand l'arrêt est passé à « delivered ». 'refused' = repli données anciennes.
+  if (declarationOutcome === 'partial' || declarationOutcome === 'rejected' || declarationOutcome === 'refused' || s.includes('partial') || s.includes('fail') || s.includes('refus')) return 'b-failed'
   if (s.includes('deliver') || s.includes('validat')) return 'b-delivered'
-  if (declarationOutcome === 'partial' || declarationOutcome === 'refused' || s.includes('partial') || s.includes('fail') || s.includes('refus')) return 'b-failed'
   if (s.includes('otp')) return 'b-otp'
   if (s.includes('progress')) return 'b-progress'
   return 'b-pending'
@@ -128,9 +158,9 @@ function lmStatusClass(status: string | null | undefined, declarationOutcome?: s
 
 function lmStatusLabel(status: string | null | undefined, declarationOutcome?: string | null): string {
   const s = (status ?? '').toLowerCase()
-  if (s.includes('deliver') || s.includes('validat')) return 'Livrée'
-  if (declarationOutcome === 'refused' || s.includes('refus')) return 'Refusée'
+  if (declarationOutcome === 'rejected' || declarationOutcome === 'refused' || s.includes('refus')) return 'Refusée'
   if (declarationOutcome === 'partial' || s.includes('partial') || s.includes('fail')) return 'Écart'
+  if (s.includes('deliver') || s.includes('validat')) return 'Livrée'
   if (s.includes('otp')) return 'OTP envoyé'
   if (s.includes('progress')) return 'En cours'
   return 'En attente'
@@ -148,8 +178,8 @@ export function SuiviTab({
   pendingDate,
   onPendingDateConsumed,
   refreshKey,
-  pendingTaskCount,
-  onGoToTasks,
+  // BANDEAU « Voir les tâches » RETIRÉ (demande CMPT) — props `pendingTaskCount`
+  // et `onGoToTasks` conservées dans SuiviTabProps pour compatibilité appelant.
 }: SuiviTabProps) {
   // Modification des tournées/livraisons : réservée au SA. Les gestionnaires
   // sans rôle BTP (héritage, rôle null) conservent l'accès complet.
@@ -157,37 +187,46 @@ export function SuiviTab({
   // managers sans rôle achats (consultation seule).
   const canModify = procurementRole === 'purchasing'
   const [date, setDate] = useState(() => pendingDate ?? todayIso())
-  const [status, setStatus] = useState('all')
-  const [deliveries, setDeliveries] = useState<DeliveryRow[]>([])
-  const [total, setTotal] = useState(0)
+  const [bucket, setBucket] = useState<DeliveryBucket>('all')
+  // Toutes les livraisons de la période (mois ou jour, chantier inclus) : les
+  // tuiles se calculent dessus ; les chips ne filtrent que le tableau.
+  const [period, setPeriod] = useState<DeliveryRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Vue par défaut de la page : toutes les livraisons du mois courant. Le filtre
+  // « Jour » bascule sur une seule date ; « Voir tout le mois » revient au mois.
+  const [scope, setScope] = useState<'month' | 'day'>('month')
+  const [month, setMonth] = useState(() => (pendingDate ?? todayIso()).slice(0, 7))
+  const [siteId, setSiteId] = useState('')
+  const [sites, setSites] = useState<ChantierOption[]>([])
 
+  const deliveries = useMemo(
+    () => (bucket === 'all' ? period : period.filter((d) => deliveryBucket(d) === bucket)),
+    [period, bucket],
+  )
   const tourGroups = useMemo(() => groupDeliveriesByTour(deliveries), [deliveries])
 
+  // Tuiles = compteurs de la période affichée (mois ou jour) : elles ne bougent
+  // pas quand un chip de statut est sélectionné.
   const kpi = useMemo(() => {
-    let pending = 0, progress = 0, otp = 0, delivered = 0, failed = 0
-    for (const d of deliveries) {
-      const s = (d.status ?? '').toLowerCase()
-      if (s.includes('deliver') || s.includes('validat')) delivered++
-      else if (s.includes('partial') || s.includes('fail') || s.includes('refus') || d.declarationOutcome === 'partial' || d.declarationOutcome === 'refused') failed++
-      else if (s.includes('otp')) otp++
-      else if (s.includes('progress')) progress++
-      else pending++
-    }
-    return { pending, progress, otp, delivered, failed }
-  }, [deliveries])
+    const counts = { pending: 0, progress: 0, otp: 0, delivered: 0, failed: 0 }
+    for (const d of period) counts[deliveryBucket(d)] += 1
+    return counts
+  }, [period])
 
   const fetch_ = useCallback(async () => {
     setLoading(true); setError(null)
-    const res = await authFetch(`/dashboard/deliveries?date=${date}&status=${status}`)
+    const params = new URLSearchParams()
+    if (scope === 'day') params.set('date', date)
+    else params.set('month', month)
+    if (siteId) params.set('siteId', siteId)
+    const res = await authFetch(`/dashboard/deliveries?${params.toString()}`)
     if (handleAuth(res.status)) return
     const data = await res.json() as { deliveries: DeliveryRow[]; total: number; validated: number }
-    setDeliveries(data.deliveries ?? [])
-    setTotal(data.total ?? 0)
+    setPeriod(data.deliveries ?? [])
     setLoading(false)
-  }, [date, status, handleAuth])
+  }, [date, month, scope, siteId, handleAuth])
 
   const deleteTour = async (tourId: string, driverName: string, deliveredCount: number) => {
     if (deliveredCount > 0) {
@@ -209,6 +248,16 @@ export function SuiviTab({
 
   useEffect(() => { void fetch_() }, [fetch_])
 
+  // Menu « Chantier » : chantiers ayant au moins un BC émis (source achats).
+  useEffect(() => {
+    void (async () => {
+      const res = await authFetch('/procurement/sites/with-bc')
+      if (handleAuth(res.status) || !res.ok) return
+      const data = (await res.json()) as { sites?: ChantierOption[] }
+      setSites(data.sites ?? [])
+    })()
+  }, [handleAuth])
+
   useEffect(() => {
     if (refreshKey === undefined || refreshKey === 0) return
     void fetch_()
@@ -217,6 +266,8 @@ export function SuiviTab({
   useEffect(() => {
     if (pendingDate) {
       setDate(pendingDate)
+      setMonth(pendingDate.slice(0, 7))
+      setScope('day')
       onPendingDateConsumed?.()
     }
   }, [pendingDate, onPendingDateConsumed])
@@ -232,14 +283,9 @@ export function SuiviTab({
     <div className="lvm">
       <style>{LM_CSS}</style>
 
-      {(pendingTaskCount ?? 0) > 0 && procurementRole !== 'technical_director' && (
-        <div style={{ background: '#f3faf6', border: '1px solid #c5d9cc', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <p style={{ margin: 0, fontSize: 14 }}>
-            <strong>{pendingTaskCount}</strong> tâche(s) en attente (confirmations, partielles, non effectuées…).
-          </p>
-          <button type="button" onClick={onGoToTasks} className="btn-sm gold">Voir les tâches</button>
-        </div>
-      )}
+      {/* Bandeau « Voir les tâches » retiré (demande CMPT) : entrée redondante
+          pour les rôles qui ont « Tâches » dans la barre latérale, inaccessible
+          pour les autres (onglet réservé à la logistique / au SA). */}
 
       <div className="page-header">
         <div>
@@ -255,33 +301,75 @@ export function SuiviTab({
       </div>
 
       <div className="kpi-row">
-        <div className="kpi"><span className="icon">📦</span><div className="label">En attente</div><div className="value">{kpi.pending}</div><div className="detail">planifiées, non démarrées</div></div>
-        <div className="kpi"><span className="icon">🛣️</span><div className="label">En cours</div><div className="value warn">{kpi.progress}</div><div className="detail">livreur parti du dépôt</div></div>
-        <div className="kpi"><span className="icon">🔐</span><div className="label">OTP envoyé</div><div className="value warn">{kpi.otp}</div><div className="detail">en attente de saisie client</div></div>
-        <div className="kpi"><span className="icon">✅</span><div className="label">Livrées</div><div className="value ok">{kpi.delivered}</div><div className="detail">sur {total} prévues</div></div>
-        <div className="kpi"><span className="icon">⚠️</span><div className="label">Échecs / écarts</div><div className="value warn">{kpi.failed}</div><div className="detail">quantité ≠ attendue</div></div>
+        <div className="kpi"><span className="icon">📦</span><div className="label">En attente</div><div className="value" data-testid="mgr-suivi-kpi-pending">{kpi.pending}</div><div className="detail">planifiées, non démarrées</div></div>
+        <div className="kpi"><span className="icon">🛣️</span><div className="label">En cours</div><div className="value warn" data-testid="mgr-suivi-kpi-progress">{kpi.progress}</div><div className="detail">livreur parti du dépôt</div></div>
+        <div className="kpi"><span className="icon">🔐</span><div className="label">OTP envoyé</div><div className="value warn" data-testid="mgr-suivi-kpi-otp">{kpi.otp}</div><div className="detail">en attente de saisie client</div></div>
+        <div className="kpi"><span className="icon">✅</span><div className="label">Livrées</div><div className="value ok" data-testid="mgr-suivi-kpi-delivered">{kpi.delivered}</div><div className="detail">sur {period.length} prévues</div></div>
+        <div className="kpi"><span className="icon">⚠️</span><div className="label">Échecs / écarts</div><div className="value warn" data-testid="mgr-suivi-kpi-failed">{kpi.failed}</div><div className="detail">quantité ≠ attendue</div></div>
       </div>
 
       <div className="filters">
-        <button type="button" className={status === 'all' ? 'chip active' : 'chip'} onClick={() => setStatus('all')}>Toutes</button>
-        <button type="button" className={status === 'otp_sent' ? 'chip active' : 'chip'} onClick={() => setStatus('otp_sent')}>OTP bloqué</button>
-        <button type="button" className={status === 'partial' ? 'chip active' : 'chip'} onClick={() => setStatus('partial')}>Écarts</button>
-        <button type="button" className={status === 'delivered' ? 'chip active' : 'chip'} onClick={() => setStatus('delivered')}>Livrées</button>
+        <button type="button" data-testid="mgr-suivi-chip-all" className={bucket === 'all' ? 'chip active' : 'chip'} onClick={() => setBucket('all')}>Toutes</button>
+        <button type="button" data-testid="mgr-suivi-chip-otp" className={bucket === 'otp' ? 'chip active' : 'chip'} onClick={() => setBucket('otp')}>OTP bloqué</button>
+        <button type="button" data-testid="mgr-suivi-chip-partial" className={bucket === 'failed' ? 'chip active' : 'chip'} onClick={() => setBucket('failed')}>Écarts</button>
+        <button type="button" data-testid="mgr-suivi-chip-delivered" className={bucket === 'delivered' ? 'chip active' : 'chip'} onClick={() => setBucket('delivered')}>Livrées</button>
         <span className="spacer" />
-        <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Date</label>
-        <input type="date" data-testid="mgr-suivi-date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <button type="button" className="btn btn-primary" onClick={() => void fetch_()}>Filtrer</button>
+        <span className="field">
+          <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Mois</label>
+          <input
+            type="month"
+            data-testid="mgr-suivi-month"
+            value={month}
+            onChange={(e) => { if (!e.target.value) return; setMonth(e.target.value); setScope('month') }}
+          />
+        </span>
+        <span className="field">
+          <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Jour</label>
+          <input type="date" data-testid="mgr-suivi-date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </span>
+        <button
+          type="button"
+          className="btn btn-primary"
+          data-testid="mgr-suivi-filter-day"
+          onClick={() => { if (scope === 'day') void fetch_(); else setScope('day') }}
+        >
+          Filtrer
+        </button>
+        {scope === 'day' && (
+          <button
+            type="button"
+            className="btn"
+            data-testid="mgr-suivi-filter-month"
+            onClick={() => { setMonth(date.slice(0, 7)); setScope('month') }}
+          >
+            Voir tout le mois
+          </button>
+        )}
+        <span className="field">
+          <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Chantier</label>
+          <select data-testid="mgr-suivi-site" value={siteId} onChange={(e) => setSiteId(e.target.value)}>
+            <option value="">Tous les chantiers</option>
+            {sites.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} · {s.bcCount} BC</option>
+            ))}
+          </select>
+        </span>
       </div>
 
       {error && <AlertBox>{error}</AlertBox>}
       {loading && <LoadingHint />}
-      {!loading && deliveries.length === 0 && <EmptyHint>Aucune livraison pour ce filtre.</EmptyHint>}
+      {!loading && period.length === 0 && (
+        <EmptyHint>{scope === 'month' ? 'Aucune livraison pour ce mois.' : 'Aucune livraison pour ce filtre.'}</EmptyHint>
+      )}
+      {!loading && period.length > 0 && deliveries.length === 0 && (
+        <EmptyHint>Aucune livraison ne correspond à ce filtre.</EmptyHint>
+      )}
 
-      {tourGroups.length > 0 && (
-        <div className="tourbar">
+      {scope === 'day' && tourGroups.length > 0 && (
+        <div className="tourbar" data-testid="mgr-suivi-tourbar">
           {tourGroups.map((group) => (
             <span key={group.tourId} className="tour-chip">
-              🛣️ {group.driverName} · {group.deliveries.length} livraison{group.deliveries.length > 1 ? 's' : ''}
+              🛣️ {group.driverName}
               {canModify && (
                 <>
                   <button type="button" data-testid={`mgr-suivi-edit-${group.tourId}`} className="mini" onClick={() => onEditTour?.(group.tourId, group.tourDate)}>Modifier</button>
@@ -298,13 +386,19 @@ export function SuiviTab({
       {deliveries.length > 0 && (
         <div className="card">
           <div className="card-head">
-            <h2>Livraisons du {date.split('-').reverse().join('/')}</h2>
-            <span className="muted">{deliveries.length} livraison{deliveries.length > 1 ? 's' : ''} · {tourGroups.length} tournée{tourGroups.length > 1 ? 's' : ''} · clic sur une ligne pour le détail</span>
+            <h2 data-testid="mgr-suivi-list-title">
+              {scope === 'month' ? `Livraisons de ${monthLabel(month)}` : `Livraisons du ${dayLabel(date)}`}
+            </h2>
+            <span className="muted">
+              {deliveries.length} livraison{deliveries.length > 1 ? 's' : ''}
+              {scope === 'day' ? ` · ${tourGroups.length} tournée${tourGroups.length > 1 ? 's' : ''}` : ''}
+              {' '}· clic sur une ligne pour le détail
+            </span>
           </div>
           <table data-testid="mgr-suivi-deliveries-table">
             <thead>
               <tr>
-                <th>Référence</th><th>Chantier / Magasin</th><th>Livreur</th><th>Statut</th><th>Quantités</th><th>Dépôt</th><th aria-hidden="true"></th>
+                <th>Référence</th>{scope === 'month' && <th>Date</th>}<th>Chantier / Magasin</th><th>Livreur</th><th>Statut</th><th>Quantités</th><th>Dépôt</th><th aria-hidden="true"></th>
               </tr>
             </thead>
             <tbody>
@@ -315,6 +409,7 @@ export function SuiviTab({
                 return (
                   <tr key={d.deliveryId} onClick={() => setSelectedId(d.deliveryId)}>
                     <td className="ref">{d.deliveryId.slice(0, 8).toUpperCase()}</td>
+                    {scope === 'month' && <td className="muted">{dayLabel(d.tourDate)}</td>}
                     <td>
                       <div style={{ fontWeight: 700, color: '#1e3a5f' }}>{d.deliveryName}</div>
                       <div className="muted">{d.deliveryAddress}</div>

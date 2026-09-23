@@ -28,6 +28,9 @@ export const DEMO = {
   MANAGER_ID: 'mgr-demo-1',
   SA_MANAGER_ID: 'mgr-demo-sa',
   SA_MANAGER_EMAIL: 'sa@demo.fr',
+  /** DT démo (consultation seule) — voit les tournées démo, sans Modifier. */
+  DT_MANAGER_ID: 'mgr-demo-dt',
+  DT_MANAGER_EMAIL: 'dt@demo.fr',
   MANAGER_EMAIL: 'manager@demo.fr',
   DRIVER_ID: 'drv-demo-1',
   DRIVER_PHONE: '+2250701234567',
@@ -413,6 +416,40 @@ export async function seedDemoData(): Promise<{ driverId: string; tourId: string
         role: 'manager' as const,
         // Ne pas écraser le procurementRole existant
         ...(existingSaManager?.procurementRole ? {} : { procurementRole: 'purchasing' as const }),
+      },
+    })
+
+  // DT démo (Directeur technique) dans la compagnie démo — le test e2e
+  // « le DT ne voit pas Modifier » exige un gestionnaire NON-achats VOYANT
+  // les tournées démo : un compte d'une autre compagnie ne verrait aucune
+  // donnée et l'absence du bouton ne prouverait rien.
+  const existingDtManager = await db
+    .select({ procurementRole: managers.procurementRole })
+    .from(managers)
+    .where(eq(managers.id, DEMO.DT_MANAGER_ID))
+    .limit(1)
+    .then((rows) => rows[0])
+
+  await db
+    .insert(managers)
+    .values({
+      id: DEMO.DT_MANAGER_ID,
+      companyId: DEMO_COMPANY_ID,
+      email: DEMO.DT_MANAGER_EMAIL,
+      passwordHash: managerPasswordHash,
+      name: 'DT Démo',
+      role: 'manager',
+      procurementRole: 'technical_director',
+    })
+    .onConflictDoUpdate({
+      target: managers.id,
+      set: {
+        passwordHash: managerPasswordHash,
+        name: 'DT Démo',
+        companyId: DEMO_COMPANY_ID,
+        role: 'manager' as const,
+        // Ne pas écraser le procurementRole existant
+        ...(existingDtManager?.procurementRole ? {} : { procurementRole: 'technical_director' as const }),
       },
     })
 

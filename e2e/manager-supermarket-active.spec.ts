@@ -1,10 +1,16 @@
 import { expect, test } from '@playwright/test'
-import { API_BASE, loginManager, managerApiLogin, resetAndSeed } from './helpers'
+import { API_BASE, loginManager, managerApiLogin, resetAndSeed, UI_READY_TIMEOUT } from './helpers'
 
-/** Ouvre la section Catalogue → sous-onglet « Chantiers ». */
-async function openPointsTab(page: import('@playwright/test').Page): Promise<void> {
-  await page.getByRole('button', { name: 'Catalogue', exact: true }).click()
-  await page.getByTestId('mgr-tab-points').click()
+const DEMO_SITE_NAME = 'Carrefour City République'
+
+/**
+ * Ouvre le catalogue manager puis le chip « Chantiers ». Le sous-nav catalogue
+ * (bouton `mgr-tab-points`) a été retiré : les chips de `CatalogueTab` sont les
+ * seuls points d'entrée de la section.
+ */
+async function openCatalogueChantiers(page: import('@playwright/test').Page): Promise<void> {
+  await page.getByTestId('mgr-tab-catalogue').click()
+  await page.locator('.ctg .tabs').getByRole('button', { name: 'Chantiers', exact: true }).click()
 }
 
 test.describe('Chantiers — statut actif/inactif', () => {
@@ -33,17 +39,20 @@ test.describe('Chantiers — statut actif/inactif', () => {
   test('désactivation visible dans l’UI manager après reload', async ({ page }) => {
     await loginManager(page)
 
-    await openPointsTab(page)
-    const status = page.getByTestId('mgr-point-status-sm-demo-carrefour-republique')
-    await expect(status).toHaveText('Actif')
+    await openCatalogueChantiers(page)
+    const row = page.locator('.ctg tbody tr', { hasText: DEMO_SITE_NAME })
+    await expect(row).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await expect(row.getByText('Actif', { exact: true })).toBeVisible()
 
-    const row = page.locator('tr', { has: status })
-    page.once('dialog', (dialog) => dialog.accept())
-    await row.getByRole('button', { name: 'Actif' }).click()
-    await expect(status).toHaveText('Inactif', { timeout: 10_000 })
+    // Le chip désactive sans boîte de confirmation (PATCH direct), contrairement
+    // à l'ancienne page « Points de livraison ».
+    await row.getByRole('button', { name: 'Désactiver' }).click()
+    await expect(row.getByText('Inactif', { exact: true })).toBeVisible({ timeout: 10_000 })
 
     await page.reload()
-    await openPointsTab(page)
-    await expect(page.getByTestId('mgr-point-status-sm-demo-carrefour-republique')).toHaveText('Inactif')
+    await openCatalogueChantiers(page)
+    await expect(
+      page.locator('.ctg tbody tr', { hasText: DEMO_SITE_NAME }).getByText('Inactif', { exact: true }),
+    ).toBeVisible({ timeout: UI_READY_TIMEOUT })
   })
 })

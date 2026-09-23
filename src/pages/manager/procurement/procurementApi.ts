@@ -1,4 +1,5 @@
 import { authFetch, BASE as API_ROOT } from '../managerApi'
+import { apiErrorMessage } from '../../../lib/apiError'
 import type {
   ApproveRejectPayload,
   CreatePoPayload,
@@ -18,19 +19,6 @@ import type {
 } from './procurementTypes'
 
 const BASE = '/procurement'
-
-/**
- * Extrait le message d'erreur du serveur. Si la réponse n'est pas du JSON
- * (502/504 de la gateway pendant un redéploiement Railway), renvoie un
- * message actionnable au lieu d'un fallback générique incompréhensible.
- */
-async function apiErrorMessage(res: Response, fallback: string): Promise<Error> {
-  const err = (await res.json().catch(() => null)) as { message?: string } | null
-  if (err == null) {
-    return new Error('Serveur momentanément indisponible (redéploiement en cours ?) — réessayez dans 1 minute.')
-  }
-  return new Error(err.message ?? fallback)
-}
 
 export async function fetchProcurementConfig(): Promise<ProcurementConfig> {
   const res = await authFetch(`${BASE}/config`)
@@ -92,13 +80,18 @@ export async function fetchSiteMonthlyExpenses(
 }
 
 export async function freezeSiteBudget(siteId: string, amountFcfa: number, pin: string): Promise<SiteBudget> {
+  // Garde-fous client (mêmes règles que le serveur) : évite d'envoyer NaN/0 et
+  // d'afficher un message de validation Zod incompréhensible.
+  if (!Number.isInteger(amountFcfa) || amountFcfa < 1) {
+    throw new Error('Montant de l’enveloppe invalide : saisissez un entier ≥ 1 FCFA.')
+  }
+  if (!pin.trim()) throw new Error('NIP obligatoire pour geler l’enveloppe.')
   const res = await authFetch(`${BASE}/sites/${encodeURIComponent(siteId)}/budget/freeze`, {
     method: 'POST',
     body: JSON.stringify({ amountFcfa, pin }),
   })
-  const data = await res.json().catch(() => ({})) as SiteBudget & { message?: string }
   if (!res.ok) throw await apiErrorMessage(res, 'Gel de l’enveloppe impossible')
-  return data
+  return res.json() as Promise<SiteBudget>
 }
 
 export async function createSiteBudgetAmendment(
@@ -106,13 +99,18 @@ export async function createSiteBudgetAmendment(
   signedAmountFcfa: number,
   reason: string,
 ): Promise<SiteBudget> {
+  if (!Number.isInteger(signedAmountFcfa) || signedAmountFcfa === 0) {
+    throw new Error('Montant de l’avenant invalide : saisissez un entier non nul.')
+  }
+  if (reason.trim().length < 10) {
+    throw new Error('Motif de l’avenant obligatoire (10 caractères minimum).')
+  }
   const res = await authFetch(`${BASE}/sites/${encodeURIComponent(siteId)}/budget/amendments`, {
     method: 'POST',
     body: JSON.stringify({ signedAmountFcfa, reason }),
   })
-  const data = await res.json().catch(() => ({})) as SiteBudget & { message?: string }
   if (!res.ok) throw await apiErrorMessage(res, 'Avenant impossible')
-  return data
+  return res.json() as Promise<SiteBudget>
 }
 
 export async function decideSiteBudgetAmendment(
@@ -122,13 +120,13 @@ export async function decideSiteBudgetAmendment(
   pin: string,
   comment?: string,
 ): Promise<SiteBudget> {
+  if (!pin.trim()) throw new Error('NIP obligatoire pour décider de l’avenant.')
   const res = await authFetch(
     `${BASE}/sites/${encodeURIComponent(siteId)}/budget/amendments/${encodeURIComponent(amendmentId)}/${decision}`,
     { method: 'POST', body: JSON.stringify({ pin, comment }) },
   )
-  const data = await res.json().catch(() => ({})) as SiteBudget & { message?: string }
   if (!res.ok) throw await apiErrorMessage(res, 'Décision avenant impossible')
-  return data
+  return res.json() as Promise<SiteBudget>
 }
 
 export async function fetchSuppliers(): Promise<SupplierRow[]> {

@@ -118,9 +118,9 @@ export const DEMO_SA_MANAGER = {
   password: 'admin1234',
 } as const
 
-/** Compte DT (Directeur technique) créé par seedBtpPilot — consultation seule. */
+/** Compte DT (technical_director) créé par le seed démo — entreprise démo : voit les tournées démo en consultation seule. */
 export const DEMO_DT_MANAGER = {
-  email: 'dt@btp-pilote.ci',
+  email: 'dt@demo.fr',
   password: 'admin1234',
 } as const
 

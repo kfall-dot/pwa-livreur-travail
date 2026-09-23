@@ -19,7 +19,9 @@ import {
   getPurchaseRequestLines,
   getRequestDetail,
   getSiteBudget,
+  getSiteBySupermarketId,
   getSiteIndicators,
+  listChantiersWithBc,
   listSiteBudgets,
   listSiteMonthlyExpenses,
   listSupervisedSiteIds,
@@ -400,6 +402,29 @@ procurementRouter.get('/sites', async (req, res) => {
   const { manager } = req as unknown as ManagerRequest
   const rows = await listSites(manager.companyId)
   res.json({ sites: rows })
+})
+
+// GET /sites/with-bc — chantiers ayant au moins un BC émis (filtre « Chantier »
+// de la page Livraisons, vue mois). Déclaré AVANT /sites/:id pour ne pas être
+// capturé par une route paramétrée.
+procurementRouter.get('/sites/with-bc', async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  try {
+    const sites = await listChantiersWithBc(manager.companyId)
+    res.json({ sites })
+  } catch (err) {
+    console.error('[procurement] sites with-bc error', err)
+    res.status(500).json({ message: 'Erreur serveur' })
+  }
+})
+
+// GET /sites/by-supermarket/:supermarketId — chantier achats relié à un point du catalogue.
+// Utilisé par la fiche chantier du catalogue (modale) : renvoie `site: null` quand
+// le point n'est pas rattaché au suivi achats (aucune erreur).
+procurementRouter.get('/sites/by-supermarket/:supermarketId', async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  const site = await getSiteBySupermarketId(manager.companyId, String(req.params.supermarketId))
+  res.json({ site })
 })
 
 procurementRouter.post('/sites', requireProcurementRole('technical_director', 'daf'), async (req, res) => {

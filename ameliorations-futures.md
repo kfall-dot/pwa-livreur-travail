@@ -1,7 +1,7 @@
 # Améliorations futures
 
 Document de référence pour les choix produit/reportés à plus tard.  
-Dernière mise à jour : 30 juillet 2026.
+Dernière mise à jour : 22 septembre 2026.
 
 ---
 
@@ -30,6 +30,45 @@ Le **dashboard gestionnaire** continue d’afficher les tournées **séparément
 ### Décision
 
 **Statut : corrigé (juillet 2026)** — ne plus se limiter à la dernière tournée du jour (sauf arrêts `failed` après replan).
+---
+
+## Bon de livraison SA + refonte « Dossier BC » (suivi facture)
+
+### Contexte
+
+Après la livraison du livreur, le SA reçoit la **facture** et souvent un **bon de livraison (BL) papier** du fournisseur (en pratique photographié, reçu via WhatsApp). Aujourd'hui : aucun emplacement pour le BL dans l'application. La saisie vit dans `SuiviBcTab.tsx` — tableau dense (n° facture, observation, vérification, 3 types de 📎), design fonctionnel mais saturé, et **mono-fichier** (`sa_invoice_blob_key`). Justificatifs = simple champ texte `sa_justifs` (pas de fichier).
+
+### Options envisagées
+
+| Option | Contenu | Avantage | Limite |
+|---|---|---|---|
+| 1 | Colonne « BL » dans le tableau actuel (duplication du mécanisme facture) | Rapide (~½ j) | Design inchangé, 1 seul fichier, tableau plus dense |
+| 2 | Refonte « Dossier BC » : panneau latéral au clic (livraison + pièces + suivi + timeline) | Résout le design, scalable, mobile | ~2-3 j |
+| 3 | Table `bc_documents` — multi-fichiers par type | Socle pérenne | Sans effet UI seule |
+
+### Maquette « Dossier BC » (résumé)
+
+- **Tableau allégé** : colonne « Dossier » unique — jauge `◐ 2/4` + pastilles 🧾 facture · 📄 BL · 📎 pièces livreur ; clic → panneau.
+- **Panneau latéral** (~500 px) : en-tête (BC, fournisseur, chantier, montant, date, pill PARTIEL) · timeline `Livré → Facture reçue → Transmise → Payée` · 🚚 Livraison (déclaration + photos livreur déjà stockées) · 📁 Pièces en 3 zones (Facture / Bon de livraison / Justificatifs — **plusieurs fichiers** par zone, upload ou 📷 `capture="environment"`, aperçu, suppression, PDF/JPG/PNG ~5 Mo) · ✍️ Suivi (n°, observation, vérification — règles actuelles) · 📤 Transmettre (n° + fichier requis, règle conservée).
+- **Comptable** : même panneau en lecture seule + zone paiement.
+
+### Socle technique
+
+Table `bc_documents` : `id · purchase_order_id · kind (facture|bon_livraison|justificatif) · blob_key · file_name · content_type · uploaded_by · uploaded_at`. Routes upload/aperçu/suppression paramétrées par `kind` (mécanique base64/blob existante de la facture). Factures existantes `sa_invoice_*` préservées (backfill ou coexistence le temps de la bascule Comptabilité).
+
+### Chiffrage
+
+| Lot | Contenu | Durée |
+|---|---|---|
+| 1 | Migration `bc_documents` + routes par kind + backfill | ~½ j |
+| 2 | Composant `BcDossierDrawer` | ~1 j |
+| 3 | Allègement tableau + intégration SA/CMPT | ~½ j |
+| 4 | Tests e2e + INVARIANTS | ~½ j |
+
+### Décision
+
+**Statut : proposé (22 septembre 2026)** — maquette à valider avant le lot 1.
+
 ---
 
 ## Pistes d’évolution (non planifiées)

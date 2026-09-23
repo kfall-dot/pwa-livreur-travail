@@ -41,6 +41,7 @@ function KpiCard({
   label,
   value,
   detail,
+  testId,
 }: {
   icon: string
   bg: string
@@ -48,15 +49,18 @@ function KpiCard({
   label: string
   value: ReactNode
   detail: string
+  testId: string
 }) {
   return (
-    <div style={{ ...css.card, flex: '1 1 180px', minWidth: 180 }}>
+    <div style={{ ...css.card, flex: '1 1 180px', minWidth: 180 }} data-testid={testId}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div style={{ ...css.meta, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>
             {label}
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, color }}>{value}</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color }} data-testid={`${testId}-value`}>
+            {value}
+          </div>
           <div style={{ ...css.meta, marginTop: 4 }}>{detail}</div>
         </div>
         <div style={{ width: 38, height: 38, borderRadius: 10, background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>
@@ -188,6 +192,7 @@ export function CdgOverviewHeader({ budgets, refreshKey }: { budgets: SiteBudget
           label="Total engagé"
           value={formatFcfa(agg.engaged)}
           detail="BC validés (ensemble des chantiers)"
+          testId="mgr-cdg-kpi-engaged"
         />
         <KpiCard
           icon="📊"
@@ -196,6 +201,7 @@ export function CdgOverviewHeader({ budgets, refreshKey }: { budgets: SiteBudget
           label="Budget total"
           value={formatFcfa(agg.total)}
           detail={`${agg.frozen} enveloppe(s) gelée(s)`}
+          testId="mgr-cdg-kpi-budget"
         />
         <KpiCard
           icon="🚦"
@@ -210,6 +216,7 @@ export function CdgOverviewHeader({ budgets, refreshKey }: { budgets: SiteBudget
             </span>
           }
           detail={`${agg.alerts + agg.watch + agg.ok} ${plural(agg.alerts + agg.watch + agg.ok, 'chantier actif')}`}
+          testId="mgr-cdg-kpi-feux"
         />
         <KpiCard
           icon="📦"
@@ -222,6 +229,7 @@ export function CdgOverviewHeader({ budgets, refreshKey }: { budgets: SiteBudget
               ? `${bcCounts.poReady} BC émis — ${bcCounts.scheduled} livraison(s) planifiée(s)`
               : 'chargement…'
           }
+          testId="mgr-cdg-kpi-bc"
         />
       </div>
     </div>

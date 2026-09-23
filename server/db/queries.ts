@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { localTodayIso } from '../utils/dates.js'
 import {
@@ -2446,14 +2446,64 @@ export interface DashboardDelivery {
   products: unknown
   declarationOutcome: string | null
   declarationLines: unknown
+  /** Point du catalogue de l'arrêt (tournées planifiées depuis le catalogue). */
+  supermarketId: string | null
+  /** Chantier achats relié à la tournée via le BC (`tours.purchase_order_id`). */
+  siteId: string | null
+  siteName: string | null
+}
+
+export interface DashboardDeliveryFilters {
+  /** Jour précis (YYYY-MM-DD) — prime sur `month`. */
+  date?: string
+  /** Mois complet (YYYY-MM) : toutes les livraisons du mois (vue CdG). */
+  month?: string
+  /** Pseudo-statuts `partial` / `delivered` filtrés en JS, sinon statut d'arrêt. */
+  status?: string
+  /** Chantier achats : arrêts reliés à son point **ou** tournées issues d'un de ses BC. */
+  siteId?: string
+}
+
+/** Bornes `YYYY-MM-01` → dernier jour du mois (comparaison texte sur `tours.date`). */
+function monthBoundaries(month: string): [string, string] | null {
+  const [y, m] = month.split('-').map(Number)
+  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return null
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const mm = String(m).padStart(2, '0')
+  return [`${y}-${mm}-01`, `${y}-${mm}-${String(lastDay).padStart(2, '0')}`]
 }
 
 export async function getDashboardDeliveries(
-  date: string,
-  status: string | undefined,
+  filters: DashboardDeliveryFilters,
   companyId: string,
 ): Promise<DashboardDelivery[]> {
-  const conditions = [eq(tours.date, date), eq(tours.companyId, companyId)]
+  const { date, month, status, siteId } = filters
+  const conditions = [eq(tours.companyId, companyId)]
+  // Vue mois (page Livraisons) : toutes les livraisons du mois ; sinon le jour
+  // demandé (défaut : aujourd'hui).
+  const range = !date && month ? monthBoundaries(month) : null
+  if (range) {
+    conditions.push(gte(tours.date, range[0]), lte(tours.date, range[1]))
+  } else {
+    conditions.push(eq(tours.date, date ?? localTodayIso()))
+  }
+  // Filtre chantier : deux rattachements coexistent. Une tournée planifiée
+  // depuis le catalogue porte le point sur l'arrêt (`delivery_points.supermarket_id`) ;
+  // une livraison de BC (`schedule-delivery`) ne le porte pas — elle est reliée au
+  // chantier par la chaîne tournée → BC → demande → chantier.
+  if (siteId) {
+    const [site] = await db
+      .select({ supermarketId: sites.supermarketId })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.companyId, companyId)))
+      .limit(1)
+    const links = [eq(sites.id, siteId)]
+    if (site?.supermarketId) {
+      links.push(eq(sites.supermarketId, site.supermarketId), eq(deliveryPoints.supermarketId, site.supermarketId))
+    }
+    const siteCondition = or(...links)
+    if (siteCondition) conditions.push(siteCondition)
+  }
   // Filtres 'partial' (écart) et 'delivered' (livrée) : le statut réel du point de
   // livraison ne porte pas ces valeurs — l'écart/livraison est déterminé par la
   // déclaration du livreur (declarationOutcome). On filtre donc en JS après
@@ -2477,12 +2527,18 @@ export async function getDashboardDeliveries(
       tourId: tours.id,
       depotName: tours.depotName,
       products: deliveryPoints.products,
+      supermarketId: deliveryPoints.supermarketId,
+      siteId: sites.id,
+      siteName: sites.name,
     })
     .from(deliveryPoints)
     .innerJoin(tours, eq(deliveryPoints.tourId, tours.id))
     .innerJoin(drivers, eq(tours.driverId, drivers.id))
+    .leftJoin(purchaseOrders, eq(tours.purchaseOrderId, purchaseOrders.id))
+    .leftJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
+    .leftJoin(sites, eq(purchaseRequests.siteId, sites.id))
     .where(and(...conditions))
-    .orderBy(drivers.name, tours.id, deliveryPoints.sequence)
+    .orderBy(tours.date, drivers.name, tours.id, deliveryPoints.sequence)
 
   const enriched = await attachDeclarationMeta(
     rows.map((row) => ({ ...row, id: row.deliveryId }))
@@ -2495,6 +2551,7 @@ export async function getDashboardDeliveries(
       (d) =>
         /deliver|validat/.test((d.status ?? '').toLowerCase()) &&
         d.declarationOutcome !== 'partial' &&
+        d.declarationOutcome !== 'rejected' &&
         d.declarationOutcome !== 'refused'
     )
   }

@@ -47,7 +47,9 @@ const btSample: BtTemplateData = {
   requesterName: 'Chef chantier',
   currency: 'XOF',
   createdAt: '2026-08-16',
-  lines: [{ objet: 'Ciment — 50 sacs (CimIvoire Distribution)', amountFcfa: 70_000 }],
+  lines: [
+    { objet: 'Ciment (CimIvoire Distribution)', quantity: '50 sacs', unitPriceFcfa: 1400, amountFcfa: 70_000 },
+  ],
 }
 
 describe('generateBtHtml — fiche trésorerie achats', () => {
@@ -63,6 +65,20 @@ describe('generateBtHtml — fiche trésorerie achats', () => {
     assert.match(html, /VALIDATION PDG/)
     assert.match(html, /XOF/)
     assert.doesNotMatch(html, /<script/i)
+  })
+
+  it('insère les colonnes Quantité et Prix unitaire après Objet (I87)', () => {
+    const html = generateBtHtml(null, btSample)
+    const objet = html.indexOf('>Objet<')
+    const quantite = html.indexOf('>Quantité<')
+    const prixUnitaire = html.indexOf('>Prix unitaire<')
+    const montant = html.indexOf('>Montant<')
+    assert.ok(objet > -1 && quantite > objet && prixUnitaire > quantite && montant > prixUnitaire)
+    assert.match(html, /<td class="qty">50 sacs<\/td>/)
+    assert.match(html, /<td class="pu">1 400 F<\/td>/)
+    // Ligne de repli (avance forfaitaire sans lignes chiffrées) : cellules vides.
+    const fallback = generateBtHtml(null, { ...btSample, lines: undefined })
+    assert.match(fallback, /<td class="qty"><\/td><td class="pu"><\/td>/)
   })
 
   it('reporte la signature DAF/PDG sur le BT', () => {

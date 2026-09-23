@@ -945,13 +945,17 @@ dashboardRouter.delete('/dashboard/tours/:id', requireManager, async (req, res) 
 dashboardRouter.get('/dashboard/deliveries', requireManager, async (req, res) => {
   const { manager } = req as ManagerRequest
   const today = localTodayIso()
-  const date = String(req.query.date ?? today)
+  // Page Livraisons : vue mois par défaut (`month=YYYY-MM`, mois passés inclus),
+  // ou jour précis (`date=YYYY-MM-DD`) ; `siteId` restreint à un chantier.
+  const month = req.query.month ? String(req.query.month) : undefined
+  const date = month ? undefined : String(req.query.date ?? today)
   const status = req.query.status ? String(req.query.status) : undefined
+  const siteId = req.query.siteId ? String(req.query.siteId) : undefined
   try {
-    const deliveries = await getDashboardDeliveries(date, status, manager.companyId)
+    const deliveries = await getDashboardDeliveries({ date, month, status, siteId }, manager.companyId)
     const total = deliveries.length
     const validated = deliveries.filter((d) => d.status === 'delivered').length
-    res.json({ date, total, validated, deliveries })
+    res.json({ date: date ?? null, month: month ?? null, total, validated, deliveries })
   } catch (err) {
     console.error('[dashboard] deliveries error', err)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -1306,7 +1310,9 @@ function isValidManagerEmail(email: string): boolean {
 
 // ── Managers (collègues gestionnaires) — admin uniquement ─────────────────────
 
-dashboardRouter.get('/dashboard/managers', requireAdmin, async (req, res) => {
+// Liste des gestionnaires : visible par toute l'équipe (lecture seule) —
+// l'invitation et la modification restent réservées aux administrateurs.
+dashboardRouter.get('/dashboard/managers', requireManager, async (req, res) => {
   const { manager } = req as ManagerRequest
   try {
     const rows = await getAllManagers(manager.companyId)
@@ -1871,12 +1877,17 @@ dashboardRouter.patch('/dashboard/supermarkets/:id', requireManager, async (req,
     let contactEmail = existing.contactEmail
     if ('contactEmail' in data) {
       const mergedEmail = typeof data.contactEmail === 'string' ? data.contactEmail : existing.contactEmail
-      const emailErr = contactEmailValidationError(mergedEmail)
-      if (emailErr) {
-        res.status(400).json({ message: emailErr })
-        return
+      if (typeof mergedEmail === 'string' && mergedEmail.trim()) {
+        const emailErr = contactEmailValidationError(mergedEmail)
+        if (emailErr) {
+          res.status(400).json({ message: emailErr })
+          return
+        }
+        contactEmail = normalizeContactEmail(String(mergedEmail))
+      } else {
+        // Valeur vide saisie : on efface l'e-mail (champ optionnel).
+        contactEmail = null
       }
-      contactEmail = normalizeContactEmail(String(mergedEmail))
     }
     const normalizedContact = normalizeDriverPhone(contactPhoneRaw)
     if (!isValidDriverPhone(normalizedContact)) {

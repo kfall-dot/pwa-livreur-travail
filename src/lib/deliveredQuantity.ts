@@ -80,7 +80,7 @@ function findMatchingDeclLine(
 }
 
 export function isAnnuleStop(status?: string, declarationOutcome?: string | null): boolean {
-  return status === 'failed' || declarationOutcome === 'rejected'
+  return status === 'failed' || declarationOutcome === 'rejected' || declarationOutcome === 'refused'
 }
 
 /** Message vide pour « Quantité livrée » selon le motif d’absence de livraison. */
@@ -88,7 +88,7 @@ export function deliveredQuantityEmptyLabel(
   status?: string,
   declarationOutcome?: string | null,
 ): string {
-  if (declarationOutcome === 'rejected') {
+  if (declarationOutcome === 'rejected' || declarationOutcome === 'refused') {
     return 'Aucun produit livré (livraison refusée).'
   }
   if (status === 'failed') {
@@ -118,7 +118,7 @@ export function buildDeliveredProductsDisplay(
 
       if (!isDelivered) return { label: exp.label, qty: 0, unit: exp.unit }
 
-      if (declarationOutcome === 'rejected') {
+      if (declarationOutcome === 'rejected' || declarationOutcome === 'refused') {
         return { label: exp.label, qty: 0, unit: exp.unit }
       }
 

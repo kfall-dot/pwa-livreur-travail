@@ -73,6 +73,53 @@ export async function getSiteByWhatsappGroup(companyId: string, groupId: string)
   return row ?? null
 }
 
+/**
+ * Chantier achats relié à un point du catalogue (`sites.supermarket_id`).
+ * Pas de filtre `active` : la fiche chantier du catalogue doit rester consultable
+ * même quand le suivi achats a été désactivé.
+ */
+export async function getSiteBySupermarketId(companyId: string, supermarketId: string) {
+  const [row] = await db
+    .select()
+    .from(sites)
+    .where(and(eq(sites.companyId, companyId), eq(sites.supermarketId, supermarketId)))
+    .limit(1)
+  return row ?? null
+}
+
+export interface ChantierWithBc {
+  id: string
+  name: string
+  /** Point du catalogue relié — sert à rattacher les arrêts de tournée (`delivery_points.supermarket_id`). */
+  supermarketId: string | null
+  /** Nombre de BC émis pour ce chantier. */
+  bcCount: number
+}
+
+/**
+ * Chantiers pour lesquels des BC ont été émis — alimente le menu « Chantier »
+ * de la page Livraisons (vue mois, rôle CdG).
+ *
+ * Le rattachement livraison ↔ chantier se fait par `supermarket_id` : le nom du
+ * point de livraison peut différer du nom du chantier achats, l'identifiant non.
+ */
+export async function listChantiersWithBc(companyId: string): Promise<ChantierWithBc[]> {
+  const rows = await db
+    .select({
+      id: sites.id,
+      name: sites.name,
+      supermarketId: sites.supermarketId,
+      bcCount: sql<number>`count(${purchaseOrders.id})`,
+    })
+    .from(sites)
+    .innerJoin(purchaseRequests, eq(purchaseRequests.siteId, sites.id))
+    .innerJoin(purchaseOrders, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
+    .where(eq(sites.companyId, companyId))
+    .groupBy(sites.id, sites.name, sites.supermarketId)
+    .orderBy(asc(sites.name))
+  return rows.map((row) => ({ ...row, bcCount: Number(row.bcCount) }))
+}
+
 /** Affecte chef de chantier et/ou DT superviseur sur un chantier. */
 export async function updateSiteAssignments(
   companyId: string,
@@ -1133,11 +1180,23 @@ async function nextReference(companyId: string, prefix: string): Promise<string>
 }
 
 export async function listPurchaseRequests(companyId: string) {
+  // La colonne « Chantier » de l’UI lit `siteName` : sans jointure, le champ est
+  // absent de la réponse et l’écran SA affiche un repli générique « Chantier ».
   return db
-    .select()
+    .select({
+      request: purchaseRequests,
+      siteName: sites.name,
+    })
     .from(purchaseRequests)
+    .leftJoin(sites, eq(purchaseRequests.siteId, sites.id))
     .where(eq(purchaseRequests.companyId, companyId))
     .orderBy(desc(purchaseRequests.createdAt))
+    .then((rows) =>
+      rows.map((row) => ({
+        ...row.request,
+        siteName: row.siteName ?? null,
+      })),
+    )
 }
 
 export async function getPurchaseRequestById(companyId: string, requestId: string) {
@@ -1637,8 +1696,9 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       and(
         eq(purchaseOrders.companyId, companyId),
         eq(purchaseOrders.docType, 'bc'),
-        // Livraison confirmée = déclaration « full » (cohérent avec le dashboard livraison)
-        eq(declarations.outcome, 'full'),
+        // Livraison confirmée = déclaration « full » ou « partial » (cf. dashboard livraison).
+        // Les partielles sont incluses avec le libellé « livraison partielle » en Observation.
+        inArray(declarations.outcome, ['full', 'partial']),
       ),
     )
     .orderBy(desc(declarations.declaredAt), desc(purchaseOrders.createdAt))
@@ -1676,6 +1736,14 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
     }
     const paymentMode = paymentModeFromLines(supplierLines)
     const amountFcfa = deliveredAmountFcfa(Number(row.poAmount ?? 0), supplierLines, declaration)
+    const baseObservation = (row.saObservation ?? '').trim()
+    // Livraison partielle : le libellé est préfixé (idempotent si déjà saisi par le SA).
+    const observation =
+      row.declarationOutcome === 'partial' && !/^livraison partielle\b/i.test(baseObservation)
+        ? baseObservation
+          ? `livraison partielle — ${baseObservation}`
+          : 'livraison partielle'
+        : baseObservation || 'RAS'
     const attachments = supplierLines
       .filter((l) => (l.attachmentFileName ?? '').trim())
       .map((l) => ({ lineId: l.id, fileName: l.attachmentFileName!.trim() }))
@@ -1692,7 +1760,7 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       amountLabel: formatBcRegisterAmount(amountFcfa),
       invoice: (row.saInvoice ?? '').trim(),
       justifs: (row.saJustifs ?? '').trim() || 'RAS',
-      observation: (row.saObservation ?? '').trim() || 'RAS',
+      observation,
       verification: (row.saVerification ?? '').trim() || '—',
       invoicePaid: row.saInvoicePaid,
       invoiceFile: (row.saInvoiceFileName ?? '').trim() ? { fileName: row.saInvoiceFileName!.trim() } : null,

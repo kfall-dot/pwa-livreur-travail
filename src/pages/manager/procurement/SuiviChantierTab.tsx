@@ -19,6 +19,9 @@ import { CdgIndicateurPage, CdgSyntheseTable } from './CdgIndicateurs'
 import { CdgCategoriesCard, CdgOverviewHeader, catEmoji } from './CdgOverview'
 import { EB_SPEND_CATEGORIES } from '../../../../shared/ebSpendCategory'
 
+/** Revalidation douce des tuiles du suivi (voir l'effet focus/intervalle) : 60 s. */
+const SUIVI_SOFT_REFRESH_MS = 60_000
+
 const CDG_TAB_LABELS: Record<CdgTab, string> = {
   all: 'Tous les chantiers',
   with: 'Avec dépenses',
@@ -467,20 +470,52 @@ export function SuiviChantierTab({
     alert: budgets.filter((b) => b.overBudget || b.trafficLight === 'alert').length,
   }
 
+  // ── Jetons de rafraîchissement ───────────────────────────────────────────────
+  // Un seul jeton pilote TOUTES les données du suivi (budgets, dépenses du mois,
+  // tuiles CdG, indicateurs). Sans lui, « Actualiser » ne rechargeait que les
+  // enveloppes : la tuile « Total engagé » restait figée après un BC émis et les
+  // autres cartes (BC en cours, dépenses du mois) ne suivaient pas au même rythme.
+  const [manualRefresh, setManualRefresh] = useState(0)
+  const [softTick, setSoftTick] = useState(0)
+  /** Jeton explicite : montage, retour sur l'onglet (refreshKey du parent), « Actualiser ». */
+  const refreshToken = manualRefresh + (refreshKey ?? 0)
+  /** Jeton complet : inclut la revalidation douce (retour de focus / intervalle). */
+  const dataToken = refreshToken + softTick
+  const bumpSoftRefresh = useCallback(() => setSoftTick((k) => k + 1), [])
+
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, dataToken])
 
-  // Recharger les données quand refreshKey change (retour sur l'onglet)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Revalidation douce : les BC émis par le SA (ou les livraisons confirmées)
+  // apparaissent sans clic sur « Actualiser ». Uniquement onglet visible, et on
+  // évite de recharger les indicateurs par chantier (coûteux) toutes les minutes.
   useEffect(() => {
-    if (refreshKey !== undefined && refreshKey > 0) {
-      void load()
+    // Retour sur la fenêtre → on rafraîchit.
+    const onFocus = () => bumpSoftRefresh()
+    // Retour sur l'onglet navigateur (et intervalle) : uniquement si visible,
+    // pour ne pas taper l'API depuis un onglet en arrière-plan.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') bumpSoftRefresh()
     }
-  }, [refreshKey])
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = window.setInterval(onVisible, SUIVI_SOFT_REFRESH_MS)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.clearInterval(timer)
+    }
+  }, [bumpSoftRefresh])
 
   // Indicateurs par chantier (top 3 matériaux, ventilation) — chargés une fois
   // par chantier pour les rôles avec accès aux indicateurs (CdG / DAF / PDG).
+  // Le cache mémoire est vidé à chaque rafraîchissement explicite : sans ça les
+  // top 3 / la ventilation restaient figés jusqu'au démontage de l'onglet.
+  useEffect(() => {
+    top3LoadedRef.current = new Set()
+  }, [refreshToken])
+
   useEffect(() => {
     if (!showIndicateurs) return
     const missing = budgets
@@ -506,7 +541,7 @@ export function SuiviChantierTab({
     return () => {
       cancelled = true
     }
-  }, [budgets, showIndicateurs])
+  }, [budgets, showIndicateurs, refreshToken])
 
   // Dépenses engagées du mois sélectionné — ventilées par chantier.
   // month === '' → vue « Tous les mois » : pas de filtre mensuel.
@@ -527,7 +562,7 @@ export function SuiviChantierTab({
     return () => {
       cancelled = true
     }
-  }, [month])
+  }, [month, dataToken])
 
   const [chefSiteIds, setChefSiteIds] = useState<Set<string>>(new Set())
   const [chantierSites, setChantierSites] = useState<ChantierSite[]>([])
@@ -746,7 +781,7 @@ export function SuiviChantierTab({
             // La synthèse CdG est déjà affichée ci-dessus → on ne la repasse pas au bandeau.
             indicators={null}
             role={procurementRole}
-            onChanged={() => void load()}
+            onChanged={() => setManualRefresh((k) => k + 1)}
             onOpenIndicator={(id) => setOpenIndicator({ siteId: openSynthese, id })}
           />
         )}
@@ -928,13 +963,13 @@ export function SuiviChantierTab({
           <button type="button" onClick={() => setMonth('')} style={css.btnOutline} data-testid="mgr-suivi-chantier-all-months">
             Tous les mois
           </button>
-          <button type="button" onClick={() => void load()} style={css.btnOutline} data-testid="mgr-suivi-chantier-refresh">
+          <button type="button" onClick={() => setManualRefresh((k) => k + 1)} style={css.btnOutline} data-testid="mgr-suivi-chantier-refresh">
             Actualiser
           </button>
         </div>
       </div>
       {error && <AlertBox>{error}</AlertBox>}
-      {procurementRole === 'controle_gestion' && <CdgOverviewHeader budgets={budgets} refreshKey={refreshKey} />}
+      {procurementRole === 'controle_gestion' && <CdgOverviewHeader budgets={budgets} refreshKey={dataToken} />}
       {procurementRole === 'controle_gestion' && (
         <div style={css.tabsBar} data-testid="mgr-cdg-filters">
           {(Object.keys(CDG_TAB_LABELS) as CdgTab[]).map((t) => (

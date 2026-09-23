@@ -13,7 +13,7 @@ export function resolveDeliveryDisplayStatus(
   if (status === 'failed') return 'failed'
   if (status === 'delivered') {
     if (declarationOutcome === 'partial') return 'delivered_partial'
-    if (declarationOutcome === 'rejected') return 'delivered_rejected'
+    if (declarationOutcome === 'rejected' || declarationOutcome === 'refused') return 'delivered_rejected'
     return 'delivered_full'
   }
   if (status === 'in_progress') return 'in_progress'
@@ -75,7 +75,7 @@ export function stopClosedEditHint(status?: string, declarationOutcome?: string 
   if (declarationOutcome === 'partial') {
     return 'Livraison partielle — reliquat à replanifier depuis Tâches. Consultation seule.'
   }
-  if (declarationOutcome === 'rejected') return 'Livraison refusée — consultation seule.'
+  if (declarationOutcome === 'rejected' || declarationOutcome === 'refused') return 'Livraison refusée — consultation seule.'
   if (status === 'delivered') return 'Livraison complète — consultation seule.'
   return 'Consultation seule.'
 }
