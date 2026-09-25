@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TraceO® — Espace client</title>
+<style>
+:root{--navy:#0f2a44;--navy2:#1e3a5f;--gold:#d4a017;--gold2:#f2c94c;--bg:#eef2f7;--ink:#16233a;--mut:#5b6b82;--card:#fff;--line:#e3e9f2;--ok:#16a34a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif;color:var(--ink);background:linear-gradient(160deg,var(--navy),var(--navy2));min-height:100vh;display:flex;flex-direction:column}
+.top{max-width:1120px;margin:0 auto;width:100%;padding:18px 22px 0;display:flex;justify-content:space-between;align-items:center}
+.brand{color:#fff;font-weight:800;font-size:20px}.brand b{color:var(--gold2)}
+.back{color:#cdd8e6;text-decoration:none;font-size:14px}
+.back:hover{color:#fff}
+.stage{flex:1;display:flex;align-items:center;justify-con.stage{flex:1;display:flex;align-items:center;justify-con.stage{flex:1;display:flex;align-items:ce;width:100%;paddin.stage{flex:1;px;.staghadow:0 24px 60px rgba(0,.stage{flex:1;display:flex;align-items:center;ju3px);text-align:center}
+.panel p.sub{text-align:center;color:var(--mut);margin:8px 0 26px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-top:5px solid var(--gold);border-radius:16px;padding:26px 24px;display:flex;flex-direction:column}
+.card.manager{border-top-color:var(--navy2)}
+.card .ic{font-size:34px}
+.card h2{font-size:20px;margin:10px 0 4px}
+.card .who{font-size:13px;font-weight:800;color:#8a6d00;text-transform:uppercase;letter-spacing:.6px}
+.card.manager .who{color:var(--navy2)}
+.card p{font-size:14px;color:var(--mut);margin:8px 0 14px}
+.card ul{list-style:none;margin-bottom:18px}
+.card li{font-size:13.5px;padding:6px 0 6px 24px;position:relative;color:var(--ink)}
+.card li::before{content:"✓";position:absolute;left:4px;color:var(--ok);font-weight:800}
+.btn{display:block;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none}
+.btn-gold{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#231a02}
+.btn-navy{background:var(--navy);color:#fff}
+.alt{text-align:center;margin-top:10px;font-size:13px;color:var(--mut)}
+.alt a{color:var(--navy2);font-weight:700}
+.help{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:22px}
+.help span{font-size:12.5px;color:var(--mut);background:#fff;border:1px solid var(--line);padding:7px 13px;border-radius:999px}
+.foot{text-align:center;color:#9fb0c7;font-size:12.5px;padding:18px}
+@media(max-width:760px){.cards{grid-template-columns:1fr}.panel{padding:28px 20px}}
+</style>
+</head>
+<body>
+<div class="top"><div class="brand">Trace<b>O</b<div class="top"><div c" href="index.html">← Retour à l'accueil</a></div>
+<div class="stage"><div class="panel">
+<h1>Bienvenue dans votre espace client</h1>
+<p class="sub">Choisissez votre profil — vous serez redirigé vers la connexion correspondante.</p>
+<div class="cards">
+<div class="card">
+<div class="ic">🚚</div><div class="who">Terrain · mobile</div><h2>Je suis livreur</h2>
+<p>Tournée du jour, parcours guidé arrêt par arrêt, preuves et certificats.</p>
+<ul><li>Connexion : téléphone +225 + PIN</li><li>Photos, déclaration, code OTP</li><li>Fonctionne sur smartphone</li></ul>
+<a class="btn btn-gold" href="/login">Se connecter →</a>
+<div class<div class<div class<div class<div class<div class<div class<div class<div class<div class<div class<div class<div class<div c">🖥️</div><div class="who">Bureau · gestion</div><h2>Je suis gestionnaire</h2>
+<p>Achats chantier, livraisons, budgets, factures — selon votre rôl<p>AchaSA, CdG, DAF, PDG, CmPT…).</p>
+<ul><li>Connexion : e-mail + mot de passe</li><li>Redirection auto vers votre espace</li><li>Session sécurisée ~8 h + 2FA admin</li></ul>
+<a class="btn btn-navy" href="/manager/login">Se connecter →</a>
+<div class="alt">Nouvelle entreprise ? <a href="/manager/register">Créer mon espace</a> · <a href="/manager/forgot-password"<div class="alt">Nouvelle entreprise ? <a href="/manager/register">Créer mon espos données restent celles de votre société</span><span>📩 OTP par SMS au responsable du point</span><span>📜 Certificat opposable par livraison</span></div>
+</div></div>
+<div class="foot">TraceO® — Fait en Côte d'Ivoire 🇨🇮 · <a href="index.html" style="color:#cdd8e6">Accueil</a></div>
+</body></html>

@@ -1,7 +1,7 @@
 # Améliorations futures
 
 Document de référence pour les choix produit/reportés à plus tard.  
-Dernière mise à jour : 22 septembre 2026.
+Dernière mise à jour : 24 septembre 2026.
 
 ---
 
@@ -68,6 +68,50 @@ Table `bc_documents` : `id · purchase_order_id · kind (facture|bon_livraison|j
 ### Décision
 
 **Statut : proposé (22 septembre 2026)** — maquette à valider avant le lot 1.
+
+---
+
+## Holding multi-compagnies — EB centralisées au SA, rôles transverses
+
+### Contexte
+
+L'application va servir une holding à 4 filiales : BTP, hôtellerie, sécurité, agriculture — chacune avec sa **raison sociale propre**. Chaque compagnie émet des EB via le **formulaire vierge existant** (pas de nouveau canal : le BTP garde en plus l'entrée WhatsApp/chantier). Toutes les EB convergent vers un **SA unique central**. Le processus aval est **identique** quelle que soit la provenance : SA → CdG → DAF → PDG → livraison → facture → paiement. Les rôles **SA, CdG, DAF, PDG, CmPT sont uniques** pour tout le holding ; les opérationnels (chefs de site, DT, contrôleurs, livreurs) restent cloisonnés à leur compagnie. Tout le fonctionnel existant (Livraisons, Suivi BC, Suivi chantier, Comptabilité, Rapports) doit devenir multi-compagnies.
+
+État actuel incompatible : isolation mono-compagnie stricte (`managers.companyId` unique signé dans le JWT, filtres `eq(companyId)` partout), table `companies` sans niveau groupe ni identité légale, un transverse ne peut voir qu'une seule compagnie.
+
+### Décisions validées
+
+- La `company` devient une **provenance**, pas un silo : EB, BC, BT, tournée, livraison, facture, paiement portent le `companyId` de l'émetteur, hérité sur tout l'aval.
+- **Périmètre par famille de rôles** (pas de matrice par utilisateur au jour 1) : SA/CdG/DAF/PDG/CmPT = tout le holding ; opérationnels = leur compagnie uniquement.
+- Émission hors BTP : formulaire vierge + **compagnie émettrice** (menu restreint aux compagnies autorisées).
+- Enveloppes budgétaires **toujours par compagnie** (pas de pot commun inter-filiales).
+- Table d'exceptions `manager_company_scopes` prévue mais non nécessaire au jour 1 (ex. futur DT sur BTP + Sécurité).
+
+### Socle technique
+
+- `holdings` (1 ligne : le groupe) + `companies.holding_id` ; enrichir `companies` : raison sociale, sigle, adresse, contacts, logo, **préfixe de numérotation** (`BTP/HOT/SEC/AGR`) pour éviter les collisions de références EB/BC/BT.
+- Auth : JWT avec `allowedCompanyIds[]` calculé **côté serveur** ; bascule des requêtes `eq → inArray` pour les 5 rôles centraux ; extension de `manager-multitenant-authz.spec.ts`.
+- Migration : rattacher `co-demo` / `co-btp-pilote` au holding + backfill sans élargissement silencieux des opérationnels.
+- Sécurité : `security_audit_events.companyId` = compagnie de l'objet, pas du lecteur.
+
+### UI
+
+- **Sélecteur global** `Toutes (holding)` + chaque raison sociale (défaut `Toutes` pour les centraux) ; **colonne « Compagnie »** dans file Achats, Livraisons, Suivi BC, Suivi chantier, Comptabilité, Rapports/exports.
+- **KPIs sur le périmètre sélectionné** ; catalogues (chantiers, fournisseurs) rattachés à leur compagnie, visibles au SA central via le sélecteur.
+- Mentions légales de l'émetteur sur BC/BT/documents/exports du CmPT (obligation fiscale).
+
+### Chiffrage
+
+| Lot | Contenu |
+|---|---|
+| 1 | `holdings` + `holding_id` + identité légale + préfixes + backfill (+ compagnie émettrice sur formulaire EB vierge) |
+| 2 | Auth périmètre par rôles + `eq → inArray` + tests authz |
+| 3 | Sélecteur + colonne Compagnie + KPIs périmètre + mentions légales |
+| 4 | e2e multi-filières (EB Hôtellerie visible SA/CdG/DAF/PDG/CMPT, invisible au chantier BTP) + INVARIANTS |
+
+### Décision
+
+**Statut : spécifié (24 septembre 2026) — en attente de réalisation, lot 1 prêt.**
 
 ---
 
