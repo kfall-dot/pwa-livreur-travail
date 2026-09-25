@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TraceO - Connexion</title>
+<style>
+:root{--navy:#0f2a44;--navy2:#1e3a5f;--gold:#d4a017;--gold2:#f2c94c;--ink:#16233a;--mut:#5b6b82;--line:#e3e9f2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif;background:linear-gradient(160deg,#0f2a44,#1e3a5f);min-height:100vh;color:var(--ink)}
+.top{max-width:1120px;margin:0 auto;padding:18px 22px 0;display:flex;justify-content:space-between;align-items:center}
+.brand{color:#fff;font-weight:800;font-size:20px}
+.brand b{color:var(--gold2)}
+.back{color:#cdd8e6;text-decoration:none;font-size:14px}
+.stage{max-width:1120px;margin:0 auto;padding:26px 22px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.side{color:#fff;padding:18px 6px}
+.side h1{font-size:34px;line-height:1.15}
+.side h1 em{font-style:normal;color:var(--gold2)}
+.side p.lead{color:#c4d0e2;margin:12px 0 18px;font-size:15px}
+.feat{display:flex;gap:12px;margin-bottom:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:12px 14px}
+.feat .i{font-size:22px}
+.feat b{display:block;font-size:14px;color:#fff}
+.feat span{font-size:13px;color:#b9c6d8}
+.card{background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.tabs{display:flex;background:#eef2f7;border-radius:12px;padding:4px;margin-bottom:18px}
+.tabs button{flex:1;border:0;background:transparent;padding:10px;border-radius:9px;font-weight:700;font-size:14px;color:var(--mut);cursor:pointer}
+.tabs button.on{background:#fff;color:var(--navy);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.pane{display:none}
+.pane.on{display:block}
+.pane h2{font-size:19px}
+.hint{font-size:12px;color:var(--mut);margin-top:5px}
+label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px}
+input{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:15px}
+input:focus{outline:none;border-color:var(--navy2)}
+.phone{display:flex}
+.phone span{background:#eef2f7;border:1.5px solid var(--line);border-right:0;border-radius:10px 0 0 10px;padding:12px;font-weight:800;color:var(--navy)}
+.phone input{border-radius:0 10px 10px 0}
+.btn{width:100%;margin-top:16px;padding:13px;border:0;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer}
+.btn-gold{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#231a02}
+.btn-navy{background:var(--navy);color:#fff}
+.links{text-align:center;margin-top:12px;font-size:13px;color:var(--mut)}
+.links a{color:var(--navy2);font-weight:700;text-decoration:none}
+.note{margin-top:14px;background:#f6f9ff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--mut)}
+.note a{color:var(--navy2);font-weight:700}
+.foot{text-align:center;color:#9fb0c7;font-size:12.5px;padding:16px}
+@media(max-width:860px){.stage{grid-template-columns:1fr}.side{display:none}}
+</style>
+</head>
+<body>
+<div class="top"><div class="brand">Trace<b>O</b></div><a class="back" href="index.html">Retour a l'accueil</a></div>
+<div class="stage">
+<div class="side">
+<h1>Vos chantiers, <em>prouves</em> au quotidien.</h1>
+<p class="lead">Un seul espace pour le bureau et le terrain : EB, BC, livraison prouvee, facture, paiement.</p>
+<div class="feat"><div class="i">PH</div><div><b>Preuves photos</b><span>Chaque arret est documente et certifie</span></div></div>
+<div class="feat"><div class="i">BC</div><div><b>Conformite BC</b><span>Les produits sont verrouilles par bon de commande</span></div></div>
+<div class="feat"><div class="i">SMS</div><div><b>OTP SMS</b><span>Le responsable du point valide la reception</span></div></div>
+</div>
+<div class="card">
+<div class="tabs"><button id="tL" class="on" onclick="sw('L')">Livreur</button><button id="tM" onclick="sw('M')">Gestionnaire</button></div>
+<div class="pane on" id="pL">
+<h2>Livreur - Preuve de livraison</h2>
+<p class="hint">Tournee du jour, parcours guide, certificat.</p>
+<label>Numero de telephone</label>
+<div class="phone"><span>+225</span><input placeholder="0700000000" maxlength="10"></div>
+<p class="hint">10 chiffres, ex. 0701234567</p>
+<label>Code PIN</label>
+<input type="password" placeholder="...." maxlength="4">
+<button class="btn btn-gold">Se connecter</button>
+<div class="note">Session livreur sur votre smartphone. PIN remis par votre responsable. <a href="espace-client.html">Choisir un autre profil</a></div>
+</div>
+<div class="pane" id="pM">
+<h2>Gestionnaire - Tournees, preuves et achats</h2>
+<p class="hint">Redirection automatique vers votre espace (DT, SA, CdG, DAF, PDG, CmPT...).</p>
+<label>Email</label>
+<input type="email" placeholder="vous@entreprise.ci">
+<label>Mot de passe</label>
+<input type="password" placeholder="........">
+<button class="btn btn-navy">Se connecter</button>
+<div class="links"><a href="/manager/forgot-password">Mot de passe oublie ?</a> - <a href="/manager/register">Creer mon espace</a></div>
+<div class="note">Session securisee environ 8 h (2FA pour les admins). En cas de code 2FA, un second ecran vous sera demande.</div>
+</div>
+</div>
+</div>
+<div class="foot">TraceO - Fait en Cote d'Ivoire</div>
+<script>function sw(w){document.getElementById('tL').classList.toggle('on',w==='L');document.getElementById('tM').classList.toggle('on',w==='M');document.getElementById('pL').classList.toggle('on',w==='L');document.getElementById('pM').classList.toggle('on',w==='M')}</script>
+</body>
+</html>
