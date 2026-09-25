@@ -19,11 +19,18 @@
 | **VS Code** | IDE | extension **Cline** si l'on reprend l'historique de chat |
 | **WSL** (optionnel) | exécution des scripts bash | évite de porter les 11 scripts `.sh` |
 
-> ⚠️ **Le projet est bash-dépendant** : `npm run dev:local`, `npm run verify`,
-> `npm run regression`, `npm run db:migrate` passent tous par des `.sh`.
-> Sans Git Bash (ou WSL), ces commandes sont **inutilisables** — ce n'est pas bloquant
-> pour `dev`, `lint`, `test`, `test:e2e` (voir §5), mais c'est bloquant pour
-> la non-régression complète et les migrations.
+> ⚠️ **Le projet est partiellement bash-dépendant** : `npm run dev:local`,
+> `npm run verify`, `npm run regression`, `npm run db:migrate` passent tous par
+> des `.sh`. Sans Git Bash (ou WSL), ces commandes sont **inutilisables** — ce
+> n'est pas bloquant pour `install`, `dev`, `lint`, `test`, `test:e2e` (voir §5),
+> mais c'est bloquant pour la non-régression complète et les migrations.
+>
+> ✅ **`npm install` fonctionne désormais sur Windows** (corrigé le 25/09/2026).
+> Le hook `prepare` était en bash — or sur Windows npm exécute les scripts via
+> `cmd.exe`, qui ne comprend pas `command -v` / `&&` / `; then` / `; fi`, d'où
+> l'échec `npm error command C:\WINDOWS\system32\cmd.exe /d /s /c if command -v
+> bash …`. Il est passé en **Node** (`scripts/install-githooks.mjs`) : plus aucun
+> script bash dans les hooks npm. **Ne pas réintroduire de bash dans un hook npm.**
 
 ### 1.2 Code
 
@@ -161,6 +168,7 @@ divergence entre le détail et l'export.
 | **Le libellé `'refused'` n'est jamais produit** | Le formulaire livreur écrit `'rejected'` ; `'refused'` reste un repli | Conserver le repli, ne jamais le supprimer seul |
 | **Charger des données pendant le rendu** | React 18 + ESLint : le calcul dans le corps de rendu échoue en revue | Calculer dans `load()` ou un `useMemo` pur |
 | **Pousser sur `master` = mettre en production** | Pas de branche de release, pas de staging | Valider `tsc` + lint + tests **avant** chaque `git push` |
+| **Un hook npm écrit en bash casse `npm install` sur Windows** | Windows exécute les hooks via `cmd.exe`, qui ne comprend ni `command -v` ni `; then` | Écrire les hooks `pre`/`post`/`prepare` en **Node** (`scripts/*.mjs`), jamais en bash |
 
 ---
 
