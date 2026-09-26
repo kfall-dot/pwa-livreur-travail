@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:server": "tsx watch server/index.ts",
     "dev:all": "concurrently -n web,api -c cyan,green \"npm run dev\" \"npm run dev:server\"",
-    "dev:local": "bash scripts/dev-local.sh",
+    "dev:local": "node scripts/dev-local.mjs",
     "build": "tsc -b && vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "start": "node dist-server/server/index.js",

@@ -19,18 +19,25 @@
 | **VS Code** | IDE | extension **Cline** si l'on reprend l'historique de chat |
 | **WSL** (optionnel) | exécution des scripts bash | évite de porter les 11 scripts `.sh` |
 
-> ⚠️ **Le projet est partiellement bash-dépendant** : `npm run dev:local`,
-> `npm run verify`, `npm run regression`, `npm run db:migrate` passent tous par
+> ⚠️ **Le projet est partiellement bash-dépendant** : `npm run verify`,
+> `npm run regression`, `npm run db:migrate`, `npm run audit:env` passent par
 > des `.sh`. Sans Git Bash (ou WSL), ces commandes sont **inutilisables** — ce
-> n'est pas bloquant pour `install`, `dev`, `lint`, `test`, `test:e2e` (voir §5),
-> mais c'est bloquant pour la non-régression complète et les migrations.
+> n'est pas bloquant pour `install`, `dev`, `dev:local`, `lint`, `test`,
+> `test:e2e` (voir §5), mais c'est bloquant pour la non-régression complète et
+> les migrations.
 >
-> ✅ **`npm install` fonctionne désormais sur Windows** (corrigé le 25/09/2026).
-> Le hook `prepare` était en bash — or sur Windows npm exécute les scripts via
-> `cmd.exe`, qui ne comprend pas `command -v` / `&&` / `; then` / `; fi`, d'où
-> l'échec `npm error command C:\WINDOWS\system32\cmd.exe /d /s /c if command -v
-> bash …`. Il est passé en **Node** (`scripts/install-githooks.mjs`) : plus aucun
-> script bash dans les hooks npm. **Ne pas réintroduire de bash dans un hook npm.**
+> ✅ **Ce qui tournait en bash a été porté en Node** (25/09/2026, parce que
+> Windows n'a pas `bash` dans le PATH) :
+>
+> | Avant (bash) | Après (Node) | Sans quoi on obtenait |
+> |---|---|---|
+> | `prepare` → `install-githooks.sh` | `scripts/install-githooks.mjs` | `npm error command C:\WINDOWS\system32\cmd.exe /d /s /c if command -v bash …` |
+> | `dev:local` → `dev-local.sh` | `scripts/dev-local.mjs` | `'bash' is not recognized as an internal or external command` |
+>
+> **Règle** : tout script npm destiné au dev quotidien s'écrit en Node
+> (`scripts/*.mjs`). Les `.sh` restants sont des outils ponctuels (regression,
+> audit, migrations) : les garder en bash, mais ne pas les mettre sur le chemin
+> du quotidien.
 
 ### 1.2 Code
 
@@ -168,7 +175,7 @@ divergence entre le détail et l'export.
 | **Le libellé `'refused'` n'est jamais produit** | Le formulaire livreur écrit `'rejected'` ; `'refused'` reste un repli | Conserver le repli, ne jamais le supprimer seul |
 | **Charger des données pendant le rendu** | React 18 + ESLint : le calcul dans le corps de rendu échoue en revue | Calculer dans `load()` ou un `useMemo` pur |
 | **Pousser sur `master` = mettre en production** | Pas de branche de release, pas de staging | Valider `tsc` + lint + tests **avant** chaque `git push` |
-| **Un hook npm écrit en bash casse `npm install` sur Windows** | Windows exécute les hooks via `cmd.exe`, qui ne comprend ni `command -v` ni `; then` | Écrire les hooks `pre`/`post`/`prepare` en **Node** (`scripts/*.mjs`), jamais en bash |
+| **Un script npm en bash casse l'usage sur Windows** | Windows n'a pas `bash` dans le PATH (`'bash' is not recognized…`), et exécute les hooks via `cmd.exe` qui ne comprend ni `command -v` ni `; then`. Touché deux fois : `npm install` puis `npm run dev:local` | Écrire les scripts npm du quotidien en **Node** (`scripts/*.mjs`), jamais en bash. Les `.sh` restants (regression, audit, migrations) sont volontairement hors du chemin quotidien |
 
 ---
 
