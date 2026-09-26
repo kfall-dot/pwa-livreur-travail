@@ -64,9 +64,11 @@ function isUsableDbUrl(url) {
   return /:\/\/[^/@]+@/.test(url)
 }
 
-const dbHost = isUsableDbUrl(process.env.NETLIFY_DB_URL)
-  ? (process.env.NETLIFY_DB_URL.replace(/^[^@]+@/, '').split('/')[0] ?? '')
-  : ''
+const dbUrlCandidates = [process.env.NETLIFY_DB_URL, process.env.E2E_DATABASE_URL]
+const dbUrl = dbUrlCandidates.find((url) => isUsableDbUrl(url)) ?? ''
+
+// Mot de passe masqué dans le log.
+const dbHost = dbUrl ? (dbUrl.replace(/^[^@]+@/, '').split('/')[0] ?? '') : ''
 
 console.log('══════════════════════════════════════════════════════════════')
 console.log('  TraceO® — dev local (sans netlify:dev)')
@@ -77,16 +79,36 @@ console.log(`  API    → ${API_URL}  (proxy Vite /api → ${process.env.VITE_AP
 console.log(`  E-mail → ${process.env.EMAIL_PROVIDER}`)
 console.log('')
 
-if (!isUsableDbUrl(process.env.NETLIFY_DB_URL)) {
-  console.error('ERREUR: NETLIFY_DB_URL manquant ou invalide pour le mode local.')
+if (!dbUrl) {
+  // Diagnostic le plus probable : les .env ne sont jamais commités, donc un clone
+  // neuf n'en a aucun. On le dit explicitement plutôt que d'orienter vers une
+  // variable à créer de toutes pièces. Seul `.env.development` est attendu :
+  // `.env` et `.env.local` sont des surcharges optionnelles.
+  const mainEnv = '.env.development'
+  const hasMainEnv = existsSync(join(ROOT, mainEnv))
+
+  console.error('ERREUR: aucune URL Postgres utilisable pour le mode local.')
   console.error('')
-  console.error('  Ajoute dans .env.development (une fois) l’URL Postgres Neon :')
-  console.error('    Netlify Dashboard → Site → Database → Copy connection string')
+  if (!hasMainEnv) {
+    console.error(`  ${mainEnv} est absent de la racine du projet.`)
+    console.error('')
+    console.error('  Les .env ne sont jamais commités (ils contiennent des secrets).')
+    console.error('  Sur une nouvelle machine, les récupérer depuis le poste de référence')
+    console.error('  (archive pwa-livreur-secrets.zip) et les extraire ici.')
+    console.error('')
+  }
+  console.error('  Il faut y définir une seule de ces variables, avec l\'URL Postgres :')
   console.error('    NETLIFY_DB_URL=postgresql://user:pass@….neon.tech/neondb?sslmode=require')
+  console.error('    E2E_DATABASE_URL=…   (branche de test, JAMAIS la production)')
   console.error('')
-  console.error('  Évite les URLs localhost (proxy netlify database).')
+  console.error('  ⚠ NETLIFY_DB_URL est un NOM HÉRITÉ : ce n\'est plus Netlify.')
+  console.error('    La base est chez Neon — le serveur ne lit que ce nom-là (server/db/index.ts).')
+  console.error('    Où la trouver : Neon Console (console.neon.tech) → ton projet →')
+  console.error('    « Connection string », puis choisir l\'option pooler.')
+  console.error('')
+  console.error('  Sont refusées les URLs localhost (ancien proxy Netlify Database).')
   console.error('  Postgres 100 % local : postgresql://user:pass@127.0.0.1:5432/traceo')
-  console.error('  (avec user/password — pas seulement host).')
+  console.error('  (avec user ET password — pas seulement l\'hôte).')
   console.error('')
   process.exit(1)
 }
