@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray, isNotNull, lte, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { localTodayIso } from '../utils/dates.js'
 import {
@@ -845,7 +845,7 @@ export async function createManagerInvite(input: {
 
 export async function getPendingManagerInvites(
   companyId: string,
-): Promise<Array<Pick<ManagerInvite, 'id' | 'email' | 'name' | 'expiresAt' | 'createdAt'>>> {
+): Promise<Array<Pick<ManagerInvite, 'id' | 'email' | 'name' | 'expiresAt' | 'createdAt' | 'procurementRole'>>> {
   return db
     .select({
       id: managerInvites.id,
@@ -853,6 +853,8 @@ export async function getPendingManagerInvites(
       name: managerInvites.name,
       expiresAt: managerInvites.expiresAt,
       createdAt: managerInvites.createdAt,
+      // I93 — l'invitation en attente affiche l'espace de travail choisi (pas un rôle deviné côté client).
+      procurementRole: managerInvites.procurementRole,
     })
     .from(managerInvites)
     .where(and(eq(managerInvites.companyId, companyId), sql`${managerInvites.acceptedAt} IS NULL`))
@@ -2451,6 +2453,14 @@ export interface DashboardDelivery {
   /** Chantier achats relié à la tournée via le BC (`tours.purchase_order_id`). */
   siteId: string | null
   siteName: string | null
+  /**
+   * Référence du BC ayant généré la tournée (lien direct `tours.purchase_order_id`
+   * ou inverse `purchase_orders.tour_id`, cf. le filtre chantier) — null = arrêt
+   * planifié depuis le catalogue, hors BC.
+   */
+  purchaseOrderRef: string | null
+  /** Chantier achats relié au point du catalogue de l'arrêt (planifications hors BC). */
+  catalogueSiteName: string | null
 }
 
 export interface DashboardDeliveryFilters {
@@ -2501,6 +2511,29 @@ export async function getDashboardDeliveries(
     if (site?.supermarketId) {
       links.push(eq(sites.supermarketId, site.supermarketId), eq(deliveryPoints.supermarketId, site.supermarketId))
     }
+    // Sens direct BC → tournée (`purchase_orders.tour_id`) : c'est la convention du
+    // registre BC (cf. listDeliveredBcRegister, qui joint les arrêts sur ce champ).
+    // Les tournées planifiées avant l'écriture du lien inverse
+    // (`tours.purchase_order_id`, ajouté avec la conformité BC) ne portent que ce
+    // sens : sans lui, le menu « Chantier » annonce des BC émis mais n'affiche
+    // aucune livraison (constat pilote : RESIDENCE 35EME, 2 BC invisibles).
+    // Sous-requête (et non jointure « ou ») : une tournée reste une seule ligne.
+    links.push(
+      inArray(
+        tours.id,
+        db
+          .select({ tourId: purchaseOrders.tourId })
+          .from(purchaseOrders)
+          .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
+          .where(
+            and(
+              eq(purchaseOrders.companyId, companyId),
+              eq(purchaseRequests.siteId, siteId),
+              isNotNull(purchaseOrders.tourId),
+            ),
+          ),
+      ),
+    )
     const siteCondition = or(...links)
     if (siteCondition) conditions.push(siteCondition)
   }
@@ -2530,6 +2563,24 @@ export async function getDashboardDeliveries(
       supermarketId: deliveryPoints.supermarketId,
       siteId: sites.id,
       siteName: sites.name,
+      // I94 — provenance de la ligne : référence du BC (lien direct
+      // `tours.purchase_order_id` OU inverse `purchase_orders.tour_id`, comme le
+      // filtre chantier) et chantier du point du catalogue pour les
+      // planifications hors BC. Sous-requêtes scalaires : une tournée reste
+      // toujours une seule ligne (pas de duplication par jointure « ou »).
+      purchaseOrderRef: sql<string | null>`(
+        select po.reference from purchase_orders po
+        where po.company_id = ${companyId}
+          and (po.id = ${tours.purchaseOrderId} or po.tour_id = ${tours.id})
+        order by po.created_at desc
+        limit 1
+      )`,
+      catalogueSiteName: sql<string | null>`(
+        select s.name from sites s
+        where s.company_id = ${companyId}
+          and s.supermarket_id = ${deliveryPoints.supermarketId}
+        limit 1
+      )`,
     })
     .from(deliveryPoints)
     .innerJoin(tours, eq(deliveryPoints.tourId, tours.id))

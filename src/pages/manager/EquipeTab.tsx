@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { authFetch } from './managerApi';
+import { PROCUREMENT_ROLE_LABELS } from './procurement/procurementUi';
 import { EditDriverModal } from './modals/EditDriverModal';
 
 type Chip = 'gestionnaires' | 'livreurs' | 'chantiers';
@@ -32,15 +33,28 @@ interface PointRow {
   status: string;
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  technical_director: 'Directeur technique',
-  controle_gestion: 'Contrôle de gestion',
-  purchasing: 'Service achats',
-  chef_chantier: 'Chef de chantier',
-  daf: 'DAF',
-  pdg: 'PDG',
-  accountant: 'Comptabilité',
+/**
+ * Rôles « d'accès » (`managers.role`) — un compte est soit administrateur, soit
+ * gestionnaire. Sert uniquement de repli quand aucun espace de travail n'est défini.
+ */
+const ACCESS_ROLE_LABELS: Record<string, string> = {
+  manager: 'Gestionnaire',
+  admin: 'Administrateur',
+  invited: 'Invitation en attente',
 };
+
+/**
+ * I93 — Colonne « Rôle » : le rôle **métier** (l'« Espace de travail » choisi à
+ * l'invitation, `managers.procurement_role`) prime sur le rôle d'accès ; la valeur
+ * brute `manager` / `admin` ne doit jamais s'afficher (libellés : `PROCUREMENT_ROLE_LABELS`).
+ */
+function roleLabel(row: { role: string; procurementRole?: string | null }): string {
+  if (row.procurementRole) {
+    const metier = (PROCUREMENT_ROLE_LABELS as Record<string, string>)[row.procurementRole];
+    if (metier) return metier;
+  }
+  return ACCESS_ROLE_LABELS[row.role] ?? (row.role || '—');
+}
 
 const EQ_CSS = `
 .eqp{font-family:'Inter',sans-serif;color:#1e293b;max-width:1280px;margin:0 auto}
@@ -76,6 +90,14 @@ const EQ_CSS = `
 .eqp th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#64748b;padding:8px 10px;border-bottom:1px solid #e2e8f0}
 .eqp td{padding:10px;border-bottom:1px solid #f1f5f9}
 .eqp .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,monospace;font-size:12px}
+/* Cellule « Membre » : pastille d'initiales + nom puis e-mail sur deux lignes.
+   Sans ces règles, les deux <span> se collent (« Aya DAFdaf@btp-pilote.ci »). */
+.eqp .cat-col{display:flex;align-items:center;gap:10px}
+.eqp .cat-img{display:flex;flex:0 0 30px;width:30px;height:30px;border-radius:999px;background:#eef3f8;color:#1e3a5f;font-weight:800;font-size:11px;align-items:center;justify-content:center}
+.eqp .cat-info{display:flex;flex-direction:column;min-width:0}
+.eqp .cat-info .nm{font-weight:700;color:#1e3a5f;font-size:12.5px;line-height:1.35}
+.eqp .cat-info .sm{font-size:11.5px;line-height:1.35;color:#64748b;word-break:break-all}
+.eqp .sm{color:#64748b}
 .eqp .avatar{display:inline-flex;width:28px;height:28px;border-radius:999px;background:#eef3f8;color:#1e3a5f;font-weight:700;font-size:11px;align-items:center;justify-content:center;margin-right:8px}
 .eqp .legend{font-size:12px;color:#64748b;margin-top:4px}
 .eqp .inline-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:12px}
@@ -123,7 +145,7 @@ export default function EquipeTab({
   const [points, setPoints] = useState<PointRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [invite, setInvite] = useState({ name: '', email: '', phone: '', role: 'chef_chantier', procurementRole: '' });
+  const [invite, setInvite] = useState({ name: '', email: '', phone: '', procurementRole: '' });
   const [drv, setDrv] = useState({ name: '', phone: '', pin: '1234' });
   const [qG, setQG] = useState('');
   const [stG, setStG] = useState('Tous');
@@ -159,7 +181,9 @@ export default function EquipeTab({
       })) : []
       const invs: MgrRow[] = ri ? firstArray(await ri.json(), 'invites').map((i) => ({
         id: str(i.id), name: str(i.name || i.email || 'Invité'), email: str(i.email),
-        phone: str(i.phone), role: str(i.role || 'chef_chantier'), status: 'invited', pending: true,
+        phone: str(i.phone), role: str(i.role || 'invited'),
+        procurementRole: str(i.procurementRole || i.procurement_role) || null,
+        status: 'invited', pending: true,
       })) : []
 
       const drs: DriverRow[] = firstArray(await rd.json(), 'drivers').map((d) => ({
@@ -196,7 +220,7 @@ export default function EquipeTab({
       const res = await authFetch('/dashboard/managers/invite', { method: 'POST', body: JSON.stringify(invite) });
       const j = (await res.json()) as { ok?: boolean; message?: string; inviteUrl?: string };
       if (!res.ok) throw new Error(j.message || 'Erreur');
-      setInvite({ name: '', email: '', phone: '', role: 'chef_chantier', procurementRole: '' });
+      setInvite({ name: '', email: '', phone: '', procurementRole: '' });
       if (j.inviteUrl) setInviteUrl(j.inviteUrl);
       setInviteOk('Invitation créée. Si l\u2019e-mail n\u2019arrive pas, le lien est affiché ci-dessous.');
       await load();
@@ -226,8 +250,6 @@ export default function EquipeTab({
     await authFetch(`/dashboard/drivers/${id}`, { method: 'PATCH', body: JSON.stringify({ status: active ? 'suspended' : 'active' }) });
     await load();
   };
-
-  const roleLabel = (r: string) => ROLE_LABELS[r] ?? (r === 'invited' ? 'Invitation en attente' : r || '—');
 
   const mgrs = managers.filter((m) => (stG === 'Tous' ? true : stG === 'En attente' ? m.pending : !m.pending && m.status === 'active'))
     .filter((m) => (qG ? (m.name + m.email + m.phone).toLowerCase().includes(qG.toLowerCase()) : true));
@@ -290,18 +312,6 @@ export default function EquipeTab({
           <form onSubmit={(e) => void handleInvite(e)} className="filters" style={{ alignItems: 'flex-end' }}>
             <label>Nom *<input type="text" required value={invite.name} data-testid="mgr-invite-name" onChange={(e) => setInvite((p) => ({ ...p, name: e.target.value }))} /></label>
             <label>E-mail *<input type="email" required autoComplete="off" value={invite.email} data-testid="mgr-invite-email" onChange={(e) => setInvite((p) => ({ ...p, email: e.target.value }))} /></label>
-            <label>Rôle (optionnel)
-              <select value={invite.role} data-testid="mgr-invite-role" onChange={(e) => setInvite((p) => ({ ...p, role: e.target.value }))}>
-                <option value="chef_chantier">Chef de chantier</option>
-                <option value="technical_director">Directeur technique (DT)</option>
-                <option value="site_controller">Conducteur de travaux</option>
-                <option value="purchasing">Service achats</option>
-                <option value="controle_gestion">Contrôle de gestion</option>
-                <option value="daf">DAF</option>
-                <option value="pdg">PDG</option>
-                <option value="accountant">Comptabilité</option>
-              </select>
-            </label>
             <label>Espace de travail *
               <select required value={invite.procurementRole} data-testid="mgr-invite-procurement-role" onChange={(e) => setInvite((p) => ({ ...p, procurementRole: e.target.value }))}>
                 <option value="">-- Choisir un rôle --</option>
@@ -321,13 +331,13 @@ export default function EquipeTab({
         {canInviteManagers && inviteOk && <p style={{ margin: '0 0 10px', fontSize: 13, color: '#047857' }}>{inviteOk}</p>}
         {canInviteManagers && inviteUrl && <p style={{ margin: '0 0 10px', fontSize: 12, wordBreak: 'break-all' }}>Lien : {inviteUrl}</p>}
         <table>
-          <thead><tr><th>Membre</th><th>Téléphone</th><th>Rôle</th><th>Statut</th><th aria-hidden="true"></th></tr></thead>
+          <thead><tr><th>Membre</th><th>Téléphone</th><th>Rôle (espace de travail)</th><th>Statut</th><th aria-hidden="true"></th></tr></thead>
           <tbody>
             {mgrs.map((m) => (
               <tr key={m.id}>
                 <td><div className="cat-col"><div className="cat-img">{initials(m.name)}</div><div className="cat-info"><span className="nm">{m.name}</span><span className="sm">{m.email || '—'}</span></div></div></td>
                 <td className="mono">{m.phone || '—'}</td>
-                <td>{roleLabel(m.role)}</td>
+                <td>{roleLabel(m)}</td>
                 <td>{m.pending ? <span className="pill pill-amber">En attente</span> : m.status === 'active' ? <span className="pill pill-green">Actif</span> : <span className="pill pill-gray">Inactif</span>}</td>
                 <td style={{ textAlign: 'right' }}>{isAdmin && !m.pending && <button type="button" className="mini" onClick={() => { setEditingMgr(m); setEditModal('mgr'); }}>Modifier</button>}</td>
               </tr>
@@ -390,16 +400,10 @@ export default function EquipeTab({
             <label style={{ display: 'block', marginBottom: 10, fontSize: 12, color: '#64748b' }}>Téléphone
               <input type="text" value={editingMgr.phone || ''} onChange={(e) => setEditingMgr({ ...editingMgr, phone: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, marginTop: 4 }} />
             </label>
-            <label style={{ display: 'block', marginBottom: 16, fontSize: 12, color: '#64748b' }}>Rôle
+            <label style={{ display: 'block', marginBottom: 16, fontSize: 12, color: '#64748b' }}>Rôle d’accès
               <select value={editingMgr.role} onChange={(e) => setEditingMgr({ ...editingMgr, role: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, marginTop: 4 }}>
-                <option value="chef_chantier">Chef de chantier</option>
-                <option value="technical_director">Directeur technique (DT)</option>
-                <option value="site_controller">Conducteur de travaux</option>
-                <option value="purchasing">Service achats</option>
-                <option value="controle_gestion">Contrôle de gestion</option>
-                <option value="daf">DAF</option>
-                <option value="pdg">PDG</option>
-                <option value="accountant">Comptabilité</option>
+                <option value="manager">Gestionnaire</option>
+                <option value="admin">Administrateur</option>
               </select>
             </label>
             <label style={{ display: 'block', marginBottom: 16, fontSize: 12, color: '#64748b' }}>Espace de travail

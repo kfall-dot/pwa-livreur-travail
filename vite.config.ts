@@ -1,10 +1,15 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN?.trim()
 const sentryOrg = process.env.SENTRY_ORG?.trim()
+// Vite ne charge PAS les .env* dans process.env (il ne les injecte que dans
+// import.meta.env du bundle client). Sans loadEnv, VITE_API_PROXY_TARGET du
+// .env.development était ignoré et le proxy /api retombait sur le fallback
+// hérité de netlify:dev (:8888) — d'où les ECONNREFUSED en dev:local.
+const devEnv = loadEnv('development', process.cwd())
 const sentryProject = process.env.SENTRY_PROJECT?.trim()
 
 export default defineConfig({
@@ -103,11 +108,11 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        // netlify:dev → :8888 ; sinon VITE_API_PROXY_TARGET (défaut :8888 pour tests téléphone)
-        // Express seul (`npm run dev:local`) → mettre VITE_API_PROXY_TARGET=http://127.0.0.1:3002
+        // netlify:dev → :8888 (via process.env.NETLIFY_DEV du CLI) ;
+        // sinon VITE_API_PROXY_TARGET lu depuis .env.development (défaut :3002 pour `npm run dev:local`)
         target: process.env.NETLIFY_DEV
           ? 'http://127.0.0.1:8888'
-          : (process.env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:8888'),
+          : (devEnv.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:3002'),
         changeOrigin: true,
       },
     },

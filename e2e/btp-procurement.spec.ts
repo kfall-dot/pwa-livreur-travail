@@ -1733,7 +1733,7 @@ test.describe('Achats chantier BTP (procurement)', () => {
 
   test('CdG : Livraisons — mois courant par défaut, filtres jour / mois / chantier (I91)', async ({ page, request }) => {
     test.setTimeout(180_000)
-    await simulateDeliveredBcViaApi(request)
+    const bc = await simulateDeliveredBcViaApi(request)
 
     await loginBtpManager(page, 'cdg')
     await page.getByTestId('mgr-tab-suivi').click()
@@ -1770,6 +1770,14 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await siteSelect.selectOption(siteValue!)
     // Rattachement tournée → BC → chantier : la livraison du BC reste listée.
     await expect(page.getByTestId('mgr-suivi-deliveries-table')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+
+    // I94 — provenance : sur le chantier du BC, la ligne issue du BC affiche sa
+    // référence (bc.bon = purchase_orders.reference) ; un arrêt planifié depuis
+    // le catalogue afficherait « Hors BC (catalogue) ». Le libellé du menu
+    // (« X BC émis (tous mois) ») ne compte pas les lignes de la période.
+    await siteSelect.selectOption(BTP_PILOT.SITE_ID)
+    const bcRow = page.locator('[data-testid="mgr-suivi-deliveries-table"] tbody tr', { hasText: bc.bon })
+    await expect(bcRow.first()).toBeVisible({ timeout: UI_READY_TIMEOUT })
 
     // Tuiles = compteurs de la période (mois + chantier), indépendants des chips.
     const kpiDelivered = Number((await page.getByTestId('mgr-suivi-kpi-delivered').textContent())?.trim())

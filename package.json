@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "tsx watch server/index.ts",
+    "dev:api": "node --env-file=.env.development node_modules/tsx/dist/cli.mjs server/index.ts",
     "dev:all": "concurrently -n web,api -c cyan,green \"npm run dev\" \"npm run dev:server\"",
     "dev:local": "node scripts/dev-local.mjs",
     "db:check": "node scripts/check-db.mjs",

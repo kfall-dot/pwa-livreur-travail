@@ -12,6 +12,15 @@
 # exportée par playwright.config (webServer env) ou .env.e2e.local.
 set -euo pipefail
 
+# Git Bash (MSYS2, Windows) convertit silencieusement les valeurs d'env qui
+# ressemblent à des chemins POSIX quand il lance un exe natif : VITE_API_URL=/api/v1
+# (exporté depuis .env.development) devenait C:/Program Files/Git/api/v1 dans le
+# process Vite → le build cuisait cette URL dans le bundle → tous les fetch de
+# l'app partaient en file:// → « Serveur injoignable » sur chaque test e2e.
+# Ces deux variables désactivent la conversion ; no-op sur Linux / CI.
+export MSYS2_ENV_CONV_EXCL="*"
+export MSYS2_ARG_CONV_EXCL="*"
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 

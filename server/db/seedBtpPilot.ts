@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from './index.js'
 import { seedDefaultCompanyUnits } from './queries.js'
 import { upsertDocumentTemplate } from './procurementQueries.js'
@@ -354,6 +354,23 @@ export async function seedBtpPilotData(): Promise<{
         })),
       )
       .onConflictDoNothing()
+
+    // Relie chaque chantier importé à son point du catalogue (`site-xlsx-<slug>` ↔
+    // `sm-xlsx-<slug>`) : sans ce lien, le repli du filtre « Chantier » de la page
+    // Livraisons (`delivery_points.supermarket_id`) et la fiche chantier du catalogue
+    // (« Aucun chantier achats relié à ce point ») ne trouvent rien pour ces chantiers.
+    await db.execute(sql`
+      update sites
+         set supermarket_id = replace(sites.id, 'site-xlsx-', 'sm-xlsx-')
+       where sites.company_id = ${BTP_DEMO.COMPANY_ID}
+         and sites.id like 'site-xlsx-%'
+         and sites.supermarket_id is null
+         and exists (
+           select 1 from supermarkets sm
+            where sm.id = replace(sites.id, 'site-xlsx-', 'sm-xlsx-')
+              and sm.company_id = ${BTP_DEMO.COMPANY_ID}
+         )
+    `)
   }
 
   const supplierSlugs = new Set<string>()

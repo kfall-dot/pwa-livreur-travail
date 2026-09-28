@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { todayIso } from '../managerConstants'
 import type { DeliveryRow } from '../managerTypes'
@@ -56,18 +56,6 @@ function dayLabel(dayIso: string): string {
 }
 
 // Classement des livraisons (tuiles, chips, badge) : source unique dans
-// src/lib/deliveryBucket.ts — voir ce module pour la règle « déclaration
-// (partielle / refusée) prime sur le statut delivered ».
-
-interface SuiviTourGroup {
-  tourId: string
-  tourDate: string
-  driverName: string
-  depotName: string
-  deliveries: DeliveryRow[]
-  deliveredCount: number
-}
-
 function groupDeliveriesByTour(deliveries: DeliveryRow[]): SuiviTourGroup[] {
   const groups: SuiviTourGroup[] = []
   const byTour = new Map<string, SuiviTourGroup>()
@@ -206,6 +194,8 @@ export function SuiviTab({
     [period, bucket],
   )
   const tourGroups = useMemo(() => groupDeliveriesByTour(deliveries), [deliveries])
+  /** Chantier du menu « Chantier » (libellé + BC émis) — message d'état vide ciblé. */
+  const selectedSite = sites.find((s) => s.id === siteId) ?? null
 
   // Tuiles = compteurs de la période affichée (mois ou jour) : elles ne bougent
   // pas quand un chip de statut est sélectionné.
@@ -215,7 +205,13 @@ export function SuiviTab({
     return counts
   }, [period])
 
+  /** Séquence des fetchs : seule la DERNIÈRE requête émise (mois/jour/chantier)
+   * peut écrire `period` — sinon une réponse lente d'un filtre précédent écrase
+   * la vue courante (le titre disparaît, tuiles à 0). */
+  const fetchSeq = useRef(0)
+
   const fetch_ = useCallback(async () => {
+    const seq = ++fetchSeq.current
     setLoading(true); setError(null)
     const params = new URLSearchParams()
     if (scope === 'day') params.set('date', date)
@@ -223,6 +219,7 @@ export function SuiviTab({
     if (siteId) params.set('siteId', siteId)
     const res = await authFetch(`/dashboard/deliveries?${params.toString()}`)
     if (handleAuth(res.status)) return
+    if (seq !== fetchSeq.current) return // réponse périmée : une requête plus récente a été émise
     const data = await res.json() as { deliveries: DeliveryRow[]; total: number; validated: number }
     setPeriod(data.deliveries ?? [])
     setLoading(false)
@@ -350,7 +347,7 @@ export function SuiviTab({
           <select data-testid="mgr-suivi-site" value={siteId} onChange={(e) => setSiteId(e.target.value)}>
             <option value="">Tous les chantiers</option>
             {sites.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} · {s.bcCount} BC</option>
+              <option key={s.id} value={s.id}>{s.name} · {s.bcCount} BC émis (tous mois)</option>
             ))}
           </select>
         </span>
@@ -359,7 +356,13 @@ export function SuiviTab({
       {error && <AlertBox>{error}</AlertBox>}
       {loading && <LoadingHint />}
       {!loading && period.length === 0 && (
-        <EmptyHint>{scope === 'month' ? 'Aucune livraison pour ce mois.' : 'Aucune livraison pour ce filtre.'}</EmptyHint>
+        <EmptyHint>
+          {selectedSite
+            ? `Aucune livraison ${scope === 'month' ? `en ${monthLabel(month)}` : `le ${dayLabel(date)}`} pour « ${selectedSite.name} » — ${selectedSite.bcCount} BC émis au total (tous mois confondus).`
+            : scope === 'month'
+              ? 'Aucune livraison pour ce mois.'
+              : 'Aucune livraison pour ce filtre.'}
+        </EmptyHint>
       )}
       {!loading && period.length > 0 && deliveries.length === 0 && (
         <EmptyHint>Aucune livraison ne correspond à ce filtre.</EmptyHint>
@@ -413,6 +416,14 @@ export function SuiviTab({
                     <td>
                       <div style={{ fontWeight: 700, color: '#1e3a5f' }}>{d.deliveryName}</div>
                       <div className="muted">{d.deliveryAddress}</div>
+                      {/* I94 — provenance : référence du BC qui a généré la tournée,
+                          ou « Hors BC (catalogue) » pour une planification manuelle.
+                          Le « X BC émis » du menu Chantier compte les BC (tous mois,
+                          même non planifiés) — pas les lignes de la période. */}
+                      <div className="muted">
+                        {d.purchaseOrderRef ? d.purchaseOrderRef : 'Hors BC (catalogue)'}
+                        {(d.siteName || d.catalogueSiteName) ? ` · ${d.siteName || d.catalogueSiteName}` : ''}
+                      </div>
                     </td>
                     <td>{d.driverName}</td>
                     <td><span className={`badge ${cls}`}>{label}</span></td>

@@ -18,13 +18,17 @@ export interface DeliveryRow {
   /** Chantier achats relié via le BC de la tournée (livraisons planifiées en achats). */
   siteId?: string | null
   siteName?: string | null
+  /** Référence du BC ayant généré la tournée — null = planification catalogue (hors BC). */
+  purchaseOrderRef?: string | null
+  /** Chantier achats relié au point du catalogue de l'arrêt (planifications hors BC). */
+  catalogueSiteName?: string | null
 }
 
 export interface DriverRow { id: string; name: string; phone: string; status: string }
 
 export interface ManagerRow { id: string; name: string; email: string; role?: 'admin' | 'manager'; procurementRole?: string | null; createdAt?: string }
 
-export interface ManagerInviteRow { id: string; email: string; name: string; expiresAt: string; createdAt?: string }
+export interface ManagerInviteRow { id: string; email: string; name: string; expiresAt: string; createdAt?: string; procurementRole?: string | null }
 
 export interface Supermarket {
   id: string; name: string; address: string; contactPhone: string
