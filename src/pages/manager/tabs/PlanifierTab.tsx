@@ -46,7 +46,24 @@ const PL_CSS = `
 .pl-summary .spacer{flex:1}
 .pl-summary .pl-btn-primary{background:#fff;color:#1e3a5f;border-color:#fff}
 .pl-hint{font-size:11.5px;color:#64748b;margin-top:5px}
-@media (max-width: 900px){.pl-cols{grid-template-columns:1fr}}
+@media (max-width: 900px){
+  .pl-cols{grid-template-columns:1fr}
+  .pl h1{font-size:19px}
+  .pl-sub{font-size:12px}
+  .pl-topbar{gap:10px;margin-bottom:10px}
+  .pl-actions{width:100%}
+  .pl-actions .pl-btn{flex:1;min-height:44px}
+  .pl-btn{min-height:44px}
+  .pl-field{margin-bottom:12px}
+  .pl-field input,.pl-field select{font-size:16px;min-height:44px}
+  .pl-card-body{padding:12px}
+  .pl-card-head{padding:12px;gap:6px}
+  .pl-tour{flex-direction:column;align-items:flex-start;gap:6px;padding:10px 0}
+  .pl-summary{flex-direction:column;align-items:stretch;gap:10px;padding:14px}
+  .pl-summary .sep,.pl-summary .spacer{display:none}
+  .pl-summary .pl-btn,.pl-summary .pl-btn-primary{width:100%;min-height:44px}
+  .pl-alert{padding:10px 12px;margin:12px 0}
+}
 `
 
 export function PlanifierTab({

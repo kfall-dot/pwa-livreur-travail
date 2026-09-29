@@ -130,6 +130,31 @@ const LM_CSS = `
 .lvm .tour-chip .mini{border:none;background:#f1f5f9;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;color:#334155;cursor:pointer;font-family:inherit}
 .lvm .note{margin-top:18px;font-size:12.5px;color:#64748b;line-height:1.6}
 .lvm .note b{color:#334155}
+/* ── Mobile : en-tête empilé, tuiles 2 colonnes, filtres pleine largeur,
+   chips/tournées en défilement horizontal, tableau compact. ────────────── */
+@media (max-width: 900px){
+  .lvm .page-header{flex-direction:column;align-items:stretch;gap:10px;margin-bottom:14px}
+  .lvm .page-header h1{font-size:19px}
+  .lvm .page-header .sub{font-size:12px}
+  .lvm .header-actions{display:flex;gap:8px}
+  .lvm .header-actions .btn{flex:1;min-height:44px}
+  .lvm .kpi-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .lvm .kpi{padding:10px 12px}
+  .lvm .filters{flex-wrap:wrap;gap:8px}
+  .lvm .filters .spacer{display:none}
+  .lvm .filters .field{width:100%;justify-content:space-between}
+  .lvm .filters select,.lvm .filters input{flex:1;min-width:0;font-size:16px;min-height:40px}
+  .lvm .chip{min-height:36px;padding:8px 14px}
+  .lvm .tourbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+  .lvm .tour-chip{flex:0 0 auto;min-height:40px}
+  .lvm .tour-chip .mini{min-height:30px}
+  .lvm .card-head{flex-direction:column;align-items:flex-start;gap:4px}
+  .lvm .card-head h2{font-size:13.5px}
+  .lvm thead th,.lvm tbody td{padding:9px 10px}
+  .lvm .qty-bar{width:80px}
+  .lvm .row-actions{flex-direction:column;gap:4px}
+  .lvm .btn-sm{min-height:34px;width:100%}
+}
 `
 
 // Statuts maquette livraison-manager-v1 : classes badge + libellés

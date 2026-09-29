@@ -360,7 +360,9 @@ export function AlertBox({ children }: { children: ReactNode }) {
 }
 
 export function Row({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>{children}</div>
+  // `ui-row` : sur mobile, les champs de la ligne passent chacun sur leur
+  // propre ligne (styles dans index.css, section « Manager — responsive »).
+  return <div className="ui-row" style={{ display: 'flex', gap: 10, marginBottom: 8 }}>{children}</div>
 }
 
 export function Field({
@@ -373,7 +375,7 @@ export function Field({
   style?: CSSProperties
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, ...style }}>
+    <div className="ui-field" style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, ...style }}>
       <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{label}</label>
       {children}
     </div>

@@ -366,6 +366,20 @@ export function ManagerDashboardPage() {
     replanReturnTabRef.current = null
   }, [])
 
+  /** Tiroir de navigation mobile : la sidebar devient off-canvas < 900px
+   * (styles dans index.css, `manager-sidebar--open`). */
+  const [navOpen, setNavOpen] = useState(false)
+
+  // Fermeture du tiroir au clavier (Échap) — accessibilité.
+  useEffect(() => {
+    if (!navOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNavOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navOpen])
+
   const bumpTasks = () => { void loadPendingTaskCount() }
 
   return (
@@ -401,7 +415,16 @@ export function ManagerDashboardPage() {
           </button>
         </div>
       )}
-      <aside className="manager-sidebar" style={css.sidebar} aria-label="Navigation gestionnaire">
+      <div
+        className={navOpen ? 'manager-nav-overlay manager-nav-overlay--open' : 'manager-nav-overlay'}
+        onClick={() => setNavOpen(false)}
+        aria-hidden="true"
+      />
+      <aside
+        className={navOpen ? 'manager-sidebar manager-sidebar--open' : 'manager-sidebar'}
+        style={css.sidebar}
+        aria-label="Navigation gestionnaire"
+      >
         <div className="manager-sidebar__brand" style={css.sidebarBrand}>
           <TraceOMark onBrand layout="badge" withMotto={false} />
           <div className="manager-sidebar__subtitle" style={css.sidebarSubtitle}>Gestion de chantier</div>
@@ -428,7 +451,7 @@ export function ManagerDashboardPage() {
                               ? `mgr-tab-${item.tab}`
                               : 'mgr-tab-catalogue'
                       }
-                      onClick={() => openSidebarItem(item)}
+                      onClick={() => { setNavOpen(false); openSidebarItem(item) }}
                       className={active ? 'manager-sidebar__item manager-sidebar__item--active' : 'manager-sidebar__item'}
                       style={active ? css.sidebarItemActive : css.sidebarItem}
                     >
@@ -457,7 +480,17 @@ export function ManagerDashboardPage() {
 
       <div className="manager-main" style={css.main}>
         <header className="manager-header" style={css.mainHeader}>
-          <div>
+          <button
+            type="button"
+            className="manager-nav-toggle"
+            data-testid="mgr-nav-toggle"
+            aria-label="Ouvrir le menu"
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen(true)}
+          >
+            ☰
+          </button>
+          <div className="manager-header__titles">
             <p className="manager-header__eyebrow">
               TraceO® · {procurementRole ? PROCUREMENT_ROLE_LABELS[procurementRole] : 'Gestionnaire'}
             </p>

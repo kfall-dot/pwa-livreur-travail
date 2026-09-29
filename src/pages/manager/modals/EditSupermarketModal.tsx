@@ -62,6 +62,7 @@ export function EditSupermarketModal({
 
   return (
     <div
+      className="mgr-modal-overlay"
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >

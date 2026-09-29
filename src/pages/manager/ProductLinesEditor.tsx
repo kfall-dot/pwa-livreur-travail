@@ -129,7 +129,7 @@ export function ProductLinesEditor({
         <EmptyHint>{readOnly ? 'Aucun produit.' : 'Aucun produit — cliquez sur "+ Ajouter" pour en saisir.'}</EmptyHint>
       )}
       {lines.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 6, marginBottom: 4, alignItems: 'center' }}>
+        <div className="pl-lines-grid pl-lines-grid--head" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 6, marginBottom: 4, alignItems: 'center' }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Produits</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Qté</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Unité</span>
@@ -137,7 +137,7 @@ export function ProductLinesEditor({
         </div>
       )}
       {lines.map((line, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+        <div key={i} className="pl-lines-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 6, marginBottom: 6, alignItems: 'center' }}>
           <select
             data-testid={`mgr-product-select-${i}`}
             value={productSelectValue(line)}

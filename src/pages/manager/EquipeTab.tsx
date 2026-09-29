@@ -391,7 +391,7 @@ export default function EquipeTab({
       <p className="legend">● Les gestionnaires rejoignent l'équipe par invitation (e-mail / lien) — le livreur reçoit un PIN à 4 chiffres. ● Le bouton « Désactiver » suspend l'accès d'un livreur sans supprimer son historique.</p>
 
       {editModal === 'mgr' && editingMgr && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setEditModal(null)}>
+        <div className="mgr-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setEditModal(null)}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 420, maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ margin: '0 0 16px', fontSize: 16, color: '#1e3a5f' }}>Modifier le gestionnaire</h3>
             <label style={{ display: 'block', marginBottom: 10, fontSize: 12, color: '#64748b' }}>Nom
@@ -436,7 +436,7 @@ export default function EquipeTab({
       )}
 
       {editModal === 'point' && editingPoint && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setEditModal(null)}>
+        <div className="mgr-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setEditModal(null)}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 420, maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ margin: '0 0 16px', fontSize: 16, color: '#1e3a5f' }}>Modifier le point de livraison</h3>
             <label style={{ display: 'block', marginBottom: 10, fontSize: 12, color: '#64748b' }}>Nom

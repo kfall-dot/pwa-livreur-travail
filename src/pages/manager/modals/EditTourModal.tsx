@@ -181,10 +181,11 @@ export function EditTourModal({
 
   return (
     <div
+      className="mgr-modal-overlay"
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, overflowY: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '2rem 1rem' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 680, padding: '1.75rem', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+      <div className="mgr-modal-panel" style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 680, padding: '1.75rem', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Modifier la tournée</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af', lineHeight: 1 }}>×</button>

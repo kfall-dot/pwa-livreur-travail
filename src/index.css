@@ -3857,3 +3857,181 @@ body:has(.manager-shell) .toast-viewport {
     margin: 0 30px;
   }
 }
+
+/* ── Manager — responsive mobile ──────────────────────────────────────────────
+   Le shell (`manager-shell`) est un flex : sidebar 260px + main. Sous 900px la
+   sidebar devient un tiroir off-canvas, les tables passent en défilement
+   horizontal, les cibles tactiles montent à 44px et les champs à 16px (le
+   zoom automatique iOS au focus est déclenché en dessous). Les `!important`
+   ciblent les styles inline des tokens de managerUi.tsx, volontairement
+   conservés pour l'affichage desktop. */
+
+.manager-nav-toggle,
+.manager-nav-overlay {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .manager-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 320;
+    width: min(86vw, 300px) !important;
+    max-width: 300px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transform: translateX(-102%);
+    transition: transform 0.22s ease;
+    box-shadow: 0 12px 40px rgba(6, 38, 23, 0.35);
+  }
+
+  .manager-sidebar--open {
+    transform: translateX(0);
+  }
+
+  .manager-nav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 310;
+    background: rgba(6, 38, 23, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .manager-nav-overlay--open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .manager-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--touch);
+    min-height: var(--touch);
+    padding: 0 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-elevated);
+    color: var(--brand);
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .manager-header {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    gap: 0.5rem;
+    padding: 0.7rem 0.85rem !important;
+  }
+
+  .manager-header__titles {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .manager-header__title {
+    font-size: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .manager-header__eyebrow {
+    font-size: 0.62rem;
+  }
+
+  .manager-content {
+    padding: 0.9rem 0.7rem 2.4rem !important;
+  }
+
+  /* Tables : défilement horizontal plutôt que débordement de page. */
+  .manager-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .manager-content th,
+  .manager-content td {
+    white-space: nowrap;
+  }
+
+  /* Champs : 16px minimum (anti-zoom iOS au focus). `!important` car de
+     nombreux champs portent une taille en style inline (fontSize: 12/13). */
+  .manager-content input:not([type='checkbox']):not([type='radio']),
+  .manager-content select,
+  .manager-content textarea {
+    font-size: 16px !important;
+  }
+
+  /* Cibles tactiles. */
+  .manager-content button {
+    min-height: 40px;
+  }
+
+  /* Modales : jamais plus larges que l'écran. */
+  .manager-content [role='dialog'] {
+    max-width: 100% !important;
+  }
+
+  /* Modales plein écran (toutes les modales manager) : l'overlay colle aux
+     bords et le panneau — enfant direct, ou `.mgr-modal-panel` — occupe toute
+     la largeur avec une marge basse pour ne pas passer sous le clavier. */
+  .mgr-modal-overlay {
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+
+  .mgr-modal-overlay > *,
+  .mgr-modal-panel {
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    padding: 1.1rem 1rem 5.5rem !important;
+    min-height: 100%;
+  }
+
+  .mgr-modal-overlay h2,
+  .mgr-modal-panel h2 {
+    font-size: 16px !important;
+  }
+
+  /* Formulaires (primitives Row/Field de managerUi) : chaque champ sur sa
+     propre ligne, pleine largeur. `!important` car `Field` porte flex:1 en
+     style inline. */
+  .ui-row {
+    flex-wrap: wrap;
+  }
+
+  .ui-field {
+    flex: 1 1 100% !important;
+    min-width: 0;
+  }
+
+  .manager-content input:not([type='checkbox']):not([type='radio']),
+  .manager-content select {
+    min-height: 44px;
+  }
+
+  /* Lignes de produits attendus (ProductLinesEditor) : le produit passe sur sa
+     propre ligne, puis Qté | Unité | ×. Les libellés de colonnes disparaissent. */
+  .pl-lines-grid {
+    grid-template-columns: 1fr 1fr auto;
+  }
+
+  .pl-lines-grid > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .pl-lines-grid--head {
+    display: none;
+  }
+}
