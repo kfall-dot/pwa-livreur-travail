@@ -10,6 +10,13 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
+# Le cycle de vie `prepare` de npm s'exécute PENDANT `npm ci` et appelle
+# scripts/install-githooks.mjs. Ce fichier doit donc être présent AVANT
+# l'installation : sinon le build Docker échoue sur
+# « Cannot find module '/app/scripts/install-githooks.mjs' », la source complète
+# n'arrivant qu'au `COPY . .` plus bas. Le script est déjà tolérant (sortie 0
+# sans dépôt git) : rien d'autre à prévoir pour l'image.
+COPY scripts/install-githooks.mjs scripts/install-githooks.mjs
 RUN npm ci
 
 COPY . .
