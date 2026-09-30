@@ -1007,7 +1007,7 @@ export function AchatsTab({
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: '1.25rem', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
         {procurementRole === 'technical_director' && (
         <button
           type="button"
