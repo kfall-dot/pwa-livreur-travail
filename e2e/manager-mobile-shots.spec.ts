@@ -1,10 +1,30 @@
-import { test, expect, request as newApiRequest, type APIRequestContext } from '@playwright/test'
-import { API_BASE, DEMO_DT_MANAGER, DEMO_SA_MANAGER, loginManager, loginManagerWithEmail, resetAndSeed } from './helpers'
+import { test, expect } from '@playwright/test'
+import { loginManager, loginManagerWithEmail, resetAndSeed } from './helpers'
+import { BTP_ACCOUNTS, seedApprovalQueues } from './procurementApprovals'
 
 // Viewport tactile déclaré en dur : `devices['iPhone 13']` imposerait WebKit
 // (defaultBrowserType), absent de l'installation locale — le projet est chromium.
+//
+// Palier par défaut : 390 px (iPhone 12-14). `MOBILE_SHOTS_WIDTH=320` audite le
+// palier le plus étroit encore répandu (iPhone SE, petits Android) — là où les
+// barres d'onglets et les grilles cèdent en premier. La hauteur suit une
+// proportion crédible pour la largeur demandée.
+const SHOTS_WIDTH = Number(process.env.MOBILE_SHOTS_WIDTH ?? 390) || 390
+const TIER_HEIGHTS: Record<number, number> = {
+  320: 568,
+  360: 740,
+  375: 667,
+  390: 664,
+  414: 896,
+  428: 926,
+  768: 1024,
+}
+
 test.use({
-  viewport: { width: 390, height: 664 },
+  viewport: {
+    width: SHOTS_WIDTH,
+    height: TIER_HEIGHTS[SHOTS_WIDTH] ?? Math.round(SHOTS_WIDTH * 1.8),
+  },
   deviceScaleFactor: 3,
   isMobile: true,
   hasTouch: true,
@@ -13,11 +33,11 @@ test.use({
 /**
  * Banque de captures mobile — outil de revue visuelle (pas un test métier).
  *
- * Parcourt les onglets du dashboard gestionnaire à 390px et écrit une capture
- * plein page par écran dans `test-results/mobile-shots/`, pour valider d'un
- * coup d'œil l'état d'avancement du responsive. Le run échoue en listant les
- * onglets qui font encore déborder la page (le dossier est purgé au run
- * Playwright suivant).
+ * Parcourt les onglets du dashboard gestionnaire à la largeur du palier choisi
+ * (`MOBILE_SHOTS_WIDTH`, 390 px par défaut) et écrit une capture plein page par
+ * écran dans `test-results/mobile-shots/`, pour valider d'un coup d'œil l'état
+ * d'avancement du responsive. Le run échoue en listant les onglets qui font
+ * encore déborder la page (le dossier est purgé au run Playwright suivant).
  *
  * Playwright crée les dossiers manquants via `path`, et `fullPage` montre le
  * rendu complet sans ouverture de navigateur.
@@ -28,143 +48,37 @@ test.use({
  *
  * @see e2e/manager-mobile.spec.ts pour les assertions fonctionnelles (tiroir).
  */
-const SHOTS_DIR = 'test-results/mobile-shots'
+// Banque de référence à 390 px ; un palier explicite va dans son sous-dossier
+// (`mobile-shots/320/…`) pour ne jamais écraser la référence.
+const SHOTS_DIR = process.env.MOBILE_SHOTS_WIDTH
+  ? `test-results/mobile-shots/${SHOTS_WIDTH}`
+  : 'test-results/mobile-shots'
 
 /**
- * Compte capturé. Un manager logistique ne voit aucun onglet achats : pour
- * auditer ces écrans, lancer `MOBILE_SHOTS_ROLE=sa` (Service achats) ou `dt`
- * (Direction technique) — comptes du seed démo. Valeur inconnue : repli sur le
- * compte manager standard.
+ * Compte capturé. Les rôles d'approbation (CdG, DAF, PDG) n'existent que dans
+ * l'entreprise BTP pilote : pour auditer les écrans d'approbation, lancer
+ * `MOBILE_SHOTS_ROLE=cdg`, `daf` ou `pdg` (les comptes `@demo.fr` n'ont pas ces
+ * rôles). Valeur inconnue : repli sur le compte manager standard.
  */
 const SHOTS_ROLE = process.env.MOBILE_SHOTS_ROLE ?? 'manager'
+// Comptes BTP pilote (e2e/procurementApprovals.ts) : chaque rôle d'approbation
+// a sa file. `cmpt` (comptable) et `chef` (chef de chantier) complètent la revue.
 const ROLE_EMAILS: Record<string, string | undefined> = {
-  sa: DEMO_SA_MANAGER.email,
-  dt: DEMO_DT_MANAGER.email,
+  dt: BTP_ACCOUNTS.dt.email,
+  sa: BTP_ACCOUNTS.sa.email,
+  cdg: BTP_ACCOUNTS.cdg.email,
+  daf: BTP_ACCOUNTS.daf.email,
+  pdg: BTP_ACCOUNTS.pdg.email,
+  cmpt: BTP_ACCOUNTS.cmpt.email,
+  chef: BTP_ACCOUNTS.chef.email,
 }
 
 /** Incident de préparation de la donnée — affiché en fin de run, jamais rédhibitoire. */
 const SEED_NOTES: string[] = []
 
-const EB_SAMPLE = `Besoins chantier :
-50 sacs ciment CPA 50kg
-20 barres fer a beton HA12 12m
-10 lites de parpaings 15`
-
-/**
- * NIP acceptés par `verifySignaturePin` (server/services/ebSignature.ts) : soit
- * le NIP de démo du compte (`mgr-btp-dt` → 1234), soit son mot de passe comparé
- * en bcrypt. On tente les deux plutôt que d'en coder un seul en dur.
- */
-const SUBMIT_PINS = ['admin1234', '1234']
-
-/**
- * Lignes de repli quand le parseur local ne reconnaît rien dans l'échantillon :
- * la soumission est refusée en 400 sur `lines.length === 0` (route submit).
- */
-const EB_FALLBACK_LINES = [
-  { label: 'Ciment CPA 50 kg', quantity: 50, unit: 'sac' },
-  { label: 'Fer à béton HA12 (12 m)', quantity: 20, unit: 'barre' },
-]
-
-/**
- * Le seed ne crée ni brouillon EB ni demande : sans donnée, la fiche EB et la
- * demande chiffrée — les deux écrans les plus denses, là où le responsive
- * casse — restent invisibles. On les fabrique par l'API, dans le circuit réel :
- * un DT colle une EB, en conserve un brouillon (fiche du DT) et en soumet un
- * autre (demande vue par le Service achats). Meilleure effort : un refus
- * serveur (NIP, garde-fou de validation) est noté sans faire échouer le run.
- */
-async function seedEbScreens(): Promise<void> {
-  const ctx = await newApiRequest.newContext({ baseURL: API_BASE })
-  try {
-    const login = await ctx.post(`${API_BASE}/api/v1/auth/login-dashboard`, {
-      data: { email: DEMO_DT_MANAGER.email, password: DEMO_DT_MANAGER.password },
-    })
-    if (!login.ok()) {
-      SEED_NOTES.push(`connexion DT refusée (${login.status()}) — écrans de détail non préparés`)
-      return
-    }
-
-    // Le seed démo ne crée AUCUN chantier, et la soumission exige un brouillon
-    // rattaché (400 « Chantier requis »). La route POST /sites est ouverte au DT
-    // (siteSchema : name + address) : on en crée un plutôt que d'abandonner.
-    const sitesRes = await ctx.get(`${API_BASE}/api/v1/procurement/sites`)
-    let siteId = sitesRes.ok()
-      ? ((await sitesRes.json()) as { sites?: { id: string }[] }).sites?.[0]?.id
-      : undefined
-    if (!siteId) {
-      const created = await ctx.post(`${API_BASE}/api/v1/procurement/sites`, {
-        data: { name: 'Chantier revue responsive', address: 'Abidjan — Yopougon' },
-      })
-      siteId = created.ok()
-        ? ((await created.json()) as { site?: { id: string } }).site?.id
-        : undefined
-      if (!siteId) {
-        SEED_NOTES.push(
-          `création de chantier impossible (${created.status()}) — demande chiffrée non capturable`,
-        )
-      }
-    }
-
-    for (const shouldSubmit of [false, true]) {
-      const paste = await ctx.post(`${API_BASE}/api/v1/procurement/drafts/from-paste`, {
-        data: { bodyText: EB_SAMPLE, siteId },
-      })
-      if (!paste.ok()) {
-        SEED_NOTES.push(`collage refusé (${paste.status()}) — fiche EB non capturable`)
-        return
-      }
-      const { draftId, lines } = (await paste.json()) as { draftId?: string; lines?: unknown[] }
-      if (!draftId) continue
-
-      // Parseur local muet sur un texte d'essai : sans ligne, la fiche est vide
-      // et la soumission part en 400 « Aucune ligne à soumettre ».
-      if (!Array.isArray(lines) || lines.length === 0) {
-        const patch = await ctx.patch(
-          `${API_BASE}/api/v1/procurement/drafts/${encodeURIComponent(draftId)}`,
-          { data: { parsedLines: EB_FALLBACK_LINES, siteId } },
-        )
-        if (!patch.ok()) SEED_NOTES.push(`ajout de lignes refusé (${patch.status()})`)
-      }
-
-      if (!shouldSubmit) continue
-      // Sans chantier, pas de soumission possible — mais le brouillon reste
-      // créé : la capture de la fiche EB ne doit jamais dépendre du chantier.
-      if (siteId) await submitDraftWithPin(ctx, draftId)
-    }
-  } catch (err) {
-    SEED_NOTES.push(`préparation EB impossible : ${err instanceof Error ? err.message : String(err)}`)
-  } finally {
-    await ctx.dispose()
-  }
-}
-
-/**
- * Soumission de l'EB par le DT — produit la demande que voit le Service achats.
- * `verifySignaturePin` accepte le NIP de démo du compte OU son mot de passe
- * (comparaison bcrypt) : on essaie les deux. Un 401 signifie « NIP refusé », on
- * passe au suivant ; tout autre code révèle un manque réel (chantier, lignes),
- * où insister ne servirait à rien.
- */
-async function submitDraftWithPin(ctx: APIRequestContext, draftId: string): Promise<void> {
-  let status = 0
-  for (const pin of SUBMIT_PINS) {
-    const res = await ctx.post(
-      `${API_BASE}/api/v1/procurement/drafts/${encodeURIComponent(draftId)}/submit`,
-      {
-        data: {
-          requesterName: 'Conducteur de travaux',
-          objet: 'EB de revue responsive',
-          pin,
-        },
-      },
-    )
-    status = res.status()
-    if (res.ok()) return
-    if (status !== 401) break
-  }
-  SEED_NOTES.push(`soumission refusée (${status}) — demande chiffrée non capturable`)
-}
+// L'échantillon EB, les NIP de signature et les lignes de repli vivent dans
+// `e2e/procurementApprovals.ts`, avec le circuit complet (un dossier laissé
+// dans la file de chaque rôle).
 
 /** Ordre de la sidebar ; seuls les onglets présents dans le DOM sont capturés. */
 const TABS = [
@@ -210,17 +124,17 @@ test.describe('Manager — banque de captures mobile', () => {
 
   test.beforeEach(async ({ request }) => {
     await resetAndSeed(request)
-    // Les écrans achats du rôle capturé réclament de la donnée (fiche EB,
-    // demande) que le seed ne produit pas.
-    if (ROLE_EMAILS[SHOTS_ROLE]) await seedEbScreens()
+    // Les files d'approbation (fiche EB du DT, dossiers à signer du CdG, du DAF
+    // et du PDG) sont vides après un seed : le circuit est rejoué par l'API.
+    if (ROLE_EMAILS[SHOTS_ROLE]) await seedApprovalQueues(SEED_NOTES)
   })
 
-  test('capture de chaque onglet à 390px et détection des débordements', async ({ page }) => {
+  test('capture de chaque onglet au palier choisi et détection des débordements', async ({ page }) => {
     const roleEmail = ROLE_EMAILS[SHOTS_ROLE]
     if (roleEmail) await loginManagerWithEmail(page, [roleEmail])
     else await loginManager(page)
     // eslint-disable-next-line no-console
-    console.log(`captures mobile (${SHOTS_ROLE}) → ${SHOTS_DIR}`)
+    console.log(`captures mobile (${SHOTS_ROLE}, ${SHOTS_WIDTH}px) → ${SHOTS_DIR}`)
 
     const horizontalOverflow = () =>
       page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
@@ -313,6 +227,6 @@ test.describe('Manager — banque de captures mobile', () => {
       console.log(`captures de détail ignorées (aucune donnée) : ${skipped.join(', ')}`)
     }
 
-    expect(overflowing, `onglets qui font encore déborder la page sur mobile (${SHOTS_ROLE})`).toEqual([])
+    expect(overflowing, `onglets qui font encore déborder la page sur mobile (${SHOTS_ROLE}, ${SHOTS_WIDTH}px)`).toEqual([])
   })
 })
