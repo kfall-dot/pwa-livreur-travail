@@ -1,4 +1,4 @@
-import { request as newApiRequest, type APIRequestContext } from '@playwright/test'
+import { request as newApiRequest, type APIRequestContext, type APIResponse } from '@playwright/test'
 import { API_BASE } from './helpers'
 
 /**
@@ -80,6 +80,19 @@ async function getJson<T>(ctx: APIRequestContext, path: string): Promise<T | nul
   return res.ok() ? ((await res.json()) as T) : null
 }
 
+/**
+ * Message serveur d'un échec. Un code seul ne dit pas quel garde-fou a cédé :
+ * « 400 » peut être un chantier manquant, un doublon ou une erreur de parseur.
+ */
+async function failureDetail(res: APIResponse): Promise<string> {
+  try {
+    const body = (await res.json()) as { message?: string }
+    return body?.message ? ` — ${body.message}` : ''
+  } catch {
+    return ''
+  }
+}
+
 /** Contexte API authentifié par compte : un cookie de session isolé par rôle. */
 async function loginAs(role: ApprovalRole): Promise<APIRequestContext> {
   const ctx = await newApiRequest.newContext({ baseURL: API_BASE })
@@ -97,12 +110,24 @@ async function createSubmittedRequest(
   siteId: string,
   notes: string[],
 ): Promise<string | null> {
-  const paste = await dt.post(`${API_BASE}/api/v1/procurement/drafts/from-paste`, {
+  // Le collage échoue rarement sans logique apparente (observé une fois sur
+  // cinq runs) : une seconde tentative coûte une seconde et évite de perdre
+  // tout un run de captures. Le message serveur est conservé dans les deux cas.
+  let paste = await dt.post(`${API_BASE}/api/v1/procurement/drafts/from-paste`, {
     data: { bodyText: EB_SAMPLE, siteId },
   })
   if (!paste.ok()) {
-    notes.push(`collage DT refusé (${paste.status()})`)
-    return null
+    const firstDetail = await failureDetail(paste)
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    paste = await dt.post(`${API_BASE}/api/v1/procurement/drafts/from-paste`, {
+      data: { bodyText: EB_SAMPLE, siteId },
+    })
+    if (!paste.ok()) {
+      notes.push(
+        `collage DT refusé (${paste.status()})${firstDetail || (await failureDetail(paste))}`,
+      )
+      return null
+    }
   }
   const { draftId, lines } = (await paste.json()) as { draftId?: string; lines?: unknown[] }
   if (!draftId) return null
@@ -158,7 +183,7 @@ async function priceAndSendToCdg(
     },
   )
   if (!priced.ok()) {
-    notes.push(`chiffrage SA refusé (${priced.status()})`)
+    notes.push(`chiffrage SA refusé (${priced.status()})${await failureDetail(priced)}`)
     return false
   }
   // Pièce jointe obligatoire sur chaque ligne — sans elle, l'envoi au CdG
@@ -168,14 +193,16 @@ async function priceAndSendToCdg(
       `${API_BASE}/api/v1/procurement/requests/${encodeURIComponent(requestId)}/lines/${encodeURIComponent(line.id)}/attachment`,
       { data: ATTACHMENT },
     )
-    if (!upload.ok()) notes.push(`pièce jointe refusée (${upload.status()})`)
+    if (!upload.ok()) notes.push(`pièce jointe refusée (${upload.status()})${await failureDetail(upload)}`)
   }
   const sent = await sa.post(
     `${API_BASE}/api/v1/procurement/requests/${encodeURIComponent(requestId)}/submit-finance`,
     { data: {} },
   )
   if (!sent.ok()) {
-    notes.push(`envoi au CdG refusé (${sent.status()}) — files CdG/DAF/PDG non remplies`)
+    notes.push(
+      `envoi au CdG refusé (${sent.status()})${await failureDetail(sent)} — files CdG/DAF/PDG non remplies`,
+    )
     return false
   }
   return true
@@ -198,7 +225,7 @@ async function approveAs(
     },
   )
   if (res.ok()) return true
-  notes.push(`approbation ${role} refusée (${res.status()})`)
+  notes.push(`approbation ${role} refusée (${res.status()})${await failureDetail(res)}`)
   return false
 }
 

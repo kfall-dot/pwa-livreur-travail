@@ -126,21 +126,21 @@ test.describe('Manager — banque de captures mobile', () => {
   test.beforeEach(async ({ request }) => {
     // Annonce explicite : la remise à zéro et la préparation du circuit durent
     // plusieurs dizaines de secondes, entièrement silencieuses jusqu'ici — un
-    // run interrompu à tort faute de savoir ce qu'il faisait.
-    // eslint-disable-next-line no-console
+    // run interrompu à tort faute de savoir ce qu'il faisait. (`console.log`
+    // est autorisé dans e2e/ : la règle no-console n'y est pas active.)
     console.log(`préparation (${SHOTS_ROLE}) : remise à zéro de la base e2e…`)
     await resetAndSeed(request)
     // La file du rôle capturé (fiche EB du DT, dossier à signer du CdG, du DAF
     // ou du PDG) est vide après un seed : le circuit est rejoué par l'API,
     // jusqu'à l'étape de ce rôle uniquement.
     if (ROLE_EMAILS[SHOTS_ROLE]) await seedApprovalQueues(SEED_NOTES, SHOTS_ROLE)
+    console.log('préparation : terminée — démarrage des captures')
   })
 
   test('capture de chaque onglet au palier choisi et détection des débordements', async ({ page }) => {
     const roleEmail = ROLE_EMAILS[SHOTS_ROLE]
     if (roleEmail) await loginManagerWithEmail(page, [roleEmail])
     else await loginManager(page)
-    // eslint-disable-next-line no-console
     console.log(`captures mobile (${SHOTS_ROLE}, ${SHOTS_WIDTH}px) → ${SHOTS_DIR}`)
 
     const horizontalOverflow = () =>
@@ -185,7 +185,6 @@ test.describe('Manager — banque de captures mobile', () => {
       // Journal en direct : avec le reporter `line` et un seul test ici, le run
       // reste muet ~3 min (build Vite inclus) et on l'interrompt à tort en le
       // croyant figé. Une ligne par onglet rend la progression visible.
-      // eslint-disable-next-line no-console
       console.log(`  ${id} : ${overflow > 1 ? `débordement +${overflow}px` : 'ok'}`)
 
       for (const detail of DETAIL_CAPTURES[id] ?? []) {
@@ -213,7 +212,6 @@ test.describe('Manager — banque de captures mobile', () => {
 
         await page.screenshot({ path: `${SHOTS_DIR}/${String(index + 1).padStart(2, '0')}-${detail.name}.png`, fullPage: true })
         if (detailOverflow > 1) overflowing.push(`${detail.name} (+${detailOverflow}px)`)
-        // eslint-disable-next-line no-console
         console.log(`  ${detail.name} : ${detailOverflow > 1 ? `débordement +${detailOverflow}px` : 'ok'}`)
 
         // Retour à la liste par rechargement : la sélection est un état local,
@@ -224,13 +222,11 @@ test.describe('Manager — banque de captures mobile', () => {
     }
 
     if (SEED_NOTES.length > 0) {
-      // eslint-disable-next-line no-console
       console.log(`préparation des écrans de détail : ${SEED_NOTES.join(' | ')}`)
     }
 
     if (skipped.length > 0) {
       // Pas de donnée en seed : rien à capturer, ce n'est pas un échec.
-      // eslint-disable-next-line no-console
       console.log(`captures de détail ignorées (aucune donnée) : ${skipped.join(', ')}`)
     }
 
