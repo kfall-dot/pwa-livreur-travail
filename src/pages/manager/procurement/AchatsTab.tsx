@@ -1967,6 +1967,41 @@ function RequestDetailPanel({
   const previewUrlRef = useRef<string | null>(null)
   const previewGenRef = useRef(0)
 
+  // Saisie unique du mode de paiement : la valeur choisie dans la barre n'écrit
+  // rien tant que l'un des deux boutons n'est pas actionné (pas de sauvegarde serveur,
+  // l'enregistrement reste le bouton « Enregistrer les lignes »).
+  const [bulkPaymentMode, setBulkPaymentMode] = useState('')
+  /** Lignes encore sans mode de paiement (le contrôle SA l'exige sur chaque ligne). */
+  const linesWithoutPaymentMode = lines.filter((l) => !(l.paymentMode ?? '').trim())
+  /** Lignes qui portent déjà un mode différent de celui de la barre : écrasement à confirmer. */
+  const linesWithOtherPaymentMode = lines.filter(
+    (l) => (l.paymentMode ?? '').trim() !== '' && (l.paymentMode ?? '') !== bulkPaymentMode,
+  )
+  const applyPaymentModeToLines = (targets: typeof lines) => {
+    for (const l of targets) onLineCommercial(l.id, { paymentMode: bulkPaymentMode })
+  }
+  /** Complète uniquement les lignes vides : n'écrase aucune saisie existante. */
+  const handleBulkPaymentFillEmpty = () => {
+    if (!bulkPaymentMode) return
+    applyPaymentModeToLines(linesWithoutPaymentMode)
+  }
+  /**
+   * Écrase la colonne « Mode de paiement » de toutes les lignes. La confirmation
+   * n'apparaît que si des lignes portent déjà un mode différent ; un dialogue
+   * refusé (ou fermé) annule l'action et ne modifie donc aucune ligne.
+   */
+  const handleBulkPaymentApplyAll = () => {
+    if (!bulkPaymentMode) return
+    const conflicting = linesWithOtherPaymentMode.length
+    if (conflicting > 0) {
+      const ok = window.confirm(
+        `Remplacer le mode de paiement déjà saisi sur ${conflicting} ligne${conflicting > 1 ? 's' : ''} ?`,
+      )
+      if (!ok) return
+    }
+    applyPaymentModeToLines(lines)
+  }
+
   const revokePreview = useCallback(() => {
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current)
@@ -2143,128 +2178,216 @@ function RequestDetailPanel({
             </tr>
           </tbody>
         </table>
-        <div style={{ overflowX: 'auto' }} data-chiffrage-zone>
-          <table style={css.lineTable}>
-            <thead>
-              <tr>
-                <th style={css.lineTh}>Réf</th>
-                <th style={css.lineTh}>Désignations</th>
-                <th style={css.lineTh}>Catégorie</th>
-                <th style={css.lineTh}>Unité</th>
-                <th style={css.lineTh}>Quantité</th>
-                <th style={css.lineTh}>Prix Unitaire</th>
-                <th style={css.lineTh}>Montant</th>
-                <th style={css.lineTh}>Fournisseur{canPrice ? ' *' : ''}</th>
-                <th style={css.lineTh}>Mode de paiement{canPrice ? ' *' : ''}</th>
-                <th style={css.lineTh}>Pièce jointe{canPrice ? ' *' : ''}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((l, i) => (
-                <tr key={l.id}>
-                  <td style={css.lineTd}>{i + 1}</td>
-                  <td style={css.lineTd}>{l.label}</td>
-                  <td style={css.lineTd}>{ebSpendCategoryLabel(l.spendCategory)}</td>
-                  <td style={css.lineTd}>{l.unit}</td>
-                  <td style={css.lineTd}>{l.quantity}</td>
-                  <td style={css.lineTd}>
-                    {canPrice ? (
-                      <input
-                        type="number"
-                        min={0}
-                        step="1"
-                        value={l.unitPriceFcfa ?? ''}
-                        onChange={(e) => onUnitPriceChange(l.id, Number.parseFloat(e.target.value) || 0)}
-                        style={{ ...css.input, width: 110 }}
-                        data-testid={`mgr-achats-line-unit-price-${i}`}
-                      />
-                    ) : (
-                      <span
-                        data-testid={`mgr-achats-line-unit-price-${i}`}
-                        style={{ color: Number(l.unitPriceFcfa) ? undefined : 'var(--text-muted)' }}
-                      >
-                        {l.unitPriceFcfa != null && Number(l.unitPriceFcfa) > 0
-                          ? Number(l.unitPriceFcfa).toLocaleString('fr-FR')
-                          : '—'}
-                      </span>
-                    )}
-                  </td>
-                  <td style={css.lineTd}>
-                    {canPrice ? (
-                      <input
-                        type="number"
-                        min={0}
-                        step="1"
-                        value={l.amountFcfa ?? ''}
-                        onChange={(e) => onAmountChange(l.id, Number.parseFloat(e.target.value) || 0)}
-                        style={{ ...css.input, width: 120 }}
-                        data-testid={`mgr-achats-line-amount-${i}`}
-                      />
-                    ) : (
-                      <span
-                        data-testid={`mgr-achats-line-amount-${i}`}
-                        style={{ color: Number(l.amountFcfa) ? undefined : 'var(--text-muted)' }}
-                      >
-                        {l.amountFcfa != null && Number(l.amountFcfa) > 0
-                          ? Number(l.amountFcfa).toLocaleString('fr-FR')
-                          : '—'}
-                      </span>
-                    )}
-                  </td>
-                  <td style={css.lineTd}>
-                    {canPrice ? (
-                      <SupplierSelect
-                        value={l.supplierName ?? ''}
-                        suppliers={suppliers}
-                        required
-                        testId={`mgr-achats-line-supplier-${i}`}
-                        onChange={(name) => onLineCommercial(l.id, { supplierName: name })}
-                      />
-                    ) : (
-                      l.supplierName ?? '—'
-                    )}
-                  </td>
-                  <td style={css.lineTd}>
-                    {canPrice ? (
-                      <select
-                        value={l.paymentMode ?? ''}
-                        required
-                        onChange={(e) => onLineCommercial(l.id, { paymentMode: e.target.value })}
-                        style={css.input}
-                        data-testid={`mgr-achats-line-payment-${i}`}
-                      >
-                        <option value="">À préciser</option>
-                        {PAYMENT_MODES.map((m) => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      l.paymentMode ?? '—'
-                    )}
-                  </td>
-                  <td style={css.lineTd}>
-                    {l.attachmentFileName ? (
-                      <button
-                        type="button"
-                        data-testid={`mgr-achats-line-attachment-name-${i}`}
-                        onClick={() => void handleOpenAttachment(l.id, l.attachmentFileName ?? '')}
-                        style={{
-                          ...css.btnGhost,
-                          padding: 0,
-                          textDecoration: 'underline',
-                          color: 'var(--accent, #0b4a2c)',
-                        }}
-                      >
-                        {l.attachmentFileName}
-                      </button>
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)' }}>—</span>
-                    )}
-                  </td>
+        {/* `data-chiffrage-zone` englobe la barre ET le tableau : l'arrivée automatique
+            sur la zone de chiffrage (scrollToChiffrageZone) montre donc aussi la saisie
+            groupée, et la barre ne défile pas horizontalement avec le tableau. */}
+        <div data-chiffrage-zone>
+          {canPrice && (
+            <div
+              data-testid="mgr-achats-bulk-payment"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'flex-end',
+                gap: 8,
+                padding: '10px 12px',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  flex: '1 1 180px',
+                  minWidth: 150,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '.04em',
+                    color: '#6b7280',
+                  }}
+                >
+                  Mode de paiement
+                </span>
+                <select
+                  value={bulkPaymentMode}
+                  onChange={(e) => setBulkPaymentMode(e.target.value)}
+                  style={css.input}
+                  data-testid="mgr-achats-bulk-payment-select"
+                >
+                  <option value="">Choisir…</option>
+                  {PAYMENT_MODES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                data-testid="mgr-achats-bulk-payment-fill"
+                onClick={handleBulkPaymentFillEmpty}
+                disabled={!bulkPaymentMode || linesWithoutPaymentMode.length === 0}
+                style={{
+                  ...css.btnGhost,
+                  ...(!bulkPaymentMode || linesWithoutPaymentMode.length === 0
+                    ? { opacity: 0.5, cursor: 'not-allowed' }
+                    : {}),
+                }}
+              >
+                Compléter les lignes vides
+              </button>
+              <button
+                type="button"
+                data-testid="mgr-achats-bulk-payment-all"
+                onClick={handleBulkPaymentApplyAll}
+                disabled={!bulkPaymentMode || lines.length === 0}
+                style={{
+                  ...css.btnOutline,
+                  ...(!bulkPaymentMode || lines.length === 0
+                    ? { opacity: 0.5, cursor: 'not-allowed' }
+                    : {}),
+                }}
+              >
+                Appliquer à toutes
+              </button>
+              <span
+                style={{ ...css.meta, flex: '1 1 100%' }}
+                data-testid="mgr-achats-bulk-payment-count"
+              >
+                {linesWithoutPaymentMode.length > 0
+                  ? `${linesWithoutPaymentMode.length} ligne${linesWithoutPaymentMode.length > 1 ? 's' : ''} sans mode de paiement.`
+                  : 'Mode de paiement renseigné sur toutes les lignes.'}
+              </span>
+            </div>
+          )}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={css.lineTable}>
+              <thead>
+                <tr>
+                  <th style={css.lineTh}>Réf</th>
+                  <th style={css.lineTh}>Désignations</th>
+                  <th style={css.lineTh}>Catégorie</th>
+                  <th style={css.lineTh}>Unité</th>
+                  <th style={css.lineTh}>Quantité</th>
+                  <th style={css.lineTh}>Prix Unitaire</th>
+                  <th style={css.lineTh}>Montant</th>
+                  <th style={css.lineTh}>Fournisseur{canPrice ? ' *' : ''}</th>
+                  <th style={css.lineTh}>Mode de paiement{canPrice ? ' *' : ''}</th>
+                  <th style={css.lineTh}>Pièce jointe{canPrice ? ' *' : ''}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {lines.map((l, i) => (
+                  <tr key={l.id}>
+                    <td style={css.lineTd}>{i + 1}</td>
+                    <td style={css.lineTd}>{l.label}</td>
+                    <td style={css.lineTd}>{ebSpendCategoryLabel(l.spendCategory)}</td>
+                    <td style={css.lineTd}>{l.unit}</td>
+                    <td style={css.lineTd}>{l.quantity}</td>
+                    <td style={css.lineTd}>
+                      {canPrice ? (
+                        <input
+                          type="number"
+                          min={0}
+                          step="1"
+                          value={l.unitPriceFcfa ?? ''}
+                          onChange={(e) => onUnitPriceChange(l.id, Number.parseFloat(e.target.value) || 0)}
+                          style={{ ...css.input, width: 110 }}
+                          data-testid={`mgr-achats-line-unit-price-${i}`}
+                        />
+                      ) : (
+                        <span
+                          data-testid={`mgr-achats-line-unit-price-${i}`}
+                          style={{ color: Number(l.unitPriceFcfa) ? undefined : 'var(--text-muted)' }}
+                        >
+                          {l.unitPriceFcfa != null && Number(l.unitPriceFcfa) > 0
+                            ? Number(l.unitPriceFcfa).toLocaleString('fr-FR')
+                            : '—'}
+                        </span>
+                      )}
+                    </td>
+                    <td style={css.lineTd}>
+                      {canPrice ? (
+                        <input
+                          type="number"
+                          min={0}
+                          step="1"
+                          value={l.amountFcfa ?? ''}
+                          onChange={(e) => onAmountChange(l.id, Number.parseFloat(e.target.value) || 0)}
+                          style={{ ...css.input, width: 120 }}
+                          data-testid={`mgr-achats-line-amount-${i}`}
+                        />
+                      ) : (
+                        <span
+                          data-testid={`mgr-achats-line-amount-${i}`}
+                          style={{ color: Number(l.amountFcfa) ? undefined : 'var(--text-muted)' }}
+                        >
+                          {l.amountFcfa != null && Number(l.amountFcfa) > 0
+                            ? Number(l.amountFcfa).toLocaleString('fr-FR')
+                            : '—'}
+                        </span>
+                      )}
+                    </td>
+                    <td style={css.lineTd}>
+                      {canPrice ? (
+                        <SupplierSelect
+                          value={l.supplierName ?? ''}
+                          suppliers={suppliers}
+                          required
+                          testId={`mgr-achats-line-supplier-${i}`}
+                          onChange={(name) => onLineCommercial(l.id, { supplierName: name })}
+                        />
+                      ) : (
+                        l.supplierName ?? '—'
+                      )}
+                    </td>
+                    <td style={css.lineTd}>
+                      {canPrice ? (
+                        <select
+                          value={l.paymentMode ?? ''}
+                          required
+                          onChange={(e) => onLineCommercial(l.id, { paymentMode: e.target.value })}
+                          style={css.input}
+                          data-testid={`mgr-achats-line-payment-${i}`}
+                        >
+                          <option value="">À préciser</option>
+                          {PAYMENT_MODES.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        l.paymentMode ?? '—'
+                      )}
+                    </td>
+                    <td style={css.lineTd}>
+                      {l.attachmentFileName ? (
+                        <button
+                          type="button"
+                          data-testid={`mgr-achats-line-attachment-name-${i}`}
+                          onClick={() => void handleOpenAttachment(l.id, l.attachmentFileName ?? '')}
+                          style={{
+                            ...css.btnGhost,
+                            padding: 0,
+                            textDecoration: 'underline',
+                            color: 'var(--accent, #0b4a2c)',
+                          }}
+                        >
+                          {l.attachmentFileName}
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
         {canPrice && (
           <p style={{ ...css.meta, marginTop: 8 }} data-testid="mgr-achats-amount-hint">
