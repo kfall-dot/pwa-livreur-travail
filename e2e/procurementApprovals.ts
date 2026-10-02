@@ -32,6 +32,22 @@ type ApprovalRole = keyof typeof BTP_ACCOUNTS
 /** Étapes du circuit : un dossier est laissé à chacune pour remplir les files. */
 const STAGES = ['submitted', 'cdg_review', 'daf_review', 'pdg_review'] as const
 
+/**
+ * Étape à préparer pour le rôle capturé. Fabriquer les quatre dossiers à chaque
+ * run coûtait ~3 min de préparation pour n'en mesurer qu'un : on ne monte donc
+ * que l'étape utile. DT et SA lisent la file `submitted` ; chaque approbateur a
+ * la sienne. Le comptable et le chef de chantier voient toutes les demandes.
+ */
+const STAGE_BY_ROLE: Record<string, (typeof STAGES)[number]> = {
+  dt: 'submitted',
+  sa: 'submitted',
+  cdg: 'cdg_review',
+  daf: 'daf_review',
+  pdg: 'pdg_review',
+  cmpt: 'submitted',
+  chef: 'submitted',
+}
+
 const BTP_SITE_ID = 'site-btp-pilote-1'
 
 const EB_SAMPLE = `Besoins chantier :
@@ -187,17 +203,18 @@ async function approveAs(
 }
 
 /**
- * Remplit les files d'approbation. Meilleure effort intégral : toute entrave
- * est consignée dans `notes` et affichée en fin de run, jamais un échec — une
+ * Remplit la file d'approbation du rôle capturé (`role`) — ou toutes les files
+ * si aucun rôle n'est fourni. Meilleure effort intégral : toute entrave est
+ * consignée dans `notes` et affichée en fin de run, jamais un échec — une
  * donnée absente ne doit pas faire passer un test de layout pour cassé.
  */
-export async function seedApprovalQueues(notes: string[]): Promise<void> {
+export async function seedApprovalQueues(notes: string[], role?: string): Promise<void> {
   const opened = new Map<ApprovalRole, APIRequestContext>()
-  const ctxFor = async (role: ApprovalRole): Promise<APIRequestContext> => {
-    const existing = opened.get(role)
+  const ctxFor = async (target: ApprovalRole): Promise<APIRequestContext> => {
+    const existing = opened.get(target)
     if (existing) return existing
-    const created = await loginAs(role)
-    opened.set(role, created)
+    const created = await loginAs(target)
+    opened.set(target, created)
     return created
   }
 
@@ -215,7 +232,8 @@ export async function seedApprovalQueues(notes: string[]): Promise<void> {
       data: { bodyText: EB_SAMPLE, siteId },
     })
 
-    for (const stage of STAGES) {
+    const stages = role && STAGE_BY_ROLE[role] ? [STAGE_BY_ROLE[role]] : [...STAGES]
+    for (const stage of stages) {
       const requestId = await createSubmittedRequest(dt, siteId, notes)
       if (!requestId) return
       if (stage === 'submitted') continue

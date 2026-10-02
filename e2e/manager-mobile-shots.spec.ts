@@ -118,15 +118,22 @@ test.describe('Manager — banque de captures mobile', () => {
   // build le jour où un onglet déborde encore.
   test.skip(process.env.MOBILE_SHOTS !== '1', 'banque de captures : MOBILE_SHOTS=1 requis')
 
-  // Une visite par onglet (navigation + 0,5s de stabilité) : timeout élargi.
-  // Le run complet dépasse 2 min sans même parler des captures de détail.
-  test.setTimeout(300_000)
+  // Une visite par onglet, plus la préparation du circuit d'approbation par
+  // l'API : timeout élargi (le build Vite du serveur e2e n'entre pas dans ce
+  // budget — il est attendu par `webServer` avant le début du test).
+  test.setTimeout(420_000)
 
   test.beforeEach(async ({ request }) => {
+    // Annonce explicite : la remise à zéro et la préparation du circuit durent
+    // plusieurs dizaines de secondes, entièrement silencieuses jusqu'ici — un
+    // run interrompu à tort faute de savoir ce qu'il faisait.
+    // eslint-disable-next-line no-console
+    console.log(`préparation (${SHOTS_ROLE}) : remise à zéro de la base e2e…`)
     await resetAndSeed(request)
-    // Les files d'approbation (fiche EB du DT, dossiers à signer du CdG, du DAF
-    // et du PDG) sont vides après un seed : le circuit est rejoué par l'API.
-    if (ROLE_EMAILS[SHOTS_ROLE]) await seedApprovalQueues(SEED_NOTES)
+    // La file du rôle capturé (fiche EB du DT, dossier à signer du CdG, du DAF
+    // ou du PDG) est vide après un seed : le circuit est rejoué par l'API,
+    // jusqu'à l'étape de ce rôle uniquement.
+    if (ROLE_EMAILS[SHOTS_ROLE]) await seedApprovalQueues(SEED_NOTES, SHOTS_ROLE)
   })
 
   test('capture de chaque onglet au palier choisi et détection des débordements', async ({ page }) => {
