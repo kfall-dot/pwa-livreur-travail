@@ -198,6 +198,7 @@ function SupplierSelect({
   suppliers,
   disabled,
   required,
+  placeholder = 'À préciser',
   testId,
   onChange,
 }: {
@@ -205,6 +206,8 @@ function SupplierSelect({
   suppliers: Array<{ id: string; name: string }>
   disabled?: boolean
   required?: boolean
+  /** Libellé de l'option vide — « À préciser » par ligne, « Choisir… » pour une saisie groupée. */
+  placeholder?: string
   testId: string
   onChange: (name: string) => void
 }) {
@@ -217,7 +220,7 @@ function SupplierSelect({
       style={css.input}
       data-testid={testId}
     >
-      <option value="">À préciser</option>
+      <option value="">{placeholder}</option>
       {suppliers.map((s) => (
         <option key={s.id} value={s.name}>{s.name}</option>
       ))}
@@ -2002,6 +2005,60 @@ function RequestDetailPanel({
     applyPaymentModeToLines(lines)
   }
 
+  // Même mécanique que le mode de paiement, mais SANS écrasement global : le
+  // fournisseur détermine le découpage en bons de commande (un BC par
+  // fournisseur présent sur les lignes, cf. `ebSuppliers` / `allPosCreated`).
+  // Réaffecter en masse peut donc fusionner deux achats distincts — l'action
+  // passe par une sélection explicite, jamais par un « appliquer à toutes ».
+  const [bulkSupplierName, setBulkSupplierName] = useState('')
+  const [selectedLineIds, setSelectedLineIds] = useState<string[]>([])
+  /** Lignes encore sans fournisseur (le contrôle SA l'exige sur chaque ligne). */
+  const linesWithoutSupplier = lines.filter((l) => !(l.supplierName ?? '').trim())
+  /** Sélection effective : les identifiants périmés (détail rechargé) sont ignorés. */
+  const selectedLines = lines.filter((l) => selectedLineIds.includes(l.id))
+  const allLinesSelected = lines.length > 0 && selectedLines.length === lines.length
+  const toggleLineSelection = (lineId: string) => {
+    setSelectedLineIds((prev) =>
+      prev.includes(lineId) ? prev.filter((id) => id !== lineId) : [...prev, lineId],
+    )
+  }
+  const toggleAllLines = () => {
+    setSelectedLineIds(allLinesSelected ? [] : lines.map((l) => l.id))
+  }
+  /** Complète uniquement les lignes vides : n'écrase aucun fournisseur existant. */
+  const handleBulkSupplierFillEmpty = () => {
+    if (!bulkSupplierName) return
+    for (const l of linesWithoutSupplier) {
+      onLineCommercial(l.id, { supplierName: bulkSupplierName })
+    }
+  }
+  /**
+   * Affecte le fournisseur choisi aux lignes cochées. La confirmation n'apparaît
+   * que si des lignes sélectionnées changent réellement de fournisseur, et le
+   * message rappelle la conséquence — un simple décompte de lignes laisserait
+   * croire à un changement anodin alors que le nombre de bons de commande peut
+   * varier.
+   */
+  const handleBulkSupplierAssignSelected = () => {
+    if (!bulkSupplierName || selectedLines.length === 0) return
+    const target = bulkSupplierName.trim().toLowerCase()
+    const moved = selectedLines.filter((l) => {
+      const current = (l.supplierName ?? '').trim().toLowerCase()
+      return current !== '' && current !== target
+    })
+    if (moved.length > 0) {
+      const ok = window.confirm(
+        `Réaffecter ${moved.length} ligne${moved.length > 1 ? 's' : ''} à un autre fournisseur ?\n\n` +
+          'Un bon de commande est émis par fournisseur présent sur les lignes : ce changement peut modifier leur découpage.',
+      )
+      if (!ok) return
+    }
+    for (const l of selectedLines) {
+      onLineCommercial(l.id, { supplierName: bulkSupplierName })
+    }
+    setSelectedLineIds([])
+  }
+
   const revokePreview = useCallback(() => {
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current)
@@ -2184,6 +2241,89 @@ function RequestDetailPanel({
         <div data-chiffrage-zone>
           {canPrice && (
             <div
+              data-testid="mgr-achats-bulk-supplier"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'flex-end',
+                gap: 8,
+                padding: '10px 12px',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderBottom: 'none',
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  flex: '1 1 180px',
+                  minWidth: 150,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '.04em',
+                    color: '#6b7280',
+                  }}
+                >
+                  Fournisseur
+                </span>
+                <SupplierSelect
+                  value={bulkSupplierName}
+                  suppliers={suppliers}
+                  placeholder="Choisir…"
+                  testId="mgr-achats-bulk-supplier-select"
+                  onChange={setBulkSupplierName}
+                />
+              </label>
+              <button
+                type="button"
+                data-testid="mgr-achats-bulk-supplier-fill"
+                onClick={handleBulkSupplierFillEmpty}
+                disabled={!bulkSupplierName || linesWithoutSupplier.length === 0}
+                style={{
+                  ...css.btnGhost,
+                  ...(!bulkSupplierName || linesWithoutSupplier.length === 0
+                    ? { opacity: 0.5, cursor: 'not-allowed' }
+                    : {}),
+                }}
+              >
+                Compléter les lignes vides
+              </button>
+              <button
+                type="button"
+                data-testid="mgr-achats-bulk-supplier-assign"
+                onClick={handleBulkSupplierAssignSelected}
+                disabled={!bulkSupplierName || selectedLines.length === 0}
+                style={{
+                  ...css.btnOutline,
+                  ...(!bulkSupplierName || selectedLines.length === 0
+                    ? { opacity: 0.5, cursor: 'not-allowed' }
+                    : {}),
+                }}
+              >
+                Affecter la sélection{selectedLines.length > 0 ? ` (${selectedLines.length})` : ''}
+              </button>
+              <span
+                style={{ ...css.meta, flex: '1 1 100%' }}
+                data-testid="mgr-achats-bulk-supplier-count"
+              >
+                {linesWithoutSupplier.length > 0
+                  ? `${linesWithoutSupplier.length} ligne${linesWithoutSupplier.length > 1 ? 's' : ''} sans fournisseur.`
+                  : 'Fournisseur renseigné sur toutes les lignes.'}
+                {selectedLines.length > 0
+                  ? ` ${selectedLines.length} ligne${selectedLines.length > 1 ? 's' : ''} sélectionnée${selectedLines.length > 1 ? 's' : ''}.`
+                  : ''}
+              </span>
+            </div>
+          )}
+          {canPrice && (
+            <div
               data-testid="mgr-achats-bulk-payment"
               style={{
                 display: 'flex',
@@ -2269,6 +2409,17 @@ function RequestDetailPanel({
             <table style={css.lineTable}>
               <thead>
                 <tr>
+                  {canPrice && (
+                    <th style={css.lineTh}>
+                      <input
+                        type="checkbox"
+                        checked={allLinesSelected}
+                        onChange={toggleAllLines}
+                        aria-label="Sélectionner toutes les lignes"
+                        data-testid="mgr-achats-line-select-all"
+                      />
+                    </th>
+                  )}
                   <th style={css.lineTh}>Réf</th>
                   <th style={css.lineTh}>Désignations</th>
                   <th style={css.lineTh}>Catégorie</th>
@@ -2284,6 +2435,17 @@ function RequestDetailPanel({
               <tbody>
                 {lines.map((l, i) => (
                   <tr key={l.id}>
+                    {canPrice && (
+                      <td style={css.lineTd}>
+                        <input
+                          type="checkbox"
+                          checked={selectedLineIds.includes(l.id)}
+                          onChange={() => toggleLineSelection(l.id)}
+                          aria-label={`Sélectionner la ligne ${i + 1}`}
+                          data-testid={`mgr-achats-line-select-${i}`}
+                        />
+                      </td>
+                    )}
                     <td style={css.lineTd}>{i + 1}</td>
                     <td style={css.lineTd}>{l.label}</td>
                     <td style={css.lineTd}>{ebSpendCategoryLabel(l.spendCategory)}</td>
