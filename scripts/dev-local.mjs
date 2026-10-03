@@ -133,9 +133,28 @@ if (!existsSync(CONCURRENTLY_BIN)) {
   process.exit(1)
 }
 
+/**
+ * Windows : `concurrently` donne à chaque commande `stdio: ['pipe', …]`
+ * (dist/src/spawn.js, mode « normal »), donc l'enfant reçoit un stdin « pipe »
+ * qui n'est jamais alimenté ni fermé. `tsx watch` — la jambe API — s'y bloque
+ * alors au démarrage : npm a bien affiché l'entête du script, mais le serveur
+ * n'écrit plus rien, n'écoute sur aucun port, et le proxy Vite répond
+ * ECONNREFUSED sur /api/* comme si l'API n'existait pas. Le processus reste
+ * vivant, à ~0 CPU et sans aucune connexion : rien ne le débloque, seul un
+ * redémarrage propre en sort.
+ *
+ * Rediriger stdin depuis le périphérique nul rend le démarrage normal, sans
+ * perdre les préfixes [web] / [api] ni le redémarrage de tsx watch (déclenché
+ * par les changements de fichiers, pas par stdin). Le `--raw` de concurrently
+ * utiliserait `stdio: inherit` mais ferait disparaître ces préfixes : on
+ * préfère cette redirection ciblée.
+ */
+const NULL_DEVICE = process.platform === 'win32' ? 'NUL' : '/dev/null'
+const API_COMMAND = `npm run dev:server < ${NULL_DEVICE}`
+
 const child = spawn(
   process.execPath,
-  [CONCURRENTLY_BIN, '-n', 'web,api', '-c', 'cyan,green', 'npm run dev', 'npm run dev:server'],
+  [CONCURRENTLY_BIN, '-n', 'web,api', '-c', 'cyan,green', 'npm run dev', API_COMMAND],
   { stdio: 'inherit', env: process.env },
 )
 
