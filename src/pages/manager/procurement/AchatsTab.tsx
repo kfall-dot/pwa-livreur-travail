@@ -23,6 +23,7 @@ import {
   updateDraft,
   updateRequestPricing,
   uploadRequestLineAttachment,
+  uploadRequestLinesAttachment,
   removeRequestLineAttachment,
   fetchRequestLineAttachment,
   fetchSiteBudget,
@@ -694,6 +695,29 @@ export function AchatsTab({
     }
   }
 
+  // Facture partagée : un seul envoi couvrant toutes les lignes cochées — le
+  // serveur écrit une seule clé de blob que chaque ligne référence.
+  const handleBulkUploadLineAttachments = async (lineIds: string[], file: File) => {
+    if (!selectedRequestId || lineIds.length === 0) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Fichier trop volumineux (max. 5 Mo)')
+      return
+    }
+    setActionLoading(true)
+    toast.info(`Envoi de ${file.name} sur ${lineIds.length} ligne${lineIds.length > 1 ? 's' : ''}…`)
+    try {
+      const detail = await uploadRequestLinesAttachment(selectedRequestId, lineIds, file)
+      setRequestDetail((prev) => keepUnsavedPricing(prev, detail))
+      toast.success(
+        `Facture partagée ajoutée à ${lineIds.length} ligne${lineIds.length > 1 ? 's' : ''} : ${file.name}`,
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Pièce jointe refusée')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleApprove = async () => {
     if (!selectedRequestId) return
     if (
@@ -1085,6 +1109,7 @@ export function AchatsTab({
           onSavePricing={() => void handleSavePricing()}
           onSubmitFinance={() => void handleSubmitFinance()}
           onUploadAttachment={(lineId, file) => void handleUploadLineAttachment(lineId, file)}
+          onUploadAttachmentBulk={(lineIds, file) => void handleBulkUploadLineAttachments(lineIds, file)}
           onRemoveAttachment={(lineId) => void handleRemoveLineAttachment(lineId)}
           managerName={managerName ?? ''}
         />
@@ -1890,6 +1915,7 @@ function RequestDetailPanel({
   onSavePricing,
   onSubmitFinance,
   onUploadAttachment,
+  onUploadAttachmentBulk,
   onRemoveAttachment,
   managerName,
 }: {
@@ -1919,6 +1945,7 @@ function RequestDetailPanel({
   onSavePricing: () => void
   onSubmitFinance: () => void
   onUploadAttachment: (lineId: string, file: File) => void
+  onUploadAttachmentBulk: (lineIds: string[], file: File) => void
   onRemoveAttachment: (lineId: string) => void
   managerName: string
 }) {
@@ -2056,6 +2083,33 @@ function RequestDetailPanel({
     for (const l of selectedLines) {
       onLineCommercial(l.id, { supplierName: bulkSupplierName })
     }
+    setSelectedLineIds([])
+  }
+
+  // Facture partagée : une même facture jointe en un seul envoi aux lignes
+  // cochées (typiquement toutes les lignes d'un même fournisseur). Remplacer
+  // une PJ existante demande confirmation, comme pour le mode de paiement.
+  const linesWithoutAttachment = lines.filter((l) => !(l.attachmentFileName ?? '').trim())
+  /** Clés de blob portées par plusieurs lignes : la facture est partagée. */
+  const sharedAttachmentKeys = new Set(
+    lines
+      .map((l) => l.attachmentBlobKey ?? '')
+      .filter((k) => k !== '' && lines.filter((l) => l.attachmentBlobKey === k).length > 1),
+  )
+  const handleBulkAttachmentPick = (file: File) => {
+    if (selectedLines.length === 0) return
+    const withAttachment = selectedLines.filter((l) => (l.attachmentFileName ?? '').trim())
+    if (withAttachment.length > 0) {
+      const ok = window.confirm(
+        `Remplacer la pièce jointe déjà présente sur ${withAttachment.length} ligne${withAttachment.length > 1 ? 's' : ''} ?\n\n` +
+          'La facture choisie sera partagée par toutes les lignes cochées.',
+      )
+      if (!ok) return
+    }
+    onUploadAttachmentBulk(
+      selectedLines.map((l) => l.id),
+      file,
+    )
     setSelectedLineIds([])
   }
 
@@ -2405,6 +2459,57 @@ function RequestDetailPanel({
               </span>
             </div>
           )}
+          {canPrice && (
+            <div
+              data-testid="mgr-achats-bulk-attachment"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 12px',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+              }}
+            >
+              <label
+                data-testid="mgr-achats-bulk-attachment-apply"
+                style={{
+                  ...css.btnOutline,
+                  margin: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  cursor: actionLoading || selectedLines.length === 0 ? 'not-allowed' : 'pointer',
+                  ...(selectedLines.length === 0 ? { opacity: 0.5 } : {}),
+                }}
+              >
+                Joindre la facture aux lignes cochées
+                {selectedLines.length > 0 ? ` (${selectedLines.length})` : ''}
+                <input
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.xls,.xlsx,application/pdf,image/*"
+                  data-testid="mgr-achats-bulk-attachment-input"
+                  disabled={actionLoading || selectedLines.length === 0}
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleBulkAttachmentPick(file)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              <span
+                style={{ ...css.meta, flex: '1 1 100%' }}
+                data-testid="mgr-achats-bulk-attachment-count"
+              >
+                {linesWithoutAttachment.length > 0
+                  ? `${linesWithoutAttachment.length} ligne${linesWithoutAttachment.length > 1 ? 's' : ''} sans pièce jointe.`
+                  : 'Pièce jointe renseignée sur toutes les lignes.'}
+                {' '}
+                Un seul envoi : la facture est partagée par les lignes cochées, typiquement toutes celles d'un même fournisseur.
+              </span>
+            </div>
+          )}
           <div style={{ overflowX: 'auto' }}>
             <table style={css.lineTable}>
               <thead>
@@ -2587,7 +2692,9 @@ function RequestDetailPanel({
           <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Pièces jointes</h4>
           <p style={{ ...css.meta, marginBottom: 10 }}>
             Un devis, une photo ou un Excel par produit
-            {canPrice ? ' — obligatoire avant envoi au DAF.' : '.'}
+            {canPrice
+              ? ' — obligatoire avant envoi au DAF. Cochez plusieurs lignes du tableau pour leur joindre la même facture en un seul envoi.'
+              : '.'}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {lines.map((l, i) => (
@@ -2614,6 +2721,14 @@ function RequestDetailPanel({
                   </button>
                 ) : (
                   <span style={{ ...css.meta }}>—</span>
+                )}
+                {l.attachmentBlobKey && sharedAttachmentKeys.has(l.attachmentBlobKey) && (
+                  <span
+                    style={{ ...css.meta, color: 'var(--accent, #0b4a2c)' }}
+                    data-testid={`mgr-achats-line-attachment-shared-${i}`}
+                  >
+                    · facture partagée
+                  </span>
                 )}
                 {canPrice && (
                   <label

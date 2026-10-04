@@ -327,25 +327,51 @@ export async function submitRequestFinance(id: string): Promise<{
   }>
 }
 
-export async function uploadRequestLineAttachment(
-  requestId: string,
-  lineId: string,
-  file: File,
-): Promise<RequestDetailResponse> {
+/** Sérialise un fichier en base64 pour les endpoints JSON de pièces jointes. */
+async function fileToBase64Payload(file: File): Promise<{
+  fileName: string
+  contentType: string
+  data: string
+}> {
   const buf = new Uint8Array(await file.arrayBuffer())
   const chunk = 8192
   let binary = ''
   for (let i = 0; i < buf.length; i += chunk) {
     binary += String.fromCharCode(...Array.from(buf.subarray(i, i + chunk)))
   }
-  const data = btoa(binary)
+  return { fileName: file.name, contentType: file.type, data: btoa(binary) }
+}
+
+export async function uploadRequestLineAttachment(
+  requestId: string,
+  lineId: string,
+  file: File,
+): Promise<RequestDetailResponse> {
+  const payload = await fileToBase64Payload(file)
   const res = await authFetch(`${BASE}/requests/${encodeURIComponent(requestId)}/lines/${encodeURIComponent(lineId)}/attachment`, {
     method: 'POST',
-    body: JSON.stringify({
-      fileName: file.name,
-      contentType: file.type,
-      data,
-    }),
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    throw await apiErrorMessage(res, 'Pièce jointe refusée')
+  }
+  return res.json() as Promise<RequestDetailResponse>
+}
+
+/**
+ * Facture partagée : un seul envoi pour toutes les lignes cochées. Le serveur
+ * écrit une seule clé de blob référencée par chaque ligne (`saFinanceGate`
+ * reste satisfait : chaque ligne porte bien une pièce jointe).
+ */
+export async function uploadRequestLinesAttachment(
+  requestId: string,
+  lineIds: string[],
+  file: File,
+): Promise<RequestDetailResponse> {
+  const payload = await fileToBase64Payload(file)
+  const res = await authFetch(`${BASE}/requests/${encodeURIComponent(requestId)}/lines-attachment`, {
+    method: 'POST',
+    body: JSON.stringify({ lineIds, ...payload }),
   })
   if (!res.ok) {
     throw await apiErrorMessage(res, 'Pièce jointe refusée')

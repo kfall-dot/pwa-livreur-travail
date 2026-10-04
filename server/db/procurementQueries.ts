@@ -1292,6 +1292,55 @@ export async function setRequestLineAttachment(
   return getRequestDetail(companyId, requestId)
 }
 
+/**
+ * Nombre de lignes de l'entreprise qui référencent encore une clé de blob.
+ * Une facture peut être partagée par plusieurs lignes : le fichier n'est
+ * supprimé du stockage que lorsque plus aucune ligne ne le référence
+ * (déréférencement compté, cf. routes/procurement.ts).
+ */
+export async function countRequestLinesByBlobKey(companyId: string, blobKey: string) {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(purchaseRequestLines)
+    .innerJoin(purchaseRequests, eq(purchaseRequestLines.purchaseRequestId, purchaseRequests.id))
+    .where(
+      and(eq(purchaseRequests.companyId, companyId), eq(purchaseRequestLines.attachmentBlobKey, blobKey)),
+    )
+  return row?.count ?? 0
+}
+
+/**
+ * Affecte une même pièce jointe à plusieurs lignes d'une demande : une seule
+ * clé de blob, référencée par toutes les lignes visées (facture partagée).
+ * `lineIds` est borné aux lignes réellement rattachées à la demande.
+ */
+export async function setRequestLinesAttachment(
+  companyId: string,
+  requestId: string,
+  lineIds: string[],
+  attachment: {
+    blobKey: string
+    fileName: string
+    contentType: string
+  },
+) {
+  const request = await getPurchaseRequestById(companyId, requestId)
+  if (!request) return null
+  if (lineIds.length > 0) {
+    await db
+      .update(purchaseRequestLines)
+      .set({
+        attachmentBlobKey: attachment.blobKey,
+        attachmentFileName: attachment.fileName,
+        attachmentContentType: attachment.contentType,
+      })
+      .where(
+        and(eq(purchaseRequestLines.purchaseRequestId, requestId), inArray(purchaseRequestLines.id, lineIds)),
+      )
+  }
+  return getRequestDetail(companyId, requestId)
+}
+
 export async function getApprovalSteps(requestId: string) {
   return db
     .select({

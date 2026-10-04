@@ -568,6 +568,105 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByTestId('mgr-achats-line-attachment-0')).toHaveCount(0)
   })
 
+  test('facture partagée — un seul envoi pour toutes les lignes (I44b, API)', async ({ request }) => {
+    test.setTimeout(90_000)
+    const simulated = await simulateWhatsappEb(request)
+    const submitted = await dtSubmitDraft(request, simulated.draftId)
+
+    await loginBtpApi(request, 'sa')
+    const detailRes = await request.get(`${API_BASE}/api/v1/procurement/requests/${submitted.id}`)
+    expect(detailRes.ok(), await detailRes.text()).toBeTruthy()
+    const detail = (await detailRes.json()) as {
+      lines: Array<{ id: string }>
+    }
+    expect(detail.lines.length).toBeGreaterThanOrEqual(2)
+    const pdf = binaryPdfFixture()
+    const pdfB64 = pdf.toString('base64')
+
+    // Un seul POST pour toutes les lignes : une seule clé de blob attendue.
+    const bulk = await request.post(`${API_BASE}/api/v1/procurement/requests/${submitted.id}/lines-attachment`, {
+      data: {
+        lineIds: detail.lines.map((l) => l.id),
+        fileName: 'facture-fournisseur.pdf',
+        contentType: 'application/pdf',
+        data: pdfB64,
+      },
+    })
+    expect(bulk.ok(), await bulk.text()).toBeTruthy()
+    const bulkBody = (await bulk.json()) as {
+      lines: Array<{ id: string; attachmentBlobKey?: string | null; attachmentFileName?: string | null }>
+    }
+    expect(new Set(bulkBody.lines.map((l) => l.attachmentBlobKey)).size).toBe(1)
+    expect(bulkBody.lines.every((l) => l.attachmentFileName === 'facture-fournisseur.pdf')).toBe(true)
+
+    // Chaque ligne sert la même facture, octet pour octet.
+    for (const l of bulkBody.lines) {
+      const file = await request.get(
+        `${API_BASE}/api/v1/procurement/requests/${submitted.id}/lines/${l.id}/attachment`,
+      )
+      expect(file.ok(), await file.text()).toBeTruthy()
+      expect(Buffer.from(await file.body()).equals(pdf), `PJ corrompue (${l.id})`).toBe(true)
+    }
+
+    // Retirer une ligne ne détache que SA référence : la facture reste servie
+    // aux lignes restantes (déréférencement compté, pas de suppression du blob).
+    const [first, ...rest] = bulkBody.lines
+    const removeOne = await request.delete(
+      `${API_BASE}/api/v1/procurement/requests/${submitted.id}/lines/${first.id}/attachment`,
+    )
+    expect(removeOne.ok(), await removeOne.text()).toBeTruthy()
+    const survivor = await request.get(
+      `${API_BASE}/api/v1/procurement/requests/${submitted.id}/lines/${rest[0].id}/attachment`,
+    )
+    expect(survivor.ok(), await survivor.text()).toBeTruthy()
+    expect(Buffer.from(await survivor.body()).equals(pdf)).toBe(true)
+    const detached = await request.get(
+      `${API_BASE}/api/v1/procurement/requests/${submitted.id}/lines/${first.id}/attachment`,
+    )
+    expect(detached.status()).toBe(404)
+
+    // La dernière ligne qui lâche la facture emporte le blob partagé.
+    for (const l of rest) {
+      const rm = await request.delete(
+        `${API_BASE}/api/v1/procurement/requests/${submitted.id}/lines/${l.id}/attachment`,
+      )
+      expect(rm.ok(), await rm.text()).toBeTruthy()
+    }
+    const lastGone = await request.get(
+      `${API_BASE}/api/v1/procurement/requests/${submitted.id}/lines/${rest[0].id}/attachment`,
+    )
+    expect(lastGone.status()).toBe(404)
+  })
+
+  test('SA partage une facture entre les lignes cochées (I44b, UI)', async ({ page, request }) => {
+    test.setTimeout(90_000)
+    const simulated = await simulateWhatsappEb(request)
+    const submitted = await dtSubmitDraft(request, simulated.draftId)
+
+    await loginBtpManager(page, 'sa')
+    await openAchatsTab(page)
+    await expect(page.getByTestId(`mgr-achats-request-${submitted.id}`)).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await page.getByTestId(`mgr-achats-request-${submitted.id}`).click()
+    await expect(page.getByTestId('mgr-achats-bulk-attachment')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+
+    // Sans ligne cochée, le bouton est inactif ; la sélection l'arme.
+    await expect(page.getByTestId('mgr-achats-bulk-attachment-input')).toBeDisabled()
+    await page.getByTestId('mgr-achats-line-select-0').check()
+    await page.getByTestId('mgr-achats-line-select-1').check()
+    await expect(page.getByTestId('mgr-achats-bulk-attachment-apply')).toContainText('(2)')
+
+    await page.getByTestId('mgr-achats-bulk-attachment-input').setInputFiles({
+      name: 'facture-fournisseur.pdf',
+      mimeType: 'application/pdf',
+      buffer: binaryPdfFixture(),
+    })
+    await expect(page.getByText(/Facture partagée ajoutée à 2 lignes/)).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByTestId('mgr-achats-line-attachment-0')).toHaveText(/facture-fournisseur\.pdf/)
+    await expect(page.getByTestId('mgr-achats-line-attachment-1')).toHaveText(/facture-fournisseur\.pdf/)
+    await expect(page.getByTestId('mgr-achats-line-attachment-shared-0')).toBeVisible()
+    await expect(page.getByTestId('mgr-achats-line-attachment-shared-1')).toBeVisible()
+  })
+
   test('joindre une PJ ne vide pas le montant saisi (I49)', async ({ page, request }) => {
     test.setTimeout(90_000)
     const simulated = await simulateWhatsappEb(request)

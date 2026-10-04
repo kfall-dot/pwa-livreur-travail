@@ -38,7 +38,9 @@ import {
   listSuppliers,
   mergeDraftParseHints,
   recordApprovalStep,
+  countRequestLinesByBlobKey,
   setRequestLineAttachment,
+  setRequestLinesAttachment,
   updateDraft,
     softDeleteDraft,
   updatePurchaseRequestStatus,
@@ -187,6 +189,11 @@ const pricingSchema = z.object({
       observation: z.string().optional(),
     }),
   ).min(1),
+})
+
+/** Facture partagée : les champs fichier (data/fileName/contentType) restent lus par `parseJsonAttachment`. */
+const bulkLinesAttachmentSchema = z.object({
+  lineIds: z.array(z.string().min(1)).min(1).max(500),
 })
 
 const scheduleSchema = z.object({
@@ -1151,6 +1158,89 @@ procurementRouter.post(
   },
 )
 
+/**
+ * Supprime du stockage les blobs qui viennent d'être détachés et que plus
+ * aucune ligne de l'entreprise ne référence. `keep` exclut la clé qui vient
+ * d'être posée (remplacement d'une facture partagée par elle-même).
+ */
+async function cleanupDetachedBlobKeys(companyId: string, keys: Iterable<string>, keep: string) {
+  for (const key of keys) {
+    if (!key || key === keep) continue
+    try {
+      const remaining = await countRequestLinesByBlobKey(companyId, key)
+      if (remaining === 0) await deleteLineAttachment(key)
+    } catch (err) {
+      console.warn('[procurement] attachment cleanup skipped', err)
+    }
+  }
+}
+
+// Facture partagée : un seul blob, référencé par toutes les lignes cochées —
+// le Service achats joint la facture d'un fournisseur en un seul envoi au
+// lieu d'un par ligne. Le retrait d'une ligne ne détache que SA référence ;
+// le fichier disparaît quand la dernière ligne le lâche.
+procurementRouter.post(
+  '/requests/:id/lines-attachment',
+  requireProcurementRole('purchasing'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    const requestId = String(req.params.id)
+    const body = parseBody(bulkLinesAttachmentSchema, req.body, res)
+    if (!body) return
+    const request = await getPurchaseRequestById(manager.companyId, requestId)
+    if (!request) {
+      res.status(404).json({ message: 'Demande introuvable' })
+      return
+    }
+    if (request.status !== 'submitted') {
+      res.status(400).json({ message: 'Pièce jointe possible uniquement avant envoi au CdG' })
+      return
+    }
+    const file = parseJsonAttachment(req.body)
+    if ('error' in file) {
+      res.status(400).json({ message: file.error })
+      return
+    }
+    if (file.buffer.length === 0 || file.buffer.length > LINE_ATTACHMENT_MAX_BYTES) {
+      res.status(400).json({ message: 'Fichier trop volumineux (max. 5 Mo)' })
+      return
+    }
+    // Identifiants inconnus (détail rechargé entre-temps) ignorés : seules les
+    // lignes réellement rattachées à la demande reçoivent la facture.
+    const requestLines = await getPurchaseRequestLines(requestId)
+    const targets = requestLines.filter((l) => body.lineIds.includes(l.id))
+    if (targets.length === 0) {
+      res.status(404).json({ message: 'Lignes introuvables' })
+      return
+    }
+    // Clés détachées par l'opération, dédupliquées (une facture partagée ne
+    // compte qu'une fois) puis nettoyées après la mise à jour en base.
+    const replacedKeys = new Set(
+      targets.map((l) => l.attachmentBlobKey?.trim() || '').filter(Boolean),
+    )
+    const contentType = file.mimetype
+    const key = `eb-line/${requestId}/${randomUUID()}`
+    try {
+      await putLineAttachment(key, file.buffer, { contentType, fileName: file.originalname })
+    } catch (err) {
+      console.error('[procurement] attachment store', err)
+      res.status(503).json({ message: 'Stockage des pièces jointes indisponible' })
+      return
+    }
+    const detail = await setRequestLinesAttachment(manager.companyId, requestId, targets.map((l) => l.id), {
+      blobKey: key,
+      fileName: file.originalname,
+      contentType,
+    })
+    if (!detail) {
+      res.status(404).json({ message: 'Ligne introuvable' })
+      return
+    }
+    await cleanupDetachedBlobKeys(manager.companyId, replacedKeys, key)
+    res.status(201).json(detail)
+  },
+)
+
 procurementRouter.post(
   '/requests/:id/lines/:lineId/attachment',
   requireProcurementRole('purchasing'),
@@ -1176,6 +1266,16 @@ procurementRouter.post(
       res.status(400).json({ message: 'Fichier trop volumineux (max. 5 Mo)' })
       return
     }
+    const requestLines = await getPurchaseRequestLines(requestId)
+    const line = requestLines.find((l) => l.id === lineId)
+    if (!line) {
+      res.status(404).json({ message: 'Ligne introuvable' })
+      return
+    }
+    // Clé détachée par le remplacement : elle peut être partagée par d'autres
+    // lignes (facture partagée), le blob ne disparaît que si plus personne ne
+    // la référence.
+    const previousKey = line.attachmentBlobKey?.trim() || ''
     const contentType = file.mimetype
     const key = `eb-line/${requestId}/${lineId}/${randomUUID()}`
     try {
@@ -1194,6 +1294,7 @@ procurementRouter.post(
       res.status(404).json({ message: 'Ligne introuvable' })
       return
     }
+    await cleanupDetachedBlobKeys(manager.companyId, [previousKey], key)
     res.status(201).json(detail)
   },
 )
@@ -1220,14 +1321,16 @@ procurementRouter.delete(
       res.status(404).json({ message: 'Ligne introuvable' })
       return
     }
-    if (line.attachmentBlobKey) {
-      await deleteLineAttachment(line.attachmentBlobKey)
-    }
+    // Déréférencement compté : la ligne est d'abord détachée en base, puis le
+    // blob n'est supprimé du stockage que si plus aucune ligne ne le référence
+    // — une facture partagée survit au retrait d'une seule de ses lignes.
+    const previousKey = line.attachmentBlobKey?.trim() || ''
     const detail = await setRequestLineAttachment(manager.companyId, requestId, lineId, null)
     if (!detail) {
       res.status(404).json({ message: 'Ligne introuvable' })
       return
     }
+    await cleanupDetachedBlobKeys(manager.companyId, [previousKey], '')
     res.json(detail)
   },
 )
