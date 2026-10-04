@@ -278,7 +278,6 @@ export function SaOverview({
                 <tr>
                   <th style={css.lineTh}>Référence</th>
                   <th style={css.lineTh}>Chantier</th>
-                  {tab === 'pipeline' && <th style={css.lineTh}>Fournisseur</th>}
                   <th style={css.lineTh}>Pipeline</th>
                   <th style={css.lineTh}>Statut</th>
                   <th style={css.lineTh}>Montant</th>
@@ -295,7 +294,6 @@ export function SaOverview({
                       ) : null}
                     </td>
                     <td style={css.lineTd}>{r.siteName ?? '—'}</td>
-                    {tab === 'pipeline' && <td style={css.lineTd}>{r.supplierName ?? '—'}</td>}
                     <td style={css.lineTd}>
                       <Pipeline step={pipelineStep(r)} />
                     </td>
