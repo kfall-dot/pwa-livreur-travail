@@ -323,7 +323,7 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByTestId('mgr-achats-draft-review')).toBeVisible({ timeout: UI_READY_TIMEOUT })
     await expect(page.getByTestId('mgr-achats-eb-fiche')).toBeVisible()
     await expect(page.getByText('EXPRESSION DU BESOIN')).toBeVisible()
-    await expect(page.getByText('Direction Technique')).toBeVisible()
+    await expect(page.getByTestId('mgr-achats-eb-fiche').getByText('Direction Technique')).toBeVisible()
     await expect(page.getByTestId('mgr-achats-draft-requester')).toHaveValue('')
     await expect(page.getByTestId('mgr-achats-line-label-0')).toHaveValue('')
     await expect(page.getByTestId('mgr-achats-draft-site')).toHaveValue('')
