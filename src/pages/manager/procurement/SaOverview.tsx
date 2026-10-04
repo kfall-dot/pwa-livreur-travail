@@ -145,7 +145,7 @@ export function SaOverview({
     const q = search.trim().toLowerCase()
     if (!q) return rows
     return rows.filter((r) =>
-      [r.reference, r.siteName, r.supplierName, r.requestedByName].some((v) =>
+      [r.reference, r.siteName, r.requestedByName].some((v) =>
         (v ?? '').toLowerCase().includes(q),
       ),
     )
@@ -259,7 +259,7 @@ export function SaOverview({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher référence, chantier, fournisseur…"
+          placeholder="Rechercher référence, chantier…"
           data-testid="mgr-sa-search"
           style={{ ...css.input, width: 280, marginBottom: 8 }}
         />
