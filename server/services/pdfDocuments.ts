@@ -19,8 +19,7 @@ export type BcTemplateData = {
   supplierName: string
   supplierAddress?: string | null
   amountFcfa: number
-  payeAvance: boolean
-  paiementLivraison: boolean
+  modePaiement: string
   lines: Array<{
     label: string
     quantity: string
@@ -125,14 +124,12 @@ const DEFAULT_BC_TEMPLATE = `<!DOCTYPE html>
     <tr>
       <th>Date B.C.</th>
       <th>Receveur</th>
-      <th>Payé d'avance</th>
-      <th>Paiement à la livraison</th>
+      <th>MODE DE PAIEMENT</th>
     </tr>
     <tr>
       <td>{{dateBc}}</td>
       <td>{{receveur}}</td>
-      <td>{{payeAvance}}</td>
-      <td>{{paiementLivraison}}</td>
+      <td>{{modePaiement}}</td>
     </tr>
   </table>
   <table class="lines" style="margin-top:8px">
@@ -268,8 +265,7 @@ export function generateBcHtml(
       amountFcfa: String(total),
       dateBc: formatDateFr(data.createdAt),
       createdAt: data.createdAt,
-      payeAvance: data.payeAvance ? 'Oui' : '—',
-      paiementLivraison: data.paiementLivraison ? 'Oui' : '—',
+      modePaiement: data.modePaiement,
       linesRows: linesToRows(data.lines, total),
     },
     ['linesRows'],
@@ -331,13 +327,24 @@ export function generateBtHtml(
   ))
 }
 
-function paymentFlags(lines: PurchaseRequestLine[]): { payeAvance: boolean; paiementLivraison: boolean } {
-  const modes = lines.map((l) => (l.paymentMode ?? '').toUpperCase()).filter(Boolean)
-  // Paiement à la livraison : uniquement COMPTANT ou CHEQUE (demande métier).
-  // VIREMENT = payé d'avance ; CREDIT = ni l'un ni l'autre.
-  const payeAvance = modes.some((m) => m === 'VIREMENT')
-  const paiementLivraison = modes.some((m) => m === 'COMPTANT' || m === 'CHEQUE' || m === 'CHÈQUE')
-  return { payeAvance, paiementLivraison }
+const PAYMENT_MODE_LABELS: Record<string, string> = {
+  CREDIT: 'Crédit',
+  COMPTANT: 'Comptant',
+  CHEQUE: 'Chèque',
+  VIREMENT: 'Virement',
+}
+
+/** Mode de paiement du BC — remplace les cases « payé d'avance » / « à la livraison ». */
+function paymentModeLabel(lines: PurchaseRequestLine[]): string {
+  const modes = [
+    ...new Set(
+      lines
+        .map((l) => (l.paymentMode ?? '').trim().toUpperCase().replace(/[ÈÉ]/g, 'E'))
+        .filter(Boolean),
+    ),
+  ]
+  if (modes.length === 0) return '—'
+  return modes.map((m) => PAYMENT_MODE_LABELS[m] ?? m).join(' / ')
 }
 
 export function buildBcDataFromRequest(
@@ -348,7 +355,7 @@ export function buildBcDataFromRequest(
   companyName = 'TraceO',
 ): BcTemplateData {
   const poLines = linesForSupplier(lines, supplier.name)
-  const { payeAvance, paiementLivraison } = paymentFlags(poLines)
+  const modePaiement = paymentModeLabel(poLines)
   const mapped = poLines.map((l) => ({
     label: l.label,
     quantity: String(l.quantity),
@@ -367,8 +374,7 @@ export function buildBcDataFromRequest(
     supplierName: supplier.name,
     supplierAddress: supplier.address,
     amountFcfa,
-    payeAvance,
-    paiementLivraison,
+    modePaiement,
     lines: mapped,
     notes: request.notes,
     createdAt: new Date().toISOString().slice(0, 10),

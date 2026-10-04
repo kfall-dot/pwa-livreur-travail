@@ -11,8 +11,7 @@ const sample: BcTemplateData = {
   supplierName: 'CimIvoire Distribution',
   supplierAddress: 'Yopougon',
   amountFcfa: 70_000,
-  payeAvance: false,
-  paiementLivraison: true,
+  modePaiement: 'Comptant',
   lines: [
     { label: 'Ciment', quantity: '50', unit: 'sacs', unitPriceFcfa: 1400, amountFcfa: 70_000 },
   ],
@@ -25,8 +24,8 @@ describe('generateBcHtml — formulaire papier', () => {
     assert.match(html, /BON DE COMMANDE N°BC-2026-0001/)
     assert.match(html, /Date B\.C\./)
     assert.match(html, /Receveur/)
-    assert.match(html, /Payé d'avance/)
-    assert.match(html, /Paiement à la livraison/)
+    assert.match(html, /MODE DE PAIEMENT/)
+    assert.match(html, /Comptant/)
     assert.match(html, /Quantité/)
     assert.match(html, /Unité/)
     assert.match(html, /Description/)
