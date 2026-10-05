@@ -279,7 +279,6 @@ export function ManagerDashboardPage() {
           : []),
         ...(procurementRole === 'purchasing'
           ? [
-              { id: 'planifier' as const, label: 'Planifier une tournée', tab: 'planifier' as Tab },
               { id: 'catalogue' as const, label: 'Catalogue' },
               { id: 'livreurs' as const, label: 'Équipe', tab: 'livreurs' as Tab },
               { id: 'taches' as const, label: 'Tâches', tab: 'taches' as Tab, badge: pendingTaskCount },
@@ -289,7 +288,6 @@ export function ManagerDashboardPage() {
       ]
     : [
         { id: 'suivi', label: 'Suivi livraisons', tab: 'suivi' },
-        { id: 'planifier', label: 'Planifier une tournée', tab: 'planifier' },
         { id: 'achats', label: 'Achats chantier', tab: 'achats', badge: procurementInboxCount },
         { id: 'catalogue', label: 'Catalogue' },
         { id: 'livreurs', label: 'Équipe', tab: 'livreurs' },

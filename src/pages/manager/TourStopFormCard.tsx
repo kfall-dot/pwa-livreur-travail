@@ -98,12 +98,6 @@ export function TourStopFormCard({
       )}
 
       <Row>
-        <Field label="Heure début">
-          <input type="time" value={stop.timeWindowStart} disabled={locked} style={css.input} onChange={(e) => updateField('timeWindowStart', e.target.value)} />
-        </Field>
-        <Field label="Heure fin">
-          <input type="time" value={stop.timeWindowEnd} disabled={locked} style={css.input} onChange={(e) => updateField('timeWindowEnd', e.target.value)} />
-        </Field>
         <Field label="Photos requises">
           <input type="number" min="1" max="5" value={stop.requiredPhotos} disabled={locked} style={css.input} onChange={(e) => updateField('requiredPhotos', e.target.value)} />
         </Field>
