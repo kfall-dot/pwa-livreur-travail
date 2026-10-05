@@ -6,7 +6,6 @@ import { DeliveryDetailModal } from '../modals/DeliveryDetailModal'
 import { confirmDeletion } from '../../../lib/confirmDeletion'
 import type { ProcurementRole } from '../procurement/procurementTypes'
 import { AlertBox, EmptyHint, LoadingHint } from '../managerUi'
-import { suiviQuantityDisplay, formatProductQuantityLine } from '../productHelpers'
 import { toast } from '../../../lib/toast'
 import { deliveryBucket, type DeliveryBucket } from '../../../lib/deliveryBucket'
 
@@ -426,14 +425,13 @@ export function SuiviTab({
           <table data-testid="mgr-suivi-deliveries-table">
             <thead>
               <tr>
-                <th>Référence</th>{scope === 'month' && <th>Date</th>}<th>Chantier / Magasin</th><th>Livreur</th><th>Statut</th><th>Quantités</th><th>Dépôt</th><th aria-hidden="true"></th>
+                <th>Référence</th>{scope === 'month' && <th>Date</th>}<th>Chantier / Magasin</th><th>Livreur</th><th>Statut</th><th>Dépôt</th><th aria-hidden="true"></th>
               </tr>
             </thead>
             <tbody>
               {deliveries.map((d) => {
                 const cls = lmStatusClass(d.status, d.declarationOutcome)
                 const label = lmStatusLabel(d.status, d.declarationOutcome)
-                const q = suiviQuantityDisplay(d.products, d.units, d.unitType)
                 return (
                   <tr key={d.deliveryId} onClick={() => setSelectedId(d.deliveryId)}>
                     <td className="ref">{d.deliveryId.slice(0, 8).toUpperCase()}</td>
@@ -452,14 +450,6 @@ export function SuiviTab({
                     </td>
                     <td>{d.driverName}</td>
                     <td><span className={`badge ${cls}`}>{label}</span></td>
-                    <td className="mono">
-                      {q[0] ? (
-                        <>
-                          {formatProductQuantityLine(q[0])}
-                          <div className="qty-bar"><div className={d.declarationOutcome && d.declarationOutcome !== 'complete' ? 'partial' : ''} /></div>
-                        </>
-                      ) : <span className="muted">—</span>}
-                    </td>
                     <td className="muted">{d.depotName}</td>
                     <td>
                       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
