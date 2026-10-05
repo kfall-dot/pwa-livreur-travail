@@ -1007,24 +1007,11 @@ export function DeliveryPage() {
         <section>
           <h2>
             Photos produits
-            {maxPhotos > photoTarget ? (
-              <span className="hint" style={{ display: 'block', fontSize: 14, fontWeight: 400 }}>
-                {photos.length} prise(s) · minimum {photoTarget}
-                {maxPhotos > photoTarget ? ` · jusqu’à ${maxPhotos} (une par produit)` : ''}
-              </span>
-            ) : (
-              <span className="hint" style={{ display: 'block', fontSize: 14, fontWeight: 400 }}>
-                {photos.length} / {photoTarget} photo(s)
-                {deliveryProducts.length > 1 ? ' — une par produit commandé' : ''}
-              </span>
-            )}
-            {testBypass.minPhotosOnly && (
-              <span className="hint" style={{ display: 'block', fontSize: 14, fontWeight: 400 }}>
-                Mode test : 1 photo suffit pour continuer, vous pouvez en ajouter d’autres
-              </span>
-            )}
+            <span className="hint" style={{ display: 'block', fontSize: 14, fontWeight: 400 }}>
+              {photos.length} prise(s) · minimum {photoTarget}
+            </span>
           </h2>
-          <p>Utilisez la caméra — une photo par produit commandé lorsque c’est possible.</p>
+          <p>Utilisez la caméra — au moins une photo par fournisseur.</p>
           {!prefersNativeCamera() && (
             <p className="hint">
               Sur Mac : « Choisir une photo » ouvre vos images (Photo Booth, Captures d’écran, etc.).

@@ -28,26 +28,14 @@ export function requiredPhotoCount(
   return Math.max(1, declared.length > 0 ? declared.length : withLabel.length)
 }
 
-export function requiredPhotoCountFromProducts(products: DeliveryProductOption[]): number {
-  return Math.max(1, products.length)
-}
-
-/** Cible photos affichée et utilisée pour les contrôles UI (respecte VITE_PHOTOS_BYPASS). */
-export function effectivePhotoTarget(options: {
+/** Cible photos affichée et utilisée pour les contrôles UI : au moins une photo par fournisseur. */
+export function effectivePhotoTarget(_options: {
   deliveryProducts: DeliveryProductOption[]
   declareLines: AdjustmentLine[]
   declared: boolean
   apiRequired?: number
 }): number {
-  if (testBypass.minPhotosOnly) return 1
-
-  const fromProducts = requiredPhotoCountFromProducts(options.deliveryProducts)
-  const fromLines = requiredPhotoCount(options.declareLines)
-
-  if (options.declared) {
-    return Math.max(options.apiRequired ?? 0, fromLines, 1)
-  }
-  return Math.max(fromProducts, fromLines, 1)
+  return 1
 }
 
 export function applyPhotoTargetFromApi(apiRequired: number | undefined, lines: AdjustmentLine[]): number {
@@ -55,21 +43,12 @@ export function applyPhotoTargetFromApi(apiRequired: number | undefined, lines: 
   return apiRequired ?? requiredPhotoCount(lines)
 }
 
-/** Plafond de photos proposées à l’UI (en mode test : min. 1, mais plusieurs produits possibles). */
-export function photoCapacity(options: {
+/** Plafond de photos proposées à l’UI : aucune limitation (le minimum est géré par `effectivePhotoTarget`). */
+export function photoCapacity(_options: {
   deliveryProducts: DeliveryProductOption[]
   declareLines: AdjustmentLine[]
   declared: boolean
   apiRequired?: number
 }): number {
-  const minimum = effectivePhotoTarget(options)
-  if (!testBypass.minPhotosOnly) return minimum
-
-  const fullCount = Math.max(
-    requiredPhotoCountFromProducts(options.deliveryProducts),
-    requiredPhotoCount(options.declareLines),
-    options.apiRequired ?? 0,
-    1
-  )
-  return Math.max(minimum, fullCount)
+  return Infinity
 }
