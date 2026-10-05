@@ -356,7 +356,7 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByTestId('mgr-achats-inbox')).toHaveCount(0)
     await expect(page.getByTestId('mgr-achats-requests')).toBeVisible()
     await expect(page.getByText('Espace Service achats')).toBeVisible()
-    await expect(page.getByTestId('mgr-tab-planifier')).toBeVisible()
+    await expect(page.getByTestId('mgr-tab-planifier')).toHaveCount(0)
     await expect(page.getByTestId('mgr-tab-catalogue')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Équipe' })).toBeVisible()
     await expect(page.getByTestId('mgr-tab-taches')).toBeVisible()
