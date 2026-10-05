@@ -126,8 +126,6 @@ export function PlanifierTab({
     date: todayIso(),
     depotName: '',
     depotAddress: '',
-    tourStart: '06:00',
-    tourEnd: '18:00',
   }))
   const [stops, setStops] = useState<StopDraft[]>([emptyStop()])
   const [editTourId, setEditTourId] = useState<string | null>(initialEditTourId ?? null)
@@ -152,8 +150,6 @@ export function PlanifierTab({
       date: todayIso(),
       depotName: '',
       depotAddress: '',
-      tourStart: '06:00',
-      tourEnd: '18:00',
     })
     setStops([emptyStop()])
     setReplanSourceDate(null)
@@ -236,8 +232,6 @@ export function PlanifierTab({
       date: p.date,
       depotName: p.depotName,
       depotAddress: p.depotAddress,
-      tourStart: '06:00',
-      tourEnd: '18:00',
     })
     setDate(p.date)
     setStops([
@@ -512,7 +506,7 @@ export function PlanifierTab({
       <div className="pl-topbar">
         <div>
           <h1>Planifier une tournée</h1>
-          <p className="pl-sub">Créez la tournée d'un livreur : dépôt de départ, arrêts, produits et créneau horaire — 06:00 → 18:00.</p>
+          <p className="pl-sub">Créez la tournée d'un livreur : dépôt de départ, arrêts et produits.</p>
         </div>
         <div className="pl-actions">
           <button type="button" data-testid="mgr-replan-cancel" onClick={cancelReplan} className="pl-btn">
@@ -548,14 +542,6 @@ export function PlanifierTab({
                   <label>Date de la tournée *</label>
                   <input type="date" data-testid="mgr-planifier-date" value={newTour.date} required onChange={(e) => setNewTour((p) => ({ ...p, date: e.target.value }))} />
                   <div className="pl-hint">La tournée apparaîtra dans le dashboard du livreur à cette date.</div>
-                </div>
-                <div className="pl-field">
-                  <label>Créneau horaire</label>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input type="time" value={newTour.tourStart} onChange={(e) => setNewTour((p) => ({ ...p, tourStart: e.target.value }))} />
-                    <span style={{ color: '#94a3b8' }}>→</span>
-                    <input type="time" value={newTour.tourEnd} onChange={(e) => setNewTour((p) => ({ ...p, tourEnd: e.target.value }))} />
-                  </div>
                 </div>
                 <div className="pl-field">
                   <label>Livreur *</label>
@@ -628,8 +614,6 @@ export function PlanifierTab({
                 <div><div className="lbl">Date</div><div className="big">{new Date(newTour.date + 'T12:00:00').toLocaleDateString('fr-FR')}</div></div>
                 <div className="sep" />
                 <div><div className="lbl">Arrêts</div><div className="big">{stops.length}</div></div>
-                <div className="sep" />
-                <div><div className="lbl">Créneau</div><div className="big">{newTour.tourStart} → {newTour.tourEnd}</div></div>
                 <div className="spacer" />
               </div>
             </div>
