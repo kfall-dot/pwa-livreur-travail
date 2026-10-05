@@ -137,7 +137,7 @@ const DEFAULT_BC_TEMPLATE = `<!DOCTYPE html>
       <tr>
         <th>Quantité</th>
         <th>Unité</th>
-        <th>Description</th>
+        <th>Désignation</th>
         <th>Prix unitaire</th>
         <th>Total</th>
       </tr>

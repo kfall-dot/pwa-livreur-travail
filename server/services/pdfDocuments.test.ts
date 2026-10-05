@@ -28,7 +28,7 @@ describe('generateBcHtml — formulaire papier', () => {
     assert.match(html, /Comptant/)
     assert.match(html, /Quantité/)
     assert.match(html, /Unité/)
-    assert.match(html, /Description/)
+    assert.match(html, /Désignation/)
     assert.match(html, /Prix unitaire/)
     assert.match(html, /TOTAL TTC/)
     assert.match(html, /Autorisation/)
