@@ -105,6 +105,8 @@ export interface AdjustmentLine {
   quantityAccepted?: number
   quantityRefused?: number
   justification: string
+  /** Sélection livreur (client uniquement) : produit concerné par un partiel/refus. */
+  isPartial?: boolean
 }
 
 export type AdjustmentLineRow = AdjustmentLine & { id?: string }

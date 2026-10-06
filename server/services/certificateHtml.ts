@@ -1,4 +1,5 @@
 import type { Certificate } from '../db/schema.js'
+import { DEFAULT_FULL_JUSTIFICATION } from '../../shared/declarationValidation.js'
 
 export type CertificateHtmlInput = {
   receiptId: string
@@ -11,7 +12,7 @@ export type CertificateHtmlInput = {
   isPartial: boolean
   isRejected: boolean
   expectedLines: Array<{ label: string; qty: number; unit: string }>
-  deliveredLines: Array<{ label: string; qty: number; unit: string }>
+  deliveredLines: Array<{ label: string; qty: number; unit: string; justification?: string }>
 }
 
 function escapeHtml(value: string): string {
@@ -30,13 +31,17 @@ function pluralUnit(unit: string, qty: number): string {
   return `${u}s`
 }
 
-function formatLines(lines: Array<{ label: string; qty: number; unit: string }>): string {
+function formatLines(lines: Array<{ label: string; qty: number; unit: string; justification?: string }>): string {
   if (lines.length === 0) return '<li>—</li>'
   return lines
-    .map(
-      (l) =>
-        `<li><strong>${escapeHtml(l.label)}</strong> — ${l.qty} ${escapeHtml(pluralUnit(l.unit, l.qty))}</li>`,
-    )
+    .map((l) => {
+      const qty = `${l.qty} ${escapeHtml(pluralUnit(l.unit, l.qty))}`
+      const reason =
+        l.justification && l.justification !== DEFAULT_FULL_JUSTIFICATION
+          ? ` — <em>Motif&nbsp;: ${escapeHtml(l.justification)}</em>`
+          : ''
+      return `<li><strong>${escapeHtml(l.label)}</strong> — ${qty}${reason}</li>`
+    })
     .join('')
 }
 

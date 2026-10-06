@@ -237,8 +237,15 @@ export function validateDeclarationBeforeSubmit(
   }
 
   if (outcome === 'rejected') {
-    if (totalAccepted > 0) return 'Refus total : aucune quantité ne doit être acceptée.'
-    const hasJustification = lines.some((line) => {
+    const refusedLines = lines.filter((line) => {
+      const acc = toQty(line.quantityAccepted)
+      const ref = toQty(line.quantityRefused)
+      return acc === 0 && ref > 0
+    })
+    if (refusedLines.length === 0) {
+      return 'Sélectionnez au moins un produit refusé (ou choisissez « Livraison acceptée »).'
+    }
+    const hasJustification = refusedLines.some((line) => {
       const acc = toQty(line.quantityAccepted)
       const ref = toQty(line.quantityRefused)
       const lineExpected = resolveLineExpected(line, expected, lineCount)

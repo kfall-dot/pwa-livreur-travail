@@ -11,7 +11,9 @@ import {
   buildPartialDeclareLines,
   buildRejectedLines,
   fallbackDeliveryProducts,
+  finalizeDeclarationLines,
   fullLinesFromPlanned,
+  resolveDeclarationOutcome,
 } from '../lib/deliveryHelpers'
 import type { DeclarationOutcome } from '../lib/declarationValidation'
 import { validateDeclarationBeforeSubmit } from '../lib/declarationValidation'
@@ -477,10 +479,12 @@ export function DeliveryPage() {
       setError('Choisissez une option : livraison acceptée, partielle ou refusée.')
       return
     }
+    const finalLines = finalizeDeclarationLines(declareLines, expectedPalettes, declareOutcome)
+    const effectiveOutcome = resolveDeclarationOutcome(finalLines)
     const validationError = validateDeclarationBeforeSubmit(
-      declareLines,
+      finalLines,
       expectedPalettes,
-      declareOutcome,
+      effectiveOutcome,
       deliveryProducts
     )
     if (validationError) {
@@ -489,7 +493,7 @@ export function DeliveryPage() {
     }
     setLoading(true)
     setError(null)
-    const payload = { outcome: declareOutcome, lines: declareLines }
+    const payload = { outcome: effectiveOutcome, lines: finalLines }
     try {
       if (online) {
         // Si le démarrage n’a pas été persisté (hors-ligne, reset seed, Failed to fetch),
@@ -517,9 +521,9 @@ export function DeliveryPage() {
         const result = await api.declareDelivery(delivery.id, payload)
         setDeclareOfflineQueued(false)
         setDeclared(true)
-        updateStop(delivery.id, { declarationOutcome: declareOutcome })
+        updateStop(delivery.id, { declarationOutcome: effectiveOutcome })
         setRequiredPhotosTarget(
-          applyPhotoTargetFromApi(result.requiredPhotos, result.lines ?? declareLines)
+          applyPhotoTargetFromApi(result.requiredPhotos, result.lines ?? finalLines)
         )
         if (result.lines) setDeclareLines(result.lines)
       } else {
@@ -539,8 +543,8 @@ export function DeliveryPage() {
         })
         setDeclared(true)
         setDeclareOfflineQueued(true)
-        updateStop(delivery.id, { status: 'in_progress', declarationOutcome: declareOutcome })
-        setRequiredPhotosTarget(applyPhotoTargetFromApi(undefined, declareLines))
+        updateStop(delivery.id, { status: 'in_progress', declarationOutcome: effectiveOutcome })
+        setRequiredPhotosTarget(applyPhotoTargetFromApi(undefined, finalLines))
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur déclaration')

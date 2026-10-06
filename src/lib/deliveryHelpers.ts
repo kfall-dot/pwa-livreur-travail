@@ -120,31 +120,45 @@ export function fallbackDeliveryProducts(
   ]
 }
 
+function selectableLine(
+  p: DeliveryProductOption,
+  expectedPalettes: number,
+  displayUnit: string
+): AdjustmentLine {
+  return {
+    productLabel: p.productLabel,
+    unit: normalizeDeliveryUnit(p.unit || displayUnit),
+    quantityExpected: p.quantityExpected ?? expectedPalettes,
+    quantityAccepted: undefined,
+    quantityRefused: 0,
+    justification: DEFAULT_FULL_JUSTIFICATION,
+    isPartial: false,
+  }
+}
+
+function selectableProducts(
+  expectedPalettes: number,
+  deliveryProducts: DeliveryProductOption[],
+  displayUnit: string
+): DeliveryProductOption[] {
+  if (deliveryProducts.length > 0) return deliveryProducts
+  return [
+    {
+      productLabel: 'Produit commandé',
+      unit: normalizeDeliveryUnit(displayUnit),
+      quantityExpected: expectedPalettes,
+    },
+  ]
+}
+
 export function buildRejectedLines(
   expectedPalettes: number,
   deliveryProducts: DeliveryProductOption[],
   displayUnit: string
 ): AdjustmentLine[] {
-  if (deliveryProducts.length > 0) {
-    return deliveryProducts.map((p) => ({
-      productLabel: p.productLabel,
-      unit: normalizeDeliveryUnit(p.unit || displayUnit),
-      quantityExpected: p.quantityExpected ?? expectedPalettes,
-      quantityAccepted: 0,
-      quantityRefused: p.quantityExpected ?? expectedPalettes,
-      justification: '',
-    }))
-  }
-  return [
-    {
-      productLabel: 'Produit commandé',
-      unit: displayUnit,
-      quantityExpected: expectedPalettes,
-      quantityAccepted: 0,
-      quantityRefused: expectedPalettes,
-      justification: '',
-    },
-  ]
+  return selectableProducts(expectedPalettes, deliveryProducts, displayUnit).map((p) =>
+    selectableLine(p, expectedPalettes, displayUnit)
+  )
 }
 
 export function buildPartialDeclareLines(
@@ -152,26 +166,70 @@ export function buildPartialDeclareLines(
   deliveryProducts: DeliveryProductOption[],
   displayUnit: string
 ): AdjustmentLine[] {
-  if (deliveryProducts.length > 0) {
-    return deliveryProducts.map((p) => ({
-      productLabel: p.productLabel,
-      unit: normalizeDeliveryUnit(p.unit || displayUnit),
-      quantityExpected: p.quantityExpected,
-      quantityAccepted: undefined,
-      quantityRefused: undefined,
-      justification: '',
-    }))
-  }
-  return [
-    {
-      productLabel: 'Produit commandé',
-      unit: displayUnit,
-      quantityExpected: expectedPalettes,
-      quantityAccepted: undefined,
-      quantityRefused: undefined,
-      justification: '',
-    },
-  ]
+  return selectableProducts(expectedPalettes, deliveryProducts, displayUnit).map((p) =>
+    selectableLine(p, expectedPalettes, displayUnit)
+  )
+}
+
+function toQty(value: unknown): number {
+  if (value == null || value === '') return 0
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+/**
+ * Résout les lignes de déclaration finales à partir de la sélection du livreur :
+ * - produit non coché (`isPartial` falsy) → livré en totalité ;
+ * - produit coché en « partielle » → accepté saisi, refusé = commandé − accepté ;
+ * - produit coché en « refusée » → accepté = 0, refusé = commandé.
+ * Le flag client `isPartial` est retiré des lignes renvoyées.
+ */
+export function finalizeDeclarationLines(
+  lines: AdjustmentLine[],
+  expectedPalettes: number,
+  outcome: DeclarationOutcome | null
+): AdjustmentLine[] {
+  return lines.map((line) => {
+    const expected = line.quantityExpected ?? expectedPalettes
+    const { isPartial, ...base } = line
+    if (!isPartial) {
+      return {
+        ...base,
+        quantityAccepted: expected,
+        quantityRefused: 0,
+        justification: DEFAULT_FULL_JUSTIFICATION,
+      }
+    }
+    if (outcome === 'rejected') {
+      return {
+        ...base,
+        quantityAccepted: 0,
+        quantityRefused: expected,
+      }
+    }
+    const accepted = toQty(line.quantityAccepted)
+    return {
+      ...base,
+      quantityAccepted: accepted,
+      quantityRefused: Math.max(0, expected - accepted),
+    }
+  })
+}
+
+/**
+ * Déduit l'outcome canonique à partir des quantités finales déclarées :
+ * - rien refusé → « full » ;
+ * - rien accepté → « rejected » (refus total) ;
+ * - sinon → « partial » (livraison mixte : une partie livrée, une partie refusée).
+ */
+export function resolveDeclarationOutcome(
+  lines: Array<{ quantityAccepted?: number; quantityRefused?: number }>
+): DeclarationOutcome {
+  const accepted = lines.reduce((sum, line) => sum + toQty(line.quantityAccepted), 0)
+  const refused = lines.reduce((sum, line) => sum + toQty(line.quantityRefused), 0)
+  if (refused === 0) return 'full'
+  if (accepted === 0) return 'rejected'
+  return 'partial'
 }
 
 export function applyDeclarationFromApi(

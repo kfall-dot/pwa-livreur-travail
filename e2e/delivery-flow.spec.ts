@@ -48,20 +48,19 @@ test.describe('Flux livraison complet', () => {
     await expect(page.getByText('1 / 4 livré(s)')).toBeVisible()
   })
 
-  test('livraison partielle → badge Partielle (pas Livrée)', async ({ page }) => {
+  test('livraison partielle → coche un produit partiel, l’autre livré en totalité', async ({ page }) => {
     await page.getByTestId('delivery-card-del-1').click()
     await page.getByTestId('start-delivery').click()
     await page.getByTestId('simulate-photo').click()
     await page.getByTestId('go-declare').click()
 
     await page.getByText('Livraison partielle', { exact: true }).click()
+    // Produit 1 « Palettes œufs » (2 commandées) : coché partiel → 1 acceptée
+    await page.getByTestId('select-product-0').check()
     const firstCard = page.locator('.declare-line-card').first()
-    await firstCard.locator('input[type="number"]').nth(0).fill('1')
-    await firstCard.locator('input[type="number"]').nth(1).fill('1')
+    await firstCard.locator('input[type="number"]').first().fill('1')
     await firstCard.locator('textarea').fill('Client a refusé 1 palette')
-    const secondCard = page.locator('.declare-line-card').nth(1)
-    await secondCard.locator('input[type="number"]').nth(0).fill('1')
-    await secondCard.locator('input[type="number"]').nth(1).fill('0')
+    // Produit 2 « Jus d’orange » (1 commandée) : non coché → livré en totalité
     await page.getByTestId('save-declaration').click()
     await expect(page.getByText(/Déclaration enregistrée/)).toBeVisible()
 
@@ -74,6 +73,60 @@ test.describe('Flux livraison complet', () => {
 
     const card = page.getByTestId('delivery-card-del-1')
     await expect(card.getByLabel('Partielle')).toBeVisible()
+    await expect(card.getByLabel('Livrée')).toHaveCount(0)
+  })
+
+  test('livraison refusée partielle → badge Partielle (pas Refusée)', async ({ page }) => {
+    await page.getByTestId('delivery-card-del-1').click()
+    await page.getByTestId('start-delivery').click()
+    await page.getByTestId('simulate-photo').click()
+    await page.getByTestId('go-declare').click()
+
+    await page.getByText('Livraison refusée', { exact: true }).click()
+    // Produit 1 « Palettes œufs » (2 commandées) : coché refusé
+    await page.getByTestId('select-product-0').check()
+    await page.locator('.declare-line-card').first().locator('textarea').fill('Produit refusé par le client')
+    // Produit 2 « Jus d’orange » (1 commandée) : non coché → livré en totalité
+    await page.getByTestId('save-declaration').click()
+    await expect(page.getByText(/Déclaration enregistrée/)).toBeVisible()
+
+    await page.getByTestId('send-otp').click()
+    await page.getByLabel('Code à 6 chiffres').fill('123456')
+    await page.getByTestId('otp-continue').click()
+    await page.getByTestId('confirm-delivery').click()
+    await expect(page.getByTestId('confirm-receipt')).toBeVisible()
+    await expect(page).toHaveURL('/')
+
+    const card = page.getByTestId('delivery-card-del-1')
+    await expect(card.getByLabel('Partielle')).toBeVisible()
+    await expect(card.getByLabel('Refusée')).toHaveCount(0)
+    await expect(card.getByLabel('Livrée')).toHaveCount(0)
+  })
+
+  test('livraison refusée totale → badge Refusée', async ({ page }) => {
+    await page.getByTestId('delivery-card-del-1').click()
+    await page.getByTestId('start-delivery').click()
+    await page.getByTestId('simulate-photo').click()
+    await page.getByTestId('go-declare').click()
+
+    await page.getByText('Livraison refusée', { exact: true }).click()
+    // Les deux produits sont refusés → refus total
+    await page.getByTestId('select-product-0').check()
+    await page.locator('.declare-line-card').first().locator('textarea').fill('Produit refusé par le client')
+    await page.getByTestId('select-product-1').check()
+    await page.locator('.declare-line-card').nth(1).locator('textarea').fill('Produit refusé par le client')
+    await page.getByTestId('save-declaration').click()
+    await expect(page.getByText(/Déclaration enregistrée/)).toBeVisible()
+
+    await page.getByTestId('send-otp').click()
+    await page.getByLabel('Code à 6 chiffres').fill('123456')
+    await page.getByTestId('otp-continue').click()
+    await page.getByTestId('confirm-delivery').click()
+    await expect(page.getByTestId('confirm-receipt')).toBeVisible()
+    await expect(page).toHaveURL('/')
+
+    const card = page.getByTestId('delivery-card-del-1')
+    await expect(card.getByLabel('Refusée')).toBeVisible()
     await expect(card.getByLabel('Livrée')).toHaveCount(0)
   })
 

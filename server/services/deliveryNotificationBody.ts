@@ -1,3 +1,5 @@
+import { DEFAULT_FULL_JUSTIFICATION } from '../../shared/declarationValidation.js'
+
 export type EmailStopContext = {
   name: string
   address: string
@@ -10,7 +12,7 @@ export type EmailStopContext = {
 }
 
 type DeclarationOutcome = 'full' | 'partial' | 'rejected'
-type ProductLine = { label: string; qty: number; unit: string }
+type ProductLine = { label: string; qty: number; unit: string; justification?: string }
 
 function outcomeLabel(outcome: DeclarationOutcome | null): string {
   if (outcome === 'rejected') return 'refusée'
@@ -27,7 +29,15 @@ function pluralUnit(unit: string, qty: number): string {
 
 function formatQtyLines(lines: ProductLine[]): string {
   if (lines.length === 0) return '—'
-  return lines.map((l) => `${l.label} ${l.qty} ${pluralUnit(l.unit, l.qty)}`).join('\n')
+  return lines
+    .map((l) => {
+      const reason =
+        l.justification && l.justification !== DEFAULT_FULL_JUSTIFICATION
+          ? ` — Motif : ${l.justification}`
+          : ''
+      return `${l.label} ${l.qty} ${pluralUnit(l.unit, l.qty)}${reason}`
+    })
+    .join('\n')
 }
 
 function expectedLinesFromStop(ctx: EmailStopContext): ProductLine[] {
@@ -54,27 +64,25 @@ function deliveredLinesFromDeclaration(
   declarationLines: unknown,
   outcome: DeclarationOutcome | null,
 ): ProductLine[] {
-  if (outcome === 'rejected') return []
   if (!Array.isArray(declarationLines) || declarationLines.length === 0) {
-    return outcome === 'partial' ? [] : expected
+    return outcome === 'partial' || outcome === 'rejected' ? [] : expected
   }
-  return declarationLines
-    .map((raw) => {
-      const r = raw as Record<string, unknown>
-      const label = String(r.productLabel ?? r.product_label ?? r.label ?? '').trim()
-      const unit = String(r.unit ?? r.productUnit ?? 'colis')
-      const acc = r.quantityAccepted ?? r.quantity_accepted
-      let qty: number
-      if (acc != null && acc !== '') {
-        qty = Math.max(0, Number(acc) || 0)
-      } else {
-        const expectedQty = Number(r.quantityExpected ?? r.quantity_expected ?? 0)
-        const refused = Number(r.quantityRefused ?? r.quantity_refused ?? 0)
-        qty = expectedQty > 0 ? Math.max(0, expectedQty - refused) : Math.max(0, Number(r.qty ?? 0))
-      }
-      return { label: label || 'Produit', qty, unit }
-    })
-    .filter((l) => l.qty > 0)
+  return declarationLines.map((raw) => {
+    const r = raw as Record<string, unknown>
+    const label = String(r.productLabel ?? r.product_label ?? r.label ?? '').trim()
+    const unit = String(r.unit ?? r.productUnit ?? 'colis')
+    const acc = r.quantityAccepted ?? r.quantity_accepted
+    let qty: number
+    if (acc != null && acc !== '') {
+      qty = Math.max(0, Number(acc) || 0)
+    } else {
+      const expectedQty = Number(r.quantityExpected ?? r.quantity_expected ?? 0)
+      const refused = Number(r.quantityRefused ?? r.quantity_refused ?? 0)
+      qty = expectedQty > 0 ? Math.max(0, expectedQty - refused) : Math.max(0, Number(r.qty ?? 0))
+    }
+    const justification = String(r.justification ?? '').trim()
+    return { label: label || 'Produit', qty, unit, justification }
+  })
 }
 
 export function buildEmailBody(

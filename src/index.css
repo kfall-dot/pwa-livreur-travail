@@ -3299,6 +3299,27 @@ body:has(.driver-nav) .demo-autoplay {
   gap: 0.5rem;
 }
 
+.declare-line-row--2col {
+  grid-template-columns: 1fr 1fr;
+}
+
+.declare-select-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.declare-select-row input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--primary, #2563eb);
+  cursor: pointer;
+}
+
 .field-block {
   margin-bottom: 0.75rem;
 }

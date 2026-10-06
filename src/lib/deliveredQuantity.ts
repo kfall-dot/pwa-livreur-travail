@@ -3,7 +3,8 @@
  *
  * Invariants (ne pas casser — voir src/lib/deliveredQuantity.test.ts) :
  * - Statut « delivered » + livraison complète → quantité livrée = attendue si déclaration absente ou libellés non alignés.
- * - Statut « failed » ou outcome « rejected » → quantité livrée vide.
+ * - Statut « failed » → quantité livrée vide.
+ * - Outcome « rejected » → vide si aucune quantité acceptée ; sinon affiche les produits livrés (refusé = 0).
  * - Lignes de déclaration : accepter quantityAccepted, sinon expected − refused, sinon expected seul.
  */
 
@@ -79,8 +80,8 @@ function findMatchingDeclLine(
   return parsed.find((d) => d.label.toLowerCase() === exp.label.toLowerCase())
 }
 
-export function isAnnuleStop(status?: string, declarationOutcome?: string | null): boolean {
-  return status === 'failed' || declarationOutcome === 'rejected' || declarationOutcome === 'refused'
+export function isAnnuleStop(status?: string, _declarationOutcome?: string | null): boolean {
+  return status === 'failed'
 }
 
 /** Message vide pour « Quantité livrée » selon le motif d’absence de livraison. */
@@ -106,10 +107,14 @@ export function buildDeliveredProductsDisplay(
   status?: string,
   declarationOutcome?: string | null,
 ): DisplayProductLine[] {
-  if (isAnnuleStop(status, declarationOutcome)) return []
+  if (isAnnuleStop(status)) return []
 
   const parsed = parseDeclLinesForDisplay(declarationLines)
   const isDelivered = status === 'delivered'
+
+  // « refusée » sans aucune quantité acceptée → rien de livré
+  const isRejectedOutcome = declarationOutcome === 'rejected' || declarationOutcome === 'refused'
+  if (isRejectedOutcome && parsed.length === 0) return []
 
   if (expected.length > 0) {
     return expected.map((exp) => {

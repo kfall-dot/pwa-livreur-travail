@@ -1,13 +1,11 @@
-import { useMemo } from 'react'
 import type { AdjustmentLine, DeliveryProductOption } from '../types'
-import { formatQuantityWithUnit, formatUnitLabel, resolvePlannedUnit } from '../lib/deliveryUnits'
+import { formatQuantityWithUnit, resolvePlannedUnit } from '../lib/deliveryUnits'
+import { finalizeDeclarationLines } from '../lib/deliveryHelpers'
 import {
   type DeclarationOutcome,
   DEFAULT_FULL_JUSTIFICATION,
+  PARTIAL_JUSTIFICATION_MESSAGE,
   REJECTION_JUSTIFICATION_MESSAGE,
-  lineJustificationFieldLabel,
-  lineJustificationPlaceholder,
-  lineNeedsJustification,
   validateDeclarationBeforeSubmit,
 } from '../lib/declarationValidation'
 
@@ -69,56 +67,46 @@ export function PartialDeclaration({
   const isRejected = outcome === 'rejected'
   const outcomeChosen = outcome != null
   const fixedProducts = deliveryProducts.length > 0
-  const multiProduct = deliveryProducts.length > 1
-  const isFullReadonly = outcome === 'full' && fixedProducts
+  const isFullReadonly = outcome === 'full'
   const displayUnit = resolvePlannedUnit(deliveryProducts, lines, plannedUnit)
 
-  const unitOptions = useMemo(() => {
-    const codes = new Set<string>()
-    for (const p of deliveryProducts) {
-      if (p.unit) codes.add(String(p.unit))
-    }
-    for (const l of lines) {
-      if (l.unit) codes.add(String(l.unit))
-    }
-    if (displayUnit) codes.add(displayUnit)
-    return Array.from(codes)
-  }, [deliveryProducts, lines, displayUnit])
-
   const updateLine = (index: number, patch: Partial<AdjustmentLine>) => {
+    onLinesChange(lines.map((row, i) => (i !== index ? row : { ...row, ...patch })))
+  }
+
+  const toggleSelected = (index: number, selected: boolean) => {
     onLinesChange(
       lines.map((row, i) => {
         if (i !== index) return row
-        const next = { ...row, ...patch }
-        if ('quantityAccepted' in patch || 'quantityRefused' in patch) {
-          const acc = lineQty(next.quantityAccepted)
-          const ref = lineQty(next.quantityRefused)
-          const expected = lineExpectedFor(next, expectedPalettes, lines.length)
-          if (
-            lineNeedsJustification(acc, ref, expected) &&
-            (next.justification || '').trim() === DEFAULT_FULL_JUSTIFICATION
-          ) {
-            next.justification = ''
+        const expected = lineExpectedFor(row, expectedPalettes, lines.length) ?? expectedPalettes
+        if (selected) {
+          return {
+            ...row,
+            isPartial: true,
+            quantityAccepted: undefined,
+            quantityRefused: 0,
+            justification: '',
           }
         }
-        return next
+        return {
+          ...row,
+          isPartial: false,
+          quantityAccepted: expected,
+          quantityRefused: 0,
+          justification: DEFAULT_FULL_JUSTIFICATION,
+        }
       })
     )
   }
 
-  const rejectionJustification =
-    lines.find((line) => {
-      const j = (line.justification || '').trim()
-      return j.length > 0 && j !== DEFAULT_FULL_JUSTIFICATION
-    })?.justification ?? ''
-
-  const setRejectionJustification = (text: string) => {
-    onLinesChange(lines.map((line) => ({ ...line, justification: text })))
-  }
-
   const declarationError = declared
     ? null
-    : validateDeclarationBeforeSubmit(lines, expectedPalettes, outcome, deliveryProducts)
+    : validateDeclarationBeforeSubmit(
+        finalizeDeclarationLines(lines, expectedPalettes, outcome),
+        expectedPalettes,
+        outcome,
+        deliveryProducts
+      )
 
   const renderProductHeader = (line: AdjustmentLine) => {
     const lineExpected = lineExpectedFor(line, expectedPalettes, lines.length)
@@ -142,12 +130,8 @@ export function PartialDeclaration({
         {!outcomeChosen
           ? 'Choisissez d’abord le type de livraison (acceptée, partielle ou refusée).'
           : isRejected
-            ? multiProduct
-              ? 'Chaque produit commandé sera enregistré comme refusé. Le motif est obligatoire.'
-              : `Toute la commande (${formatQuantityWithUnit(expectedPalettes, displayUnit)}) sera enregistrée comme refusée. Le motif est obligatoire.`
-            : multiProduct
-              ? 'Déclarez chaque produit commandé : quantités acceptées ou refusées et motif en cas d’écart.'
-              : `Indiquez les quantités acceptées ou refusées. Accepté + refusé = ${formatQuantityWithUnit(expectedPalettes, displayUnit)} commandée(s).`}
+            ? 'Cochez les produits refusés. Les produits non cochés sont livrés en totalité. Le motif est obligatoire pour chaque produit refusé.'
+            : 'Cochez les produits livrés partiellement. Les produits non cochés sont livrés en totalité.'}
       </p>
 
       {fixedProducts && (
@@ -200,34 +184,7 @@ export function PartialDeclaration({
         </label>
       </div>
 
-      {outcomeChosen && isRejected ? (
-        <>
-          {lines.map((line, index) => (
-            <div key={index} className="declare-line-card declare-line-card--readonly">
-              {renderProductHeader(line)}
-              <p className="hint" style={{ margin: '8px 0 0' }}>
-                {formatQuantityWithUnit(
-                  line.quantityRefused ??
-                    lineExpectedFor(line, expectedPalettes, lines.length) ??
-                    expectedPalettes,
-                  line.unit || displayUnit
-                )}{' '}
-                refusée(s), 0 acceptée
-              </p>
-            </div>
-          ))}
-          <div className="field-block">
-            <label>Motif du refus *</label>
-            <textarea
-              rows={3}
-              disabled={declared}
-              placeholder={REJECTION_JUSTIFICATION_MESSAGE}
-              value={rejectionJustification}
-              onChange={(e) => setRejectionJustification(e.target.value)}
-            />
-          </div>
-        </>
-      ) : outcomeChosen && isFullReadonly ? (
+      {outcomeChosen && isFullReadonly ? (
         lines.map((line, index) => (
           <div
             key={index}
@@ -247,81 +204,121 @@ export function PartialDeclaration({
         ))
       ) : outcomeChosen ? (
         lines.map((line, index) => {
-          const unitLocked = fixedProducts
+          const expected = lineExpectedFor(line, expectedPalettes, lines.length)
+          const expectedQty = expected ?? expectedPalettes
           const acc = lineQty(line.quantityAccepted)
           const ref = lineQty(line.quantityRefused)
-          const lineExpected = lineExpectedFor(line, expectedPalettes, lines.length)
+          const selected = Boolean(line.isPartial)
+
+          if (declared) {
+            const refused = ref > 0
+            const partial = expected != null && acc > 0 && acc < expected
+            const justification = (line.justification || '').trim()
+            return (
+              <div key={index} className="declare-line-card declare-line-card--readonly">
+                {renderProductHeader(line)}
+                {refused ? (
+                  <p className="hint" style={{ margin: '8px 0 0' }}>
+                    {formatQuantityWithUnit(ref, line.unit || displayUnit)} refusée(s),{' '}
+                    {formatQuantityWithUnit(acc, line.unit || displayUnit)} acceptée(s)
+                  </p>
+                ) : partial ? (
+                  <p className="hint" style={{ margin: '8px 0 0' }}>
+                    {formatQuantityWithUnit(acc, line.unit || displayUnit)} acceptée(s),{' '}
+                    {formatQuantityWithUnit(ref, line.unit || displayUnit)} refusée(s)
+                  </p>
+                ) : (
+                  <p className="hint success-text" style={{ margin: '8px 0 0' }}>
+                    {formatQuantityWithUnit(acc, line.unit || displayUnit)} acceptée(s) — conforme
+                  </p>
+                )}
+                {justification && justification !== DEFAULT_FULL_JUSTIFICATION && (
+                  <p className="hint" style={{ margin: '8px 0 0' }}>
+                    Motif : {justification}
+                  </p>
+                )}
+              </div>
+            )
+          }
+
           return (
             <div key={index} className="declare-line-card">
               {fixedProducts ? (
-                <div className="field-block">{renderProductHeader(line)}</div>
+                renderProductHeader(line)
               ) : (
                 <div className="field-block">
                   <label>Produit</label>
                   <input
                     type="text"
                     value={line.productLabel}
-                    disabled={declared}
                     onChange={(e) => updateLine(index, { productLabel: e.target.value })}
                   />
                 </div>
               )}
-              <div className="declare-line-row">
-                <div className="field-block">
-                  <label>Unité</label>
-                  <select
-                    value={line.unit}
-                    disabled={declared || unitLocked}
-                    onChange={(e) => updateLine(index, { unit: e.target.value })}
-                  >
-                    {unitOptions.map((u) => (
-                      <option key={u} value={u}>
-                        {formatUnitLabel(u)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field-block">
-                  <label>Accepté</label>
-                  <input
-                    type="number"
-                    min={0}
-                    disabled={declared}
-                    value={line.quantityAccepted ?? ''}
-                    onChange={(e) =>
-                      updateLine(index, {
-                        quantityAccepted:
-                          e.target.value === '' ? undefined : parseInt(e.target.value, 10),
-                      })
-                    }
-                  />
-                </div>
-                <div className="field-block">
-                  <label>Refusé</label>
-                  <input
-                    type="number"
-                    min={0}
-                    disabled={declared}
-                    value={line.quantityRefused ?? ''}
-                    onChange={(e) =>
-                      updateLine(index, {
-                        quantityRefused:
-                          e.target.value === '' ? undefined : parseInt(e.target.value, 10),
-                      })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="field-block">
-                <label>{lineJustificationFieldLabel(acc, ref, lineExpected)}</label>
-                <textarea
-                  rows={2}
-                  disabled={declared}
-                  placeholder={lineJustificationPlaceholder(acc, ref, lineExpected)}
-                  value={line.justification}
-                  onChange={(e) => updateLine(index, { justification: e.target.value })}
+
+              <label className="declare-select-row">
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  data-testid={`select-product-${index}`}
+                  onChange={(e) => toggleSelected(index, e.target.checked)}
                 />
-              </div>
+                <span>{isRejected ? 'Refuser ce produit' : 'Partiel sur ce produit'}</span>
+              </label>
+
+              {!selected ? (
+                <p className="hint success-text" style={{ margin: '8px 0 0' }}>
+                  Livré en totalité :{' '}
+                  {formatQuantityWithUnit(expectedQty, line.unit || displayUnit)} accepté(s), 0 refusé
+                </p>
+              ) : isRejected ? (
+                <>
+                  <p className="hint" style={{ margin: '8px 0 0' }}>
+                    0 acceptée, {formatQuantityWithUnit(expectedQty, line.unit || displayUnit)} refusée(s)
+                  </p>
+                  <div className="field-block">
+                    <label>Motif du refus *</label>
+                    <textarea
+                      rows={2}
+                      placeholder={REJECTION_JUSTIFICATION_MESSAGE}
+                      value={line.justification}
+                      onChange={(e) => updateLine(index, { justification: e.target.value })}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="declare-line-row declare-line-row--2col">
+                    <div className="field-block">
+                      <label>Quantité acceptée</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={line.quantityAccepted ?? ''}
+                        onChange={(e) =>
+                          updateLine(index, {
+                            quantityAccepted:
+                              e.target.value === '' ? undefined : parseInt(e.target.value, 10),
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="field-block">
+                      <label>Refusé (calculé)</label>
+                      <input type="number" min={0} disabled value={Math.max(0, expectedQty - acc)} />
+                    </div>
+                  </div>
+                  <div className="field-block">
+                    <label>Motif du partiel *</label>
+                    <textarea
+                      rows={2}
+                      placeholder={PARTIAL_JUSTIFICATION_MESSAGE}
+                      value={line.justification}
+                      onChange={(e) => updateLine(index, { justification: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )
         })

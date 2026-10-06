@@ -52,4 +52,36 @@ describe('buildEmailBody', () => {
     assert.match(text, /access=token/)
     assert.doesNotMatch(text, /Lien\s*:/)
   })
+
+  it('mentionne le produit refusé à 0 avec la raison', () => {
+    const { text } = buildEmailBody(
+      {
+        name: 'Carrefour City',
+        address: '45 Avenue de la République',
+        units: 2,
+        unitType: 'palette',
+        orderRef: 'CMD-X',
+        products: [{ label: 'Palettes œufs', qty: 2, unit: 'palette' }],
+        tourDate: '2026-07-12',
+        driverName: 'Kouassi',
+      },
+      'RCT-TEST02',
+      'rejected',
+      [
+        {
+          productLabel: 'Palettes œufs',
+          unit: 'palette',
+          quantityExpected: 2,
+          quantityAccepted: 0,
+          quantityRefused: 2,
+          justification: 'Produit cassé',
+        },
+      ],
+      'https://example.test/cert',
+    )
+    assert.match(text, /Quantité livrée/)
+    assert.match(text, /Palettes œufs 0 palette/)
+    assert.match(text, /Produit cassé/)
+    assert.match(text, /Motif/)
+  })
 })

@@ -9,7 +9,7 @@ export const certificatesRouter = Router()
 
 certificatesRouter.use(rateLimitByIp(60, 15 * 60_000, 'certificates'))
 
-type ProductLine = { label: string; qty: number; unit: string }
+type ProductLine = { label: string; qty: number; unit: string; justification?: string }
 
 function expectedLines(
   products: unknown,
@@ -36,27 +36,25 @@ function deliveredLines(
   isRejected: boolean,
   isPartial: boolean,
 ): ProductLine[] {
-  if (isRejected || outcome === 'rejected') return []
   if (!Array.isArray(declarationLines) || declarationLines.length === 0) {
-    return isPartial || outcome === 'partial' ? [] : expected
+    return isRejected || outcome === 'rejected' || isPartial || outcome === 'partial' ? [] : expected
   }
-  return declarationLines
-    .map((raw) => {
-      const r = raw as Record<string, unknown>
-      const label = String(r.productLabel ?? r.product_label ?? r.label ?? 'Produit').trim()
-      const unit = String(r.unit ?? 'colis')
-      const acc = r.quantityAccepted ?? r.quantity_accepted
-      let qty: number
-      if (acc != null && acc !== '') {
-        qty = Math.max(0, Number(acc) || 0)
-      } else {
-        const expectedQty = Number(r.quantityExpected ?? r.quantity_expected ?? 0)
-        const refused = Number(r.quantityRefused ?? r.quantity_refused ?? 0)
-        qty = expectedQty > 0 ? Math.max(0, expectedQty - refused) : Math.max(0, Number(r.qty ?? 0))
-      }
-      return { label: label || 'Produit', qty, unit }
-    })
-    .filter((l) => l.qty > 0)
+  return declarationLines.map((raw) => {
+    const r = raw as Record<string, unknown>
+    const label = String(r.productLabel ?? r.product_label ?? r.label ?? 'Produit').trim()
+    const unit = String(r.unit ?? 'colis')
+    const acc = r.quantityAccepted ?? r.quantity_accepted
+    let qty: number
+    if (acc != null && acc !== '') {
+      qty = Math.max(0, Number(acc) || 0)
+    } else {
+      const expectedQty = Number(r.quantityExpected ?? r.quantity_expected ?? 0)
+      const refused = Number(r.quantityRefused ?? r.quantity_refused ?? 0)
+      qty = expectedQty > 0 ? Math.max(0, expectedQty - refused) : Math.max(0, Number(r.qty ?? 0))
+    }
+    const justification = String(r.justification ?? '').trim()
+    return { label: label || 'Produit', qty, unit, justification }
+  })
 }
 
 certificatesRouter.get('/:receiptId', async (req, res) => {

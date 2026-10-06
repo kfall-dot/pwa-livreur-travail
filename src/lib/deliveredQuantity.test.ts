@@ -68,6 +68,38 @@ describe('buildDeliveredProductsDisplay — régressions connues', () => {
     const out = buildDeliveredProductsDisplay(threePalettes, null, 'pending', null)
     assert.deepEqual(out, [{ label: 'Produit', qty: 0, unit: 'palette' }])
   })
+
+  it('refusée mixte → produits livrés affichés, refusés à 0', () => {
+    const expected = expectedProductsDisplay(
+      [
+        { label: 'Palettes œufs', qty: 2, unit: 'palette' },
+        { label: "Jus d'orange", qty: 1, unit: 'caisse' },
+      ],
+      3,
+      'palette',
+    )
+    const decl = [
+      {
+        productLabel: 'Palettes œufs',
+        unit: 'palette',
+        quantityExpected: 2,
+        quantityAccepted: 0,
+        quantityRefused: 2,
+      },
+      {
+        productLabel: "Jus d'orange",
+        unit: 'caisse',
+        quantityExpected: 1,
+        quantityAccepted: 1,
+        quantityRefused: 0,
+      },
+    ]
+    const out = buildDeliveredProductsDisplay(expected, decl, 'delivered', 'rejected')
+    assert.deepEqual(out, [
+      { label: 'Palettes œufs', qty: 0, unit: 'palette' },
+      { label: "Jus d'orange", qty: 1, unit: 'caisse' },
+    ])
+  })
 })
 
 describe('deliveredQuantityEmptyLabel', () => {
