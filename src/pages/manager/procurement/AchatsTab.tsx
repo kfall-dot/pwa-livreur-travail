@@ -606,7 +606,13 @@ export function AchatsTab({
 
   const handleLineCommercial = (
     lineId: string,
-    patch: { supplierName?: string; paymentMode?: string },
+    patch: {
+      supplierName?: string
+      paymentMode?: string
+      attachmentBlobKey?: string | null
+      attachmentFileName?: string | null
+      attachmentContentType?: string | null
+    },
   ) => {
     setRequestDetail((prev) => {
       if (!prev) return prev
@@ -1940,7 +1946,13 @@ function RequestDetailPanel({
   onAmountChange: (lineId: string, amountFcfa: number) => void
   onLineCommercial: (
     lineId: string,
-    patch: { supplierName?: string; paymentMode?: string },
+    patch: {
+      supplierName?: string
+      paymentMode?: string
+      attachmentBlobKey?: string | null
+      attachmentFileName?: string | null
+      attachmentContentType?: string | null
+    },
   ) => void
   onSavePricing: () => void
   onSubmitFinance: () => void
@@ -2003,10 +2015,6 @@ function RequestDetailPanel({
   const [bulkPaymentMode, setBulkPaymentMode] = useState('')
   /** Lignes encore sans mode de paiement (le contrôle SA l'exige sur chaque ligne). */
   const linesWithoutPaymentMode = lines.filter((l) => !(l.paymentMode ?? '').trim())
-  /** Lignes qui portent déjà un mode différent de celui de la barre : écrasement à confirmer. */
-  const linesWithOtherPaymentMode = lines.filter(
-    (l) => (l.paymentMode ?? '').trim() !== '' && (l.paymentMode ?? '') !== bulkPaymentMode,
-  )
   const applyPaymentModeToLines = (targets: typeof lines) => {
     for (const l of targets) onLineCommercial(l.id, { paymentMode: bulkPaymentMode })
   }
@@ -2016,20 +2024,23 @@ function RequestDetailPanel({
     applyPaymentModeToLines(linesWithoutPaymentMode)
   }
   /**
-   * Écrase la colonne « Mode de paiement » de toutes les lignes. La confirmation
-   * n'apparaît que si des lignes portent déjà un mode différent ; un dialogue
-   * refusé (ou fermé) annule l'action et ne modifie donc aucune ligne.
+   * Applique le mode de paiement aux lignes cochées (sélection explicite, comme
+   * pour le fournisseur et la facture partagée). La confirmation n'apparaît que
+   * si des lignes cochées portent déjà un mode différent.
    */
-  const handleBulkPaymentApplyAll = () => {
-    if (!bulkPaymentMode) return
-    const conflicting = linesWithOtherPaymentMode.length
-    if (conflicting > 0) {
+  const handleBulkPaymentAssignSelected = () => {
+    if (!bulkPaymentMode || selectedLines.length === 0) return
+    const conflicting = selectedLines.filter(
+      (l) => (l.paymentMode ?? '').trim() !== '' && (l.paymentMode ?? '') !== bulkPaymentMode,
+    )
+    if (conflicting.length > 0) {
       const ok = window.confirm(
-        `Remplacer le mode de paiement déjà saisi sur ${conflicting} ligne${conflicting > 1 ? 's' : ''} ?`,
+        `Remplacer le mode de paiement déjà saisi sur ${conflicting.length} ligne${conflicting.length > 1 ? 's' : ''} ?`,
       )
       if (!ok) return
     }
-    applyPaymentModeToLines(lines)
+    applyPaymentModeToLines(selectedLines)
+    setSelectedLineIds([])
   }
 
   // Même mécanique que le mode de paiement, mais SANS écrasement global : le
@@ -2052,6 +2063,12 @@ function RequestDetailPanel({
   const toggleAllLines = () => {
     setSelectedLineIds(allLinesSelected ? [] : lines.map((l) => l.id))
   }
+  /** Clés de blob portées par plusieurs lignes : la facture est partagée. */
+  const sharedAttachmentKeys = new Set(
+    lines
+      .map((l) => l.attachmentBlobKey ?? '')
+      .filter((k) => k !== '' && lines.filter((l) => l.attachmentBlobKey === k).length > 1),
+  )
   /** Complète uniquement les lignes vides : n'écrase aucun fournisseur existant. */
   const handleBulkSupplierFillEmpty = () => {
     if (!bulkSupplierName) return
@@ -2073,29 +2090,56 @@ function RequestDetailPanel({
       const current = (l.supplierName ?? '').trim().toLowerCase()
       return current !== '' && current !== target
     })
+    const attachedLines = moved.filter((l) => (l.attachmentBlobKey ?? '').trim() !== '')
     if (moved.length > 0) {
-      const ok = window.confirm(
+      let message =
         `Réaffecter ${moved.length} ligne${moved.length > 1 ? 's' : ''} à un autre fournisseur ?\n\n` +
-          'Un bon de commande est émis par fournisseur présent sur les lignes : ce changement peut modifier leur découpage.',
-      )
+        'Un bon de commande est émis par fournisseur présent sur les lignes : ce changement peut modifier leur découpage.'
+      if (attachedLines.length > 0) {
+        message += `\n\n${attachedLines.length} ligne${attachedLines.length > 1 ? 's' : ''} porte${attachedLines.length > 1 ? 'nt' : ''} une pièce jointe : elle sera retirée de ${attachedLines.length > 1 ? 'ces' : 'cette'} ligne${attachedLines.length > 1 ? 's' : ''}.`
+      }
+      const ok = window.confirm(message)
       if (!ok) return
     }
     for (const l of selectedLines) {
-      onLineCommercial(l.id, { supplierName: bulkSupplierName })
+      const detach = attachedLines.some((a) => a.id === l.id)
+      onLineCommercial(l.id, {
+        supplierName: bulkSupplierName,
+        ...(detach
+          ? { attachmentBlobKey: null, attachmentFileName: null, attachmentContentType: null }
+          : {}),
+      })
     }
     setSelectedLineIds([])
+  }
+
+  /** Avertit avant de réaffecter une ligne qui porte une pièce jointe, puis retire la PJ immédiatement. */
+  const handleLineSupplierChange = (line: (typeof lines)[number], name: string) => {
+    const oldSupplier = (line.supplierName ?? '').trim()
+    const newSupplier = (name ?? '').trim()
+    const willDetach =
+      oldSupplier !== '' &&
+      newSupplier !== '' &&
+      oldSupplier !== newSupplier &&
+      (line.attachmentBlobKey ?? '').trim() !== ''
+    if (willDetach) {
+      const ok = window.confirm(
+        'Cette ligne porte une pièce jointe. Changer de fournisseur retirera la pièce jointe de cette ligne. Continuer ?',
+      )
+      if (!ok) return
+    }
+    onLineCommercial(line.id, {
+      supplierName: name,
+      ...(willDetach
+        ? { attachmentBlobKey: null, attachmentFileName: null, attachmentContentType: null }
+        : {}),
+    })
   }
 
   // Facture partagée : une même facture jointe en un seul envoi aux lignes
   // cochées (typiquement toutes les lignes d'un même fournisseur). Remplacer
   // une PJ existante demande confirmation, comme pour le mode de paiement.
   const linesWithoutAttachment = lines.filter((l) => !(l.attachmentFileName ?? '').trim())
-  /** Clés de blob portées par plusieurs lignes : la facture est partagée. */
-  const sharedAttachmentKeys = new Set(
-    lines
-      .map((l) => l.attachmentBlobKey ?? '')
-      .filter((k) => k !== '' && lines.filter((l) => l.attachmentBlobKey === k).length > 1),
-  )
   const handleBulkAttachmentPick = (file: File) => {
     if (selectedLines.length === 0) return
     const withAttachment = selectedLines.filter((l) => (l.attachmentFileName ?? '').trim())
@@ -2437,17 +2481,17 @@ function RequestDetailPanel({
               </button>
               <button
                 type="button"
-                data-testid="mgr-achats-bulk-payment-all"
-                onClick={handleBulkPaymentApplyAll}
-                disabled={!bulkPaymentMode || lines.length === 0}
+                data-testid="mgr-achats-bulk-payment-assign"
+                onClick={handleBulkPaymentAssignSelected}
+                disabled={!bulkPaymentMode || selectedLines.length === 0}
                 style={{
                   ...css.btnOutline,
-                  ...(!bulkPaymentMode || lines.length === 0
+                  ...(!bulkPaymentMode || selectedLines.length === 0
                     ? { opacity: 0.5, cursor: 'not-allowed' }
                     : {}),
                 }}
               >
-                Appliquer à toutes
+                Affecter la sélection{selectedLines.length > 0 ? ` (${selectedLines.length})` : ''}
               </button>
               <span
                 style={{ ...css.meta, flex: '1 1 100%' }}
@@ -2456,6 +2500,9 @@ function RequestDetailPanel({
                 {linesWithoutPaymentMode.length > 0
                   ? `${linesWithoutPaymentMode.length} ligne${linesWithoutPaymentMode.length > 1 ? 's' : ''} sans mode de paiement.`
                   : 'Mode de paiement renseigné sur toutes les lignes.'}
+                {selectedLines.length > 0
+                  ? ` ${selectedLines.length} ligne${selectedLines.length > 1 ? 's' : ''} sélectionnée${selectedLines.length > 1 ? 's' : ''}.`
+                  : ''}
               </span>
             </div>
           )}
@@ -2607,7 +2654,7 @@ function RequestDetailPanel({
                           suppliers={suppliers}
                           required
                           testId={`mgr-achats-line-supplier-${i}`}
-                          onChange={(name) => onLineCommercial(l.id, { supplierName: name })}
+                          onChange={(name) => handleLineSupplierChange(l, name)}
                         />
                       ) : (
                         l.supplierName ?? '—'

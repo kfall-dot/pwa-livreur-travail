@@ -52,7 +52,7 @@ import { db } from '../db/index.js'
 import { and, eq } from 'drizzle-orm'
 import { createTourWithStops, ensureCompanyUnit, ensureProductsFromEbLines, getManagerById } from '../db/queries.js'
 import { catalogUnitFromEb } from '../../shared/ebCatalog.js'
-import { linesForSupplier } from '../lib/procurementLines.js'
+import { detachSupplierChangeAttachments, linesForSupplier } from '../lib/procurementLines.js'
 import { hasComptantLines, saFinanceIncompleteMessage } from '../../shared/saFinanceGate.js'
 import { parseBody } from '../lib/validation.js'
 import { getLineAttachment, putLineAttachment, deleteLineAttachment } from '../lib/lineAttachmentStore.js'
@@ -1093,7 +1093,20 @@ procurementRouter.patch(
       res.status(400).json({ message: 'Les lignes ne peuvent être modifiées qu’avant envoi au CdG' })
       return
     }
+    // Réaffectation d'un fournisseur : les lignes qui changent de fournisseur et
+    // portent une pièce jointe voient cette pièce détachée (elle ne vaut que
+    // pour l'ancien fournisseur ; le blob survit s'il est partagé ailleurs).
+    const currentLines = await getPurchaseRequestLines(requestId)
+    const detachedKeys = await detachSupplierChangeAttachments(
+      currentLines,
+      body.lines,
+      (lineId) => setRequestLineAttachment(manager.companyId, requestId, lineId, null),
+    )
+
     const detail = await updateRequestLinePrices(manager.companyId, requestId, body.lines)
+    if (detachedKeys.length > 0) {
+      await cleanupDetachedBlobKeys(manager.companyId, detachedKeys, '')
+    }
     if (detail) {
       await ensureProductsFromEbLines(manager.companyId, detail.lines)
     }

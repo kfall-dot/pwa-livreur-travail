@@ -969,6 +969,66 @@ test.describe('Achats chantier BTP (procurement)', () => {
     expect(quoted.request.status).toBe('daf_review')
   })
 
+  test('changer le fournisseur d’une ligne retire sa pièce jointe (I86)', async ({ request }) => {
+    const simulated = await simulateWhatsappEb(request)
+    const submitted = await dtSubmitDraft(request, simulated.draftId)
+    await loginBtpApi(request, 'sa')
+
+    type Line = { id: string; supplierName?: string | null; attachmentBlobKey?: string | null }
+    const detailRes = await request.get(`${API_BASE}/api/v1/procurement/requests/${submitted.id}`)
+    expect(detailRes.ok(), await detailRes.text()).toBeTruthy()
+    const detail = (await detailRes.json()) as { lines: Line[] }
+    expect(detail.lines.length).toBeGreaterThanOrEqual(1)
+    const first = detail.lines[0]!
+
+    // 1. Joindre une facture à la première ligne.
+    const pdfB64 = binaryPdfFixture().toString('base64')
+    const attach = await request.post(
+      `${API_BASE}/api/v1/procurement/requests/${submitted.id}/lines/${first.id}/attachment`,
+      { data: { fileName: 'devis.pdf', contentType: 'application/pdf', data: pdfB64 } },
+    )
+    expect(attach.ok(), await attach.text()).toBeTruthy()
+
+    // 2. Affecter le fournisseur A : la facture reste attachée.
+    const setSupplierA = await request.patch(`${API_BASE}/api/v1/procurement/requests/${submitted.id}/pricing`, {
+      data: {
+        lines: detail.lines.map((l) => ({
+          id: l.id,
+          unitPriceFcfa: 1000,
+          supplierName: 'CimIvoire Distribution',
+          paymentMode: 'CREDIT',
+        })),
+      },
+    })
+    expect(setSupplierA.ok(), await setSupplierA.text()).toBeTruthy()
+
+    const afterA = (await (await request.get(`${API_BASE}/api/v1/procurement/requests/${submitted.id}`)).json()) as {
+      lines: Line[]
+    }
+    const lineA = afterA.lines.find((l) => l.id === first.id)
+    expect(lineA?.attachmentBlobKey, 'la facture doit rester attachée après affectation du fournisseur A').toBeTruthy()
+
+    // 3. Changer le fournisseur de cette ligne → la facture est retirée.
+    const changeSupplier = await request.patch(`${API_BASE}/api/v1/procurement/requests/${submitted.id}/pricing`, {
+      data: {
+        lines: detail.lines.map((l) => ({
+          id: l.id,
+          unitPriceFcfa: 1000,
+          supplierName: l.id === first.id ? 'Fournisseur B' : 'CimIvoire Distribution',
+          paymentMode: 'CREDIT',
+        })),
+      },
+    })
+    expect(changeSupplier.ok(), await changeSupplier.text()).toBeTruthy()
+
+    const afterB = (await (await request.get(`${API_BASE}/api/v1/procurement/requests/${submitted.id}`)).json()) as {
+      lines: Line[]
+    }
+    const lineB = afterB.lines.find((l) => l.id === first.id)
+    expect(lineB?.supplierName?.trim(), 'le fournisseur doit avoir changé').toBe('Fournisseur B')
+    expect(lineB?.attachmentBlobKey ?? null, 'la facture doit être retirée après changement de fournisseur').toBeNull()
+  })
+
   test('COMPTANT — bon de trésorerie joint avant le CdG (I57)', async ({ page, request }) => {
     test.setTimeout(180_000)
     const simulated = await simulateWhatsappEb(request)
