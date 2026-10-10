@@ -185,6 +185,8 @@ const reviseSchema = z.object({
     )
     .min(1, 'Au moins une ligne à réviser'),
   comment: z.string().optional(),
+  /** NIP du PDG : la révision est un acte signé (visa porté sur le BT régénéré). */
+  pin: z.string().optional(),
 })
 
 const createPoSchema = z.object({
@@ -1562,6 +1564,47 @@ procurementRouter.post(
     if (!body) return
     const { manager } = req as unknown as ProcurementManagerRequest
     try {
+      // La révision vaut visa du PDG : elle est signée par NIP, comme /approve.
+      const pin = body.pin?.trim() ?? ''
+      if (!pin) {
+        res.status(400).json({ message: 'NIP de signature requis' })
+        return
+      }
+      const dbManager = await getManagerById(manager.sub)
+      if (!dbManager) {
+        res.status(401).json({ message: 'Compte introuvable' })
+        return
+      }
+      const pinOk = await verifySignaturePin({
+        managerId: manager.sub,
+        pin,
+        passwordHash: dbManager.passwordHash,
+      })
+      if (!pinOk) {
+        res.status(401).json({ message: 'NIP incorrect ou utilisateur inconnu' })
+        return
+      }
+      const sigRole = procurementRoleToSignatureRole('pdg')
+      if (!sigRole) {
+        res.status(403).json({ message: 'Rôle de signature inconnu' })
+        return
+      }
+      const etape = 'validation_pdg'
+      const etapeErr = assertEtapeForRole(sigRole, etape)
+      if (etapeErr) {
+        res.status(403).json({ message: etapeErr })
+        return
+      }
+      const current = await getPurchaseRequestById(manager.companyId, String(req.params.id))
+      const signature = createApprobation({
+        ebReference: current?.reference ?? String(req.params.id),
+        etape,
+        approbateur: dbManager.name,
+        role: sigRole,
+        ipAddress: clientIpFromReq(req),
+        contenuHash: hashEbContenu({ requestId: String(req.params.id), status: current?.status }),
+        commentaire: body.comment,
+      })
       const updated = await revisePurchaseRequest({
         companyId: manager.companyId,
         requestId: String(req.params.id),
@@ -1569,6 +1612,10 @@ procurementRouter.post(
         procurementRole: 'pdg',
         quantities: body.quantities,
         revisionComment: body.comment ?? null,
+        comment: formatSignatureBlock(signature),
+        pinVerified: true,
+        etape,
+        ip: clientIpFromReq(req),
       })
       res.json({ request: updated })
     } catch (err) {

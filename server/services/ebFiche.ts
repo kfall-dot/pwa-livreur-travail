@@ -287,7 +287,11 @@ export function signoffFromApprovalSteps(steps: Array<SignoffStep>): {
   const sa = steps.find((s) => s.role === 'purchasing' && s.decision === 'approved')
   const dt = steps.find((s) => s.role === 'technical_director' && s.decision === 'approved')
   const daf = steps.find((s) => s.role === 'daf' && s.decision === 'approved')
-  const pdg = steps.find((s) => s.role === 'pdg' && s.decision === 'approved')
+  // Le visa PDG peut être porté par une approbation classique ou par une
+  // révision des quantités (décision `revised`) : les deux valent signature.
+  const pdg =
+    steps.find((s) => s.role === 'pdg' && s.decision === 'approved') ??
+    steps.find((s) => s.role === 'pdg' && s.decision === 'revised')
   const fmt = (d?: Date | string) => (d ? new Date(d).toLocaleDateString('fr-FR') : '')
   return {
     treatedByName: stepDisplayName(sa),

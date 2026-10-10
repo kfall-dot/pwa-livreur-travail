@@ -264,6 +264,8 @@ export interface ApproveRejectPayload {
 export interface ReviseQuantitiesPayload {
   quantities: Array<{ id: string; quantity: number }>
   comment?: string
+  /** NIP du PDG : la révision est signée (visa porté sur le BT régénéré). */
+  pin?: string
 }
 
 export interface BcRegisterMonth {

@@ -39,6 +39,16 @@ function previousMonthIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+/** Montant au format `formatFcfa` du serveur (`server/services/pdfDocuments.ts`). */
+function fcfa(n: number): string {
+  return `${Math.round(n).toLocaleString('fr-FR').replace(/[\u202F\u00A0]/g, ' ')} F`
+}
+
+/** Neutralise les espaces insécables avant de comparer des montants formatés. */
+function normalizeNbsp(html: string): string {
+  return html.replace(/[\u202F\u00A0]/g, ' ')
+}
+
 test.describe('Achats chantier BTP (procurement)', () => {
   test.describe.configure({ mode: 'serial' })
 
@@ -1089,6 +1099,104 @@ test.describe('Achats chantier BTP (procurement)', () => {
     expect(signedHtml).toMatch(/Aya DAF/)
     expect(signedHtml).toMatch(/NIP vérifié/)
     expect(signedHtml).toMatch(/N° de l’avance<\/th><td><\/td>/)
+  })
+
+  test('révision PDG des quantités — BT régénéré, signé PDG, bandeau version (I95)', async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(240_000)
+    const simulated = await simulateWhatsappEb(request)
+    const submitted = await dtSubmitDraft(request, simulated.draftId)
+
+    // COMPTANT + total ≥ seuil PDG (500 000 par défaut) : le dossier passe par le
+    // BT (create-bt) puis par l'étape PDG, seule habilitée à réviser les quantités.
+    const unitPrice = 300_000
+    await saPriceLines(request, submitted.id, unitPrice, { paymentMode: 'COMPTANT' })
+    const createBt = await request.post(
+      `${API_BASE}/api/v1/procurement/requests/${submitted.id}/create-bt`,
+      { data: {} },
+    )
+    expect(createBt.ok(), await createBt.text()).toBeTruthy()
+    const bt = (await createBt.json()) as { treasuryOrder: { id: string } }
+    const btId = bt.treasuryOrder.id
+    expect(btId).toBeTruthy()
+
+    const finance = await request.post(
+      `${API_BASE}/api/v1/procurement/requests/${submitted.id}/submit-finance`,
+      { data: {} },
+    )
+    expect(finance.ok(), await finance.text()).toBeTruthy()
+    await approveBtpRequest(request, submitted.id, 'cdg')
+
+    // COMPTANT ≥ seuil : le DAF valide le BT (daf_bt_review) avant l'étape PDG.
+    let daf = await approveBtpRequest(request, submitted.id, 'daf')
+    if (daf.request.status === 'daf_bt_review') {
+      daf = await approveBtpRequest(request, submitted.id, 'daf')
+    }
+    expect(daf.request.status).toBe('pdg_review')
+
+    await loginBtpApi(request, 'pdg')
+    const beforeRes = await request.get(`${API_BASE}/api/v1/procurement/requests/${submitted.id}`)
+    expect(beforeRes.ok(), await beforeRes.text()).toBeTruthy()
+    const before = (await beforeRes.json()) as {
+      request: { version: number }
+      lines: Array<{ id: string; quantity: string }>
+      treasuryOrder: { amountFcfa: string | number } | null
+    }
+    expect(before.request.version).toBe(1)
+    const oldBtAmount = Number(before.treasuryOrder?.amountFcfa)
+    expect(oldBtAmount).toBeGreaterThanOrEqual(500_000)
+    const newQty = Math.round(Number(before.lines[0].quantity)) + 1
+    const newBtAmount = oldBtAmount + unitPrice
+
+    // Le PDG révise depuis la fiche EB : le bouton n'existe qu'au statut pdg_review,
+    // et la révision est signée par NIP (visa porté sur le BT régénéré).
+    await loginBtpManager(page, 'pdg')
+    await openAchatsTab(page)
+    await expect(page.getByTestId(`mgr-achats-request-${submitted.id}`)).toBeVisible({
+      timeout: UI_READY_TIMEOUT,
+    })
+    await page.getByTestId(`mgr-achats-request-${submitted.id}`).click()
+    await expect(page.getByTestId('mgr-achats-revise-quantities')).toBeVisible({
+      timeout: UI_READY_TIMEOUT,
+    })
+    await page.getByTestId('mgr-achats-revise-quantities').click()
+    await expect(page.getByTestId('mgr-achats-revise-modal')).toBeVisible()
+    await page.getByTestId('mgr-achats-revise-qty-0').fill(String(newQty))
+    await page.getByTestId('mgr-achats-revise-comment').fill('Quantité ajustée par le PDG')
+    await page.getByTestId('mgr-achats-revise-pin').fill(BTP_PINS.pdg)
+    await page.getByTestId('mgr-achats-revise-confirm').click()
+    // L'historique doit afficher « PDG — Modifié », jamais « PDG — Rejeté ».
+    await expect(page.getByTestId('mgr-achats-history')).toContainText(/PDG — Modifié/, {
+      timeout: 20_000,
+    })
+
+    // Le BT suit la révision : montant en base, bandeau et visa PDG sur la fiche.
+    await loginBtpApi(request, 'pdg')
+    const afterRes = await request.get(`${API_BASE}/api/v1/procurement/requests/${submitted.id}`)
+    expect(afterRes.ok(), await afterRes.text()).toBeTruthy()
+    const after = (await afterRes.json()) as {
+      request: { status: string; version: number; ebVersion: number; totalAmountFcfa: string | number }
+      treasuryOrder: { amountFcfa: string | number } | null
+    }
+    expect(after.request.status).toBe('sa_review')
+    expect(after.request.version).toBe(2)
+    expect(after.request.ebVersion).toBe(2)
+    expect(Number(after.treasuryOrder?.amountFcfa)).toBe(newBtAmount)
+    expect(Number(after.treasuryOrder?.amountFcfa)).toBe(Number(after.request.totalAmountFcfa))
+
+    const btHtmlRes = await request.get(
+      `${API_BASE}/api/v1/procurement/documents/treasury/${btId}/html`,
+    )
+    expect(btHtmlRes.ok(), await btHtmlRes.text()).toBeTruthy()
+    const btHtml = normalizeNbsp(await btHtmlRes.text())
+    expect(btHtml).toMatch(/VERSION MODIFIÉE n° 2/)
+    expect(btHtml).toMatch(/révisée par le PDG/)
+    expect(btHtml).toMatch(/Diabaté PDG/)
+    expect(btHtml).toMatch(/NIP vérifié/)
+    expect(btHtml).toContain(fcfa(newBtAmount))
+    expect(btHtml).not.toContain(fcfa(oldBtAmount))
   })
 
   test('un BC par fournisseur présent sur l’EB (I58)', async ({ request }) => {

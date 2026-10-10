@@ -172,10 +172,11 @@ export async function notifyPurchaseOrderReady(
 }
 
 /**
- * Notifie une révision PDG d'une EB : le DT initiateur reçoit l'information et
- * le Service achats est invité à poursuivre le processus sur la version révisée.
- * L'EB révisée reste accessible par tous ceux qui avaient accès à la version
- * initiale.
+ * Notifie une révision PDG d'une EB : le DT initiateur, le contrôle de gestion et
+ * le DAF (parties prenantes du chiffrage et du bon de trésorerie) reçoivent
+ * l'information, et le Service achats est invité à poursuivre le processus sur la
+ * version révisée. L'EB révisée reste accessible par tous ceux qui avaient accès à
+ * la version initiale.
  */
 export async function notifyRequestRevised(params: {
   companyId: string
@@ -183,16 +184,22 @@ export async function notifyRequestRevised(params: {
   createdByManagerId?: string | null
   ebVersion: number
   comment?: string | null
+  /** Le BT (avance de trésorerie) a été régénéré au nouveau montant. */
+  btRegenerated?: boolean
 }): Promise<void> {
   const commentDetail = params.comment ? `\nMotif de la révision : ${params.comment}` : ''
   const body =
     `La demande ${params.reference} a été révisée par le PDG (version EB n° ${params.ebVersion}).` +
-    `${commentDetail}\nLes quantités ont été modifiées ; la demande a été renvoyée au Service achats pour suite.`
+    `${commentDetail}\nLes quantités ont été modifiées ; la demande a été renvoyée au Service achats pour suite.` +
+    (params.btRegenerated
+      ? '\nLe bon de trésorerie a été régénéré au nouveau montant (bandeau « version modifiée »).'
+      : '')
 
-  // Information au DT initiateur (si connu) + au Service achats pour poursuivre.
+  // Information au DT initiateur, au CdG et au DAF ; le SA poursuit via
+  // notifyRequestStatusChange.
   await notifyManagersByProcurementRole(
     params.companyId,
-    ['technical_director'],
+    ['technical_director', 'controle_gestion', 'daf'],
     `EB ${params.reference} révisée — version ${params.ebVersion}`,
     body,
     {

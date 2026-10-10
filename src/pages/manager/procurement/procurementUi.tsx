@@ -169,6 +169,8 @@ export const PROCUREMENT_ROLE_LABELS: Record<ProcurementRole, string> = {
 }
 
 export function approvalDecisionLabel(role: ProcurementRole, decision: string): string {
+  // La révision PDG des quantités est un acte de validation (visa), pas un rejet.
+  if (decision === 'revised') return 'Modifié'
   if (decision !== 'approved') return 'Rejeté'
   if (role === 'technical_director') return 'Validé'
   if (role === 'purchasing') return 'Traité'

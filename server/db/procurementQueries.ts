@@ -1708,6 +1708,17 @@ export async function updateTreasuryOrderHtml(id: string, pdfHtml: string) {
   await db.update(treasuryOrders).set({ pdfHtml }).where(eq(treasuryOrders.id, id))
 }
 
+/**
+ * Aligne le montant du BT sur le total recalculé de l'EB — nécessaire après une
+ * révision PDG des quantités, sinon la fiche de trésorerie garde l'ancien total.
+ */
+export async function updateTreasuryOrderAmount(id: string, amountFcfa: number) {
+  await db
+    .update(treasuryOrders)
+    .set({ amountFcfa: String(amountFcfa) })
+    .where(eq(treasuryOrders.id, id))
+}
+
 export async function getTreasuryOrderByRequest(companyId: string, requestId: string) {
   const [row] = await db
     .select()

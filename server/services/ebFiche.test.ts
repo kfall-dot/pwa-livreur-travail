@@ -117,6 +117,27 @@ describe('generateEbFicheHtml', () => {
     assert.match(signoff.pdgSignature, /NIP vérifié/)
   })
 
+  it('retient le visa PDG porté par une révision des quantités (décision revised)', () => {
+    const signoff = signoffFromApprovalSteps([
+      {
+        role: 'daf',
+        decision: 'approved',
+        comment: 'Aya DAF (DAF)\nNIP vérifié',
+        createdAt: '2026-08-18T10:00:00.000Z',
+      },
+      {
+        role: 'pdg',
+        decision: 'revised',
+        comment: 'Diabaté PDG (PDG)\n10/10/2026 14:41:47\nNIP vérifié',
+        createdAt: '2026-10-10T14:41:47.000Z',
+      },
+    ])
+    assert.equal(signoff.pdgName, 'Diabaté PDG')
+    assert.match(signoff.pdgSignature, /NIP vérifié/)
+    assert.ok(signoff.pdgDate)
+    assert.equal(signoff.dafName, 'Aya DAF')
+  })
+
   it('affiche une case PDG unique si le montant ≥ 500 000 XOF', () => {
     const html = generateEbFicheHtml({
       reference: 'EB-PDG',

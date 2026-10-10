@@ -278,6 +278,7 @@ export function AchatsTab({
   const [reviseModalOpen, setReviseModalOpen] = useState(false)
   const [reviseQuantities, setReviseQuantities] = useState<Record<string, string>>({})
   const [reviseComment, setReviseComment] = useState('')
+  const [revisePin, setRevisePin] = useState('')
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [poAmount, setPoAmount] = useState('')
   const [, setDrivers] = useState<DriverOption[]>([])
@@ -783,6 +784,7 @@ export function AchatsTab({
     }
     setReviseQuantities(initial)
     setReviseComment('')
+    setRevisePin('')
     setReviseModalOpen(true)
   }
 
@@ -799,15 +801,23 @@ export function AchatsTab({
       toast.error('Au moins une quantité doit être supérieure à 0.')
       return
     }
+    // La révision vaut visa du PDG : le NIP est exigé par le serveur.
+    const pin = revisePin.trim()
+    if (!pin) {
+      toast.error('NIP de signature requis.')
+      return
+    }
     setActionLoading(true)
     try {
       const detail = await reviseRequestQuantities(selectedRequestId, {
         quantities,
         comment: reviseComment.trim() || undefined,
+        pin,
       })
       setRequestDetail(detail)
       setReviseModalOpen(false)
       setReviseComment('')
+      setRevisePin('')
       setReviseQuantities({})
       toast.success(
         `Demande révisée (version ${detail.request.version ?? '?'}). Renvoyée au SA.`,
@@ -1174,6 +1184,8 @@ export function AchatsTab({
           reviseModalOpen={reviseModalOpen}
           reviseQuantities={reviseQuantities}
           reviseComment={reviseComment}
+          revisePin={revisePin}
+          onRevisePinChange={setRevisePin}
           onReviseQuantityChange={(lineId, value) =>
             setReviseQuantities((prev) => ({ ...prev, [lineId]: value }))
           }
@@ -1998,8 +2010,10 @@ function RequestDetailPanel({
   reviseModalOpen,
   reviseQuantities,
   reviseComment,
+  revisePin,
   onReviseQuantityChange,
   onReviseCommentChange,
+  onRevisePinChange,
   onReviseModalClose,
   onReviseConfirm,
 }: {
@@ -2042,8 +2056,10 @@ function RequestDetailPanel({
   reviseModalOpen: boolean
   reviseQuantities: Record<string, string>
   reviseComment: string
+  revisePin: string
   onReviseQuantityChange: (lineId: string, value: string) => void
   onReviseCommentChange: (value: string) => void
+  onRevisePinChange: (value: string) => void
   onReviseModalClose: () => void
   onReviseConfirm: () => void
 }) {
@@ -3333,8 +3349,9 @@ function RequestDetailPanel({
             </div>
             <div style={{ padding: 14, overflow: 'auto' }}>
               <p style={{ ...css.meta, marginBottom: 12 }}>
-                Ajustez les quantités commandées. La demande révisée sera renvoyée au SA et notifiée au DT initiateur.
-                Un nouveau numéro de version ({nextVersion}) sera attribué.
+                Ajustez les quantités commandées. La demande révisée sera renvoyée au SA et notifiée au DT, au CdG et au DAF.
+                Un nouveau numéro de version ({nextVersion}) sera attribué, et le bon de trésorerie sera régénéré.
+                Le NIP du PDG est requis : la révision vaut visa.
               </p>
               {lines.map((l, i) => (
                 <div
@@ -3362,6 +3379,18 @@ function RequestDetailPanel({
                   rows={2}
                   style={{ ...css.input, resize: 'vertical' }}
                   data-testid="mgr-achats-revise-comment"
+                />
+              </Field>
+              <Field label="NIP signature PDG">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={revisePin}
+                  onChange={(e) => onRevisePinChange(e.target.value)}
+                  placeholder="••••"
+                  style={{ ...css.input, width: 120 }}
+                  data-testid="mgr-achats-revise-pin"
                 />
               </Field>
             </div>

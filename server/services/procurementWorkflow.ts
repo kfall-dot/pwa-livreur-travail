@@ -19,6 +19,7 @@ import {
   updatePurchaseOrderHtml,
   updatePurchaseRequestStatus,
   updateRequestLineQuantities,
+  updateTreasuryOrderAmount,
   updateTreasuryOrderHtml,
 } from '../db/procurementQueries.js'
 import type { ProcurementRole, PurchaseRequestStatus } from '../db/schema.js'
@@ -183,8 +184,12 @@ export async function ensureTreasuryAdvance(companyId: string, requestId: string
       amountFcfa: amount || data.amountFcfa,
       avanceNumber: '',
     })
+    const finalAmount = amount || data.amountFcfa
     await updateTreasuryOrderHtml(existing.id, pdfHtml)
-    return { ...existing, pdfHtml, amountFcfa: String(amount || data.amountFcfa) }
+    // `amount_fcfa` est une colonne distincte du HTML : sans cette écriture, un BT
+    // déjà généré garderait l'ancien total après une révision PDG des quantités.
+    await updateTreasuryOrderAmount(existing.id, finalAmount)
+    return { ...existing, pdfHtml, amountFcfa: String(finalAmount) }
   }
 
   const draft = await createTreasuryOrder({
@@ -263,10 +268,11 @@ export async function rejectPurchaseRequest(input: {
 
 /**
  * Révision PDG des quantités (option A) — autorisée uniquement au statut `pdg_review`.
- * Enregistre l'étape `revised`, snapshot les lignes dans l'historique, applique les
- * nouvelles quantités, incrémente version + eb_version, puis renvoie la demande au SA.
- * Le DT initiateur et le SA sont notifiés (l'EB révisée reste visible par tous ceux
- * qui avaient accès à la version initiale).
+ * Enregistre l'étape `revised` (bloc signature PDG quand la route a vérifié le NIP),
+ * snapshot les lignes dans l'historique, applique les nouvelles quantités, incrémente
+ * version + eb_version, régénère le bon de trésorerie au nouveau montant, puis renvoie
+ * la demande au SA. Le DT initiateur, le CdG et le DAF sont notifiés (l'EB révisée
+ * reste visible par tous ceux qui avaient accès à la version initiale).
  */
 export async function revisePurchaseRequest(input: {
   companyId: string
@@ -275,6 +281,11 @@ export async function revisePurchaseRequest(input: {
   procurementRole: ProcurementRole
   quantities: Array<{ id: string; quantity: number }>
   revisionComment?: string | null
+  /** Bloc signature (formatSignatureBlock) — prime sur le motif brut. */
+  comment?: string | null
+  pinVerified?: boolean
+  etape?: string | null
+  ip?: string | null
 }) {
   const request = await getPurchaseRequestById(input.companyId, input.requestId)
   if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)
@@ -305,7 +316,10 @@ export async function revisePurchaseRequest(input: {
     role: input.procurementRole,
     managerId: input.managerId,
     decision: 'revised',
-    comment: input.revisionComment ?? null,
+    comment: input.comment ?? input.revisionComment ?? null,
+    pinVerified: input.pinVerified,
+    etape: input.etape,
+    ip: input.ip,
   })
 
   const detail = await updateRequestLineQuantities(input.companyId, input.requestId, input.quantities)
@@ -320,6 +334,14 @@ export async function revisePurchaseRequest(input: {
     revisedAt: new Date(),
   })
 
+  // Le BT (avance de trésorerie) suit la révision : quantités, total, bandeau
+  // « version modifiée » et visa PDG sont régénérés. On ne crée jamais de BT ici,
+  // seulement s'il avait déjà été émis (chiffrage SA / approbation DAF).
+  const treasury = await getTreasuryOrderByRequest(input.companyId, input.requestId)
+  if (treasury) {
+    await ensureTreasuryAdvance(input.companyId, input.requestId)
+  }
+
   // Notifie le DT initiateur (information) + le SA (poursuite du processus).
   await notifyRequestRevised({
     companyId: input.companyId,
@@ -327,6 +349,7 @@ export async function revisePurchaseRequest(input: {
     createdByManagerId: request.createdByManagerId,
     ebVersion: nextEbVersion,
     comment: input.revisionComment ?? null,
+    btRegenerated: Boolean(treasury),
   })
   await notifyRequestStatusChange(input.companyId, request.reference, 'sa_review', ['purchasing'])
 

@@ -9,6 +9,7 @@ import type {
 } from '../db/schema.js'
 import { comptantLines, linesForSupplier } from '../lib/procurementLines.js'
 import { withPrintBar } from '../lib/htmlPrint.js'
+import { versionSuffix } from '../../shared/requestVersion.js'
 
 export type BcTemplateData = {
   reference: string
@@ -62,6 +63,10 @@ export type BtTemplateData = {
   pdgName?: string
   pdgDate?: string
   pdgSignature?: string
+  /** Version de l'EB (`purchase_requests.version`) : > 1 ⇒ BT régénéré après révision. */
+  version?: number
+  revisedAt?: string | Date | null
+  revisionComment?: string | null
 }
 
 function escapeHtml(s: string): string {
@@ -164,7 +169,7 @@ const DEFAULT_BC_TEMPLATE = `<!DOCTYPE html>
 </body></html>`
 
 const DEFAULT_BT_TEMPLATE = `<!DOCTYPE html>
-<html lang="fr"><head><meta charset="utf-8"><title>Fiche trésorerie {{reference}}</title>
+<html lang="fr"><head><meta charset="utf-8"><title>Fiche trésorerie {{reference}}{{versionSuffix}}</title>
 <style>
   @page { size: A4; margin: 12mm; }
   body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
@@ -172,6 +177,8 @@ const DEFAULT_BT_TEMPLATE = `<!DOCTYPE html>
   .banner { background: #1e3a5f; color: #fff; text-align: center; padding: 10px 12px; }
   .banner h1 { margin: 0; font-size: 20px; letter-spacing: .02em; }
   .banner p { margin: 4px 0 0; font-size: 11px; opacity: .9; }
+  .revision-banner { background: #b91c1c; color: #fff; text-align: center; font-size: 13px; font-weight: 700;
+    padding: 6px 12px; border-bottom: 2px solid #7f1d1d; letter-spacing: .03em; }
   .pad { padding: 10px 12px 14px; }
   table.meta, table.lines { width: 100%; border-collapse: collapse; }
   table.meta th, table.meta td, table.lines th, table.lines td { border: 1px solid #1e3a5f; padding: 6px 8px; font-size: 12px; }
@@ -190,6 +197,7 @@ const DEFAULT_BT_TEMPLATE = `<!DOCTYPE html>
     <h1>Demande d’avance de trésorerie</h1>
     <p>Manuel financier de terrain : Formulaire 3.3 A — FICHE DE TRESO ACHATS</p>
   </div>
+  {{revisionBanner}}
   <div class="pad">
     <table class="meta">
       <tr><th>N° de l’avance</th><td>{{avanceNumber}}</td></tr>
@@ -305,10 +313,19 @@ export function generateBtHtml(
   data: BtTemplateData,
 ): string {
   const date = formatDateFr(data.requiredDate || data.createdAt)
+  // Bandeau « version modifiée » : miroir de la fiche EB, pour que le BT régénéré
+  // après une révision PDG des quantités ne puisse pas passer pour l'original.
+  const isRevised = typeof data.version === 'number' && data.version > 1
+  const revisedDate = data.revisedAt ? new Date(data.revisedAt).toLocaleDateString('fr-FR') : ''
+  const revisionBanner = isRevised
+    ? `<div class="revision-banner">VERSION MODIFIÉE n° ${escapeHtml(String(data.version))} — révisée par le PDG${revisedDate ? ` le ${escapeHtml(revisedDate)}` : ''}${data.revisionComment ? ` — Motif : ${escapeHtml(data.revisionComment)}` : ''}</div>`
+    : ''
   return withPrintBar(renderTemplate(
     DEFAULT_BT_TEMPLATE,
     {
       reference: data.reference,
+      versionSuffix: versionSuffix(data.version),
+      revisionBanner,
       avanceNumber: data.avanceNumber ?? '',
       siteName: data.siteName,
       requesterName: data.requesterName || '—',
@@ -323,7 +340,7 @@ export function generateBtHtml(
       dafBox: btValidationBox('VALIDATION DAF', data.dafName, data.dafDate, data.dafSignature),
       pdgBox: btValidationBox('VALIDATION PDG', data.pdgName, data.pdgDate, data.pdgSignature),
     },
-    ['linesRows', 'dafBox', 'pdgBox'],
+    ['linesRows', 'dafBox', 'pdgBox', 'revisionBanner'],
   ))
 }
 
@@ -415,6 +432,10 @@ export function buildBtDataFromRequest(
     quotationUrls: urls,
     notes: request.notes,
     createdAt: new Date().toISOString().slice(0, 10),
+    // Révision PDG : le BT régénéré porte la version et le bandeau « version modifiée ».
+    version: request.version ?? 1,
+    revisedAt: request.revisedAt ?? null,
+    revisionComment: request.revisionComment ?? null,
   }
 }
 
