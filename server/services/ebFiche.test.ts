@@ -138,6 +138,30 @@ describe('generateEbFicheHtml', () => {
     assert.equal(signoff.dafName, 'Aya DAF')
   })
 
+  it('horodate une étape sans bloc signature en base (révision antérieure au NIP obligatoire)', () => {
+    const signoff = signoffFromApprovalSteps([
+      {
+        role: 'daf',
+        decision: 'approved',
+        comment: 'Aya DAF (DAF)\n10/10/2026 14:00:00\nNIP vérifié',
+        createdAt: '2026-10-10T14:00:00.000Z',
+      },
+      {
+        role: 'pdg',
+        decision: 'revised',
+        comment: null,
+        createdAt: '2026-10-10T14:41:47.000Z',
+        managerName: 'Diabaté PDG',
+      },
+    ])
+    // Le repli recompose « Nom + horodatage + NIP » : la case PDG n'est plus muette
+    // sur la date, contrairement à celle du DAF qui porte son bloc complet.
+    assert.match(signoff.pdgSignature, /Diabaté PDG/)
+    assert.match(signoff.pdgSignature, /NIP vérifié/)
+    assert.match(signoff.pdgSignature, /\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}/)
+    assert.match(signoff.dafSignature, /\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}/)
+  })
+
   it('affiche une case PDG unique si le montant ≥ 500 000 XOF', () => {
     const html = generateEbFicheHtml({
       reference: 'EB-PDG',

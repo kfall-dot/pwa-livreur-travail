@@ -1195,6 +1195,9 @@ test.describe('Achats chantier BTP (procurement)', () => {
     expect(btHtml).toMatch(/révisée par le PDG/)
     expect(btHtml).toMatch(/Diabaté PDG/)
     expect(btHtml).toMatch(/NIP vérifié/)
+    // Les deux visas portent leur horodatage (date + heure), pas seulement le nom.
+    expect(btHtml).toMatch(/Diabaté PDG[\s\S]{0,80}\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}/)
+    expect(btHtml).toMatch(/Aya DAF[\s\S]{0,80}\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}/)
     expect(btHtml).toContain(fcfa(newBtAmount))
     expect(btHtml).not.toContain(fcfa(oldBtAmount))
 
@@ -1208,6 +1211,7 @@ test.describe('Achats chantier BTP (procurement)', () => {
     expect(ficheHtml).toMatch(/révisée par le PDG/)
     expect(ficheHtml).toMatch(/Diabaté PDG/)
     expect(ficheHtml).toMatch(/NIP vérifié/)
+    expect(ficheHtml).toMatch(/Diabaté PDG[\s\S]{0,80}\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}/)
   })
 
   test('un BC par fournisseur présent sur l’EB (I58)', async ({ request }) => {

@@ -6,6 +6,7 @@
 
 import { withPrintBar } from '../lib/htmlPrint.js'
 import { versionSuffix } from '../../shared/requestVersion.js'
+import { formatSignatureTimestamp } from './ebSignature.js'
 
 function escapeHtml(s: string): string {
   return s
@@ -264,9 +265,23 @@ function stepDisplayName(step?: SignoffStep): string {
 
 function stepSignature(step?: SignoffStep, withNip = false): string {
   const comment = (step?.comment ?? '').replace(/\bPIN vérifié\b/g, 'NIP vérifié').trim()
-  const body = comment || stepDisplayName(step)
+  // Repli : étapes sans bloc signature en base (révisions antérieures au NIP
+  // obligatoire, saisies historiques). On recompose « Nom + horodatage » — sinon
+  // la case s'imprime avec un nom et « NIP vérifié », mais **sans date**, alors
+  // que celle du DAF (bloc complet) l'affiche : deux signatures d'apparence
+  // incohérente sur le même document.
+  const body =
+    comment || [stepDisplayName(step), stepTimestamp(step)].filter(Boolean).join('\n')
   if (withNip) return withNipVerified(body)
   return body
+}
+
+/** Horodatage `JJ/MM/AAAA HH:MM:SS` d'une étape — même format que les blocs signature. */
+function stepTimestamp(step?: SignoffStep): string {
+  if (!step) return ''
+  const d = new Date(step.createdAt)
+  if (Number.isNaN(d.getTime())) return ''
+  return formatSignatureTimestamp(d)
 }
 
 /** TRAITE PAR = SA ; VALIDE PAR = DT — DAF/PDG (sheet1) remplis après approbation. */
