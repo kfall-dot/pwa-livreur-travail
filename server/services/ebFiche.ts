@@ -5,6 +5,7 @@
  */
 
 import { withPrintBar } from '../lib/htmlPrint.js'
+import { versionSuffix } from '../../shared/requestVersion.js'
 
 function escapeHtml(s: string): string {
   return s
@@ -81,6 +82,7 @@ export function generateEbFicheHtml(data: EbFicheData): string {
   ].join('')
 
   const isRevised = typeof data.version === 'number' && data.version > 1
+  const vSuffix = versionSuffix(data.version)
   const revisedDate = data.revisedAt ? new Date(data.revisedAt).toLocaleDateString('fr-FR') : ''
   const revisionBanner = isRevised
     ? `<div class="revision-banner">VERSION MODIFIÉE n° ${escapeHtml(String(data.version))} — révisée par le PDG${revisedDate ? ` le ${escapeHtml(revisedDate)}` : ''}${data.revisionComment ? ` — Motif : ${escapeHtml(data.revisionComment)}` : ''}</div>`
@@ -90,7 +92,7 @@ export function generateEbFicheHtml(data: EbFicheData): string {
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Expression du besoin ${escapeHtml(data.reference)}</title>
+  <title>Expression du besoin ${escapeHtml(data.reference)}${escapeHtml(vSuffix)}</title>
   <style>
     @page { size: A4 landscape; margin: 12mm; }
     body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; margin: 0; }
@@ -123,7 +125,7 @@ export function generateEbFicheHtml(data: EbFicheData): string {
 </head>
 <body>
   <div class="fiche">
-    <div class="title">EXPRESSION DU BESOIN</div>
+    <div class="title">EXPRESSION DU BESOIN${escapeHtml(vSuffix)}</div>
     ${revisionBanner}
     <table class="meta">
       <tr>
@@ -200,7 +202,7 @@ export function generateEbFicheHtml(data: EbFicheData): string {
         <td class="box">${escapeHtml(data.validatedBySignature || '')}</td>
       </tr>
     </table>
-    <div class="ref-foot">Réf. ${escapeHtml(data.reference)} — TraceO BTP</div>
+    <div class="ref-foot">Réf. ${escapeHtml(data.reference)}${escapeHtml(vSuffix)} — TraceO BTP</div>
   </div>
 </body>
 </html>`)

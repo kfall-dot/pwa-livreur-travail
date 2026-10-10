@@ -43,6 +43,7 @@ import type {
 import { catalogUnitFromEb } from '../../../../shared/ebCatalog'
 import { EB_SPEND_CATEGORIES, ebSpendCategoryLabel, inferEbSpendCategory, normalizeEbSpendCategory } from '../../../../shared/ebSpendCategory'
 import { hasComptantLines } from '../../../../shared/saFinanceGate'
+import { versionBadge, versionSuffix } from '../../../../shared/requestVersion'
 import {
   AlertBox,
   canApproveRequest,
@@ -1396,6 +1397,14 @@ export function AchatsTab({
                     >
                       <td style={tdStyle}>
                         <span style={{ fontWeight: 700 }}>{r.reference}</span>
+                        {versionBadge(r.version) && (
+                          <span
+                            style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: '#b91c1c' }}
+                            data-testid={`mgr-achats-ref-version-${r.id}`}
+                          >
+                            {versionBadge(r.version)}
+                          </span>
+                        )}
                       </td>
                       <td style={tdStyle}>
                         <span style={{ color: 'var(--text)' }}>{r.siteName ?? 'Chantier'}</span>
@@ -2291,7 +2300,7 @@ function RequestDetailPanel({
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div>
-          <h3 style={{ ...css.sectionTitle, fontSize: 16, marginBottom: 4 }}>{request.reference}</h3>
+          <h3 style={{ ...css.sectionTitle, fontSize: 16, marginBottom: 4 }}>{request.reference}{versionSuffix(request.version)}</h3>
           <p style={css.meta}>
             {site?.name ?? request.siteName ?? 'Chantier'} · {formatFcfa(request.totalAmountFcfa)}
             {request.urgency === 'urgent' ? ' · Urgent' : ''}
@@ -2386,7 +2395,7 @@ function RequestDetailPanel({
       </div>
 
       <div style={css.ficheWrap} data-testid="mgr-achats-request-eb-fiche">
-        <h4 style={css.ficheTitle}>EXPRESSION DU BESOIN</h4>
+        <h4 style={css.ficheTitle}>EXPRESSION DU BESOIN{versionSuffix(request.version)}</h4>
         <table style={css.ficheMeta}>
           <tbody>
             <tr>
