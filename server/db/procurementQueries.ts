@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gte, inArray, lt, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from './index.js'
+import { sitesWithEbCreatedBy } from './siteEbScope.js'
 import {
   approvalSteps,
   companies,
@@ -510,7 +511,9 @@ export async function getSiteIndicators(companyId: string, siteId: string): Prom
   }
 }
 
-/** Ids des chantiers actifs supervisés par un manager (DT) — restriction « mes chantiers ». */
+/** Ids des chantiers actifs supervisés par un manager (DT) — restriction « mes chantiers »,
+ *  UNION chantiers ayant une EB émise par lui (option A — I95, même règle que le
+ *  sélecteur Chantier : budgets, stock et dépenses mensuelles suivent le périmètre). */
 export async function listSupervisedSiteIds(companyId: string, managerId: string): Promise<string[]> {
   const rows = await db
     .select({ id: sites.id })
@@ -519,7 +522,7 @@ export async function listSupervisedSiteIds(companyId: string, managerId: string
       and(
         eq(sites.companyId, companyId),
         eq(sites.active, true),
-        eq(sites.supervisorManagerId, managerId),
+        or(eq(sites.supervisorManagerId, managerId), sitesWithEbCreatedBy(companyId, managerId))!,
       ),
     )
   return rows.map((r) => r.id)

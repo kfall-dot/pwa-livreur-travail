@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from './index.js'
+import { sitesWithEbCreatedBy } from './siteEbScope.js'
 import {
   managers,
   siteDailyReports,
@@ -31,7 +32,8 @@ export type SubmissionEntry = { at: string; byManagerId: string; note?: string }
 
 // ─── Accès par rôle ───────────────────────────────────────────────────────────
 
-/** Chantiers assignés : chef → managerId ; DT superviseur → supervisorManagerId. */
+/** Chantiers assignés : chef → managerId ; superviseur (DT) → supervisorManagerId
+ *  UNION chantiers ayant une EB émise par lui (option A — I95). */
 export async function listSitesForManager(
   companyId: string,
   managerId: string,
@@ -40,7 +42,16 @@ export async function listSitesForManager(
 ): Promise<{ id: string; name: string; address: string }[]> {
   const col = mode === 'chef' ? sites.managerId : sites.supervisorManagerId
   const conds = [eq(sites.companyId, companyId), eq(sites.active, true)]
-  if (!allSites) conds.push(eq(col, managerId))
+  if (!allSites) {
+    // Union : le DT suit un chantier dès qu'il y a émis une EB, même non assigné.
+    conds.push(
+      mode === 'superviseur'
+        ? (or(eq(col, managerId), sitesWithEbCreatedBy(companyId, managerId)) as NonNullable<
+            ReturnType<typeof or>
+          >)
+        : eq(col, managerId),
+    )
+  }
   const rows = await db
     .select({ id: sites.id, name: sites.name, address: sites.address })
     .from(sites)
@@ -62,7 +73,17 @@ export async function canAccessSite(
 ): Promise<boolean> {
   const col = mode === 'chef' ? sites.managerId : sites.supervisorManagerId
   const conds = [eq(sites.companyId, companyId), eq(sites.id, siteId)]
-  if (!allSites) conds.push(eq(col, managerId))
+  if (!allSites) {
+    // Même union que listSitesForManager (I95) : le sélecteur peut proposer un
+    // chantier à EB, il faut donc que la garde d'accès l'autorise aussi.
+    conds.push(
+      mode === 'superviseur'
+        ? (or(eq(col, managerId), sitesWithEbCreatedBy(companyId, managerId)) as NonNullable<
+            ReturnType<typeof or>
+          >)
+        : eq(col, managerId),
+    )
+  }
   const rows = await db
     .select({ id: sites.id })
     .from(sites)

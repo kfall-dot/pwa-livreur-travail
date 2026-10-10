@@ -1422,6 +1422,60 @@ test.describe('Achats chantier BTP (procurement)', () => {
     expect(tour.stops[0]?.unitType).not.toBe('colis')
   })
 
+test('DT : le sélecteur Chantier inclut les chantiers avec EB émise par le DT — SuiviChantierTab (I95)', async ({ request }) => {
+  test.setTimeout(120_000)
+
+  await loginBtpApi(request, 'dt')
+
+  // Chantier créé par le DT (pas d'affectation). Sans EB il reste exclu du périmètre.
+  const createSite = async (name: string): Promise<string> => {
+    const res = await request.post(`${API_BASE}/api/v1/procurement/sites`, {
+      data: { name, address: 'Abidjan Yopougon' },
+    })
+    expect(res.ok(), await res.text()).toBeTruthy()
+    return (await res.json()) as { site: { id: string } }
+  }
+  const siteNoSupervisor = (await createSite('Chantier I95 sans superviseur')).site.id
+  const siteNoEb = (await createSite('Chantier I95 sans EB')).site.id
+
+  // Lecture du périmètre utilisé par le sélecteur du Tableau de bord chantier (SuiviChantierTab).
+  const listMySites = async (): Promise<string[]> => {
+    const res = await request.get(`${API_BASE}/api/v1/daily-reports/my-sites?scope=mine`)
+    expect(res.ok(), await res.text()).toBeTruthy()
+    const body = (await res.json()) as { sites: { id: string }[] }
+    return body.sites.map((s) => s.id)
+  }
+
+  // Avant EB : chantier sans affectation exclu.
+  let ids = await listMySites()
+  expect(ids).not.toContain(siteNoSupervisor)
+  // Conseiller pilote affecté = toujours dans le périmètre (sécurité).
+  expect(ids).toContain(BTP_PILOT.SITE_ID)
+
+  // DT émet une EB sur le chantier sans affectation.
+  const paste = await request.post(`${API_BASE}/api/v1/procurement/drafts/from-paste`, {
+    data: { bodyText: '50 sacs ciment', siteId: siteNoSupervisor },
+  })
+  expect(paste.ok(), await res.text()).toBeTruthy()
+  const { draftId } = (await paste.json()) as { draftId: string }
+  const submitted = await dtSubmitDraft(request, draftId)
+  expect(submitted.id).toBeTruthy()
+
+  // Après EB : chantier entre dans le périmètre (union assigné ∪ EB-émis).
+  ids = await listMySites()
+  expect(ids).toContain(siteNoSupervisor)
+  expect(ids).toContain(BTP_PILOT.SITE_ID)
+
+  // Cohérence côté budgets (listSupervisedSiteIds — même union que le sélecteur).
+  const budgets = await request.get(`${API_BASE}/api/v1/procurement/site-budgets`)
+  expect(budgets.ok(), await res.text()).toBeTruthy()
+  const budgetBody = (await budgets.json()) as { budgets: { siteId: string }[] }
+  expect(budgetBody.budgets.map((b) => b.siteId)).toContain(siteNoSupervisor)
+
+  // Contrôle négatif : chantier sans EB ni affectation reste exclu.
+  expect(await listMySites()).not.toContain(siteNoEb)
+})
+
   test('CdG gèle l’enveloppe ; second gel 409 (I66)', async ({ request }) => {
     const first = await freezeBtpBudget(request, 100_000_000)
     expect(first.status, first.body.message).toBe(200)
