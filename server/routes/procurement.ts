@@ -84,7 +84,7 @@ import {
 import { createBlankEbDraft, createDraftFromPastedText } from '../services/ebPaste.js'
 import { EB_FICHE_SERVICE, ficheLinesFromParsed, generateEbFicheHtml, signoffFromApprovalSteps } from '../services/ebFiche.js'
 import { buildEbObjet } from '../services/ebParser.js'
-import { needsPdgApproval, sumLineAmountsFcfa } from '../services/ebPricing.js'
+import { needsPdgApproval, shouldDisplayPdgSignature, sumLineAmountsFcfa } from '../services/ebPricing.js'
 import { notifyRequestStatusChange, notifyManagersByProcurementRole } from '../services/procurementNotifications.js'
 import {
   assertEtapeForRole,
@@ -1420,6 +1420,8 @@ procurementRouter.get('/requests/:id/eb-html', async (req, res) => {
     unitPrice: l.unitPriceFcfa != null ? Number(l.unitPriceFcfa) : undefined,
     amount: l.amountFcfa != null ? Number(l.amountFcfa) : undefined,
   }))
+  // Le visa PDG conditionne l'affichage de la case PDG (cf. shouldDisplayPdgSignature).
+  const signoff = signoffFromApprovalSteps(detail.approvalSteps)
   const html = generateEbFicheHtml({
     reference: detail.request.reference,
     siteName: detail.site?.name ?? '',
@@ -1432,7 +1434,7 @@ procurementRouter.get('/requests/:id/eb-html', async (req, res) => {
     revisionComment: detail.request.revisionComment ?? null,
     revisedAt: detail.request.revisedAt ?? null,
     lines: ficheLinesFromParsed(lines),
-    showPdg: needsPdgApproval(
+    showPdg: shouldDisplayPdgSignature(
       sumLineAmountsFcfa(
         detail.lines.map((l) => ({
           unitPriceFcfa: l.unitPriceFcfa,
@@ -1441,8 +1443,9 @@ procurementRouter.get('/requests/:id/eb-html', async (req, res) => {
         })),
       ),
       getProcurementConfig(manager.companyId).btThresholdFcfa,
+      Boolean(signoff.pdgName),
     ),
-    ...signoffFromApprovalSteps(detail.approvalSteps),
+    ...signoff,
   })
   res.type('html').send(html)
 })

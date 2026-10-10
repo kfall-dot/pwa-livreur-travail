@@ -26,6 +26,21 @@ export function needsPdgApproval(
   return Number.isFinite(totalAmountFcfa) && totalAmountFcfa >= thresholdFcfa
 }
 
+/**
+ * Case **PDG** de la fiche EB : le seuil décide **qui doit approuver**, le visa
+ * décide **ce qui s'imprime**. Une révision PDG qui fait repasser le total sous
+ * le seuil doit donc laisser la signature visible — sinon le bandeau
+ * « VERSION MODIFIÉE — révisée par le PDG » s'affiche sans la case PDG qui la
+ * porte, et le document semble ne jamais avoir été signé.
+ */
+export function shouldDisplayPdgSignature(
+  totalAmountFcfa: number,
+  thresholdFcfa: number,
+  hasPdgSignature: boolean,
+): boolean {
+  return hasPdgSignature || needsPdgApproval(totalAmountFcfa, thresholdFcfa)
+}
+
 export function unitPriceFromAmount(amountFcfa: number, quantity: number): number {
   if (!Number.isFinite(amountFcfa) || !Number.isFinite(quantity) || quantity <= 0) return 0
   return Math.round((amountFcfa / quantity) * 100) / 100

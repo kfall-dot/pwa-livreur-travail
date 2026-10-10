@@ -1197,6 +1197,17 @@ test.describe('Achats chantier BTP (procurement)', () => {
     expect(btHtml).toMatch(/NIP vérifié/)
     expect(btHtml).toContain(fcfa(newBtAmount))
     expect(btHtml).not.toContain(fcfa(oldBtAmount))
+
+    // La fiche EB v2 porte elle aussi le bandeau et le visa du PDG.
+    const ficheRes = await request.get(
+      `${API_BASE}/api/v1/procurement/requests/${submitted.id}/eb-html`,
+    )
+    expect(ficheRes.ok(), await ficheRes.text()).toBeTruthy()
+    const ficheHtml = await ficheRes.text()
+    expect(ficheHtml).toMatch(/VERSION MODIFIÉE n° 2/)
+    expect(ficheHtml).toMatch(/révisée par le PDG/)
+    expect(ficheHtml).toMatch(/Diabaté PDG/)
+    expect(ficheHtml).toMatch(/NIP vérifié/)
   })
 
   test('un BC par fournisseur présent sur l’EB (I58)', async ({ request }) => {
