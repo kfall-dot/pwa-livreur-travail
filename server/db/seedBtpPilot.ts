@@ -219,7 +219,7 @@ export async function seedBtpPilotData(): Promise<{
       address: 'Boulevard Latrille, Cocody, Abidjan',
       lat: '5.3600000',
       lng: '-3.9870000',
-      managerId: BTP_DEMO.MANAGER_DT_ID,
+      managerId: BTP_DEMO.MANAGER_CDC_ID,
       // Le DT doit superviser le chantier pilote : sans supervisor_manager_id,
       // « Suivi chantier » (stock, budgets) est vide pour lui (I64).
       supervisorManagerId: BTP_DEMO.MANAGER_DT_ID,
@@ -233,7 +233,7 @@ export async function seedBtpPilotData(): Promise<{
         name: 'Résidence Cocody — Tour A',
         address: 'Boulevard Latrille, Cocody, Abidjan',
         whatsappGroupId: BTP_DEMO.WHATSAPP_GROUP_ID,
-        managerId: BTP_DEMO.MANAGER_DT_ID,
+        managerId: BTP_DEMO.MANAGER_CDC_ID,
         supervisorManagerId: BTP_DEMO.MANAGER_DT_ID,
         active: true,
       },
@@ -414,6 +414,21 @@ export async function seedBtpPilotData(): Promise<{
         pinHash,
       },
     })
+
+  // Livreur virtuel « LIVRAISON FOURNISSEUR » — porteur des tournées de livraison
+  // fournisseur directe sur chantier (pas de chauffeur physique, pas de téléphone).
+  await db
+    .insert(drivers)
+    .values({
+      id: 'drv-supplier',
+      companyId: BTP_DEMO.COMPANY_ID,
+      phone: 'supplier-' + BTP_DEMO.COMPANY_ID,
+      pinHash: null,
+      name: 'LIVRAISON FOURNISSEUR',
+      isVirtual: true,
+      status: 'active',
+    })
+    .onConflictDoNothing()
 
   await upsertDocumentTemplate({
     id: BTP_DEMO.TEMPLATE_BC_ID,

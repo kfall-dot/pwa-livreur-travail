@@ -139,6 +139,7 @@ export function PlanifierTab({
   // verrous produits ; un ref déclencherait react-hooks/refs).
   const [procurementRequestId, setProcurementRequestId] = useState<string | null>(null)
   const [procurementOrderId, setProcurementOrderId] = useState<string | null>(null)
+  const [deliveryMode, setDeliveryMode] = useState<'livreur' | 'fournisseur'>('livreur')
 
   const resetCreateForm = useCallback(() => {
     replanLoadRef.current += 1
@@ -158,6 +159,7 @@ export function PlanifierTab({
     setCreateError(null)
     setProcurementRequestId(null)
     setProcurementOrderId(null)
+    setDeliveryMode('livreur')
     setFormVersion((v) => v + 1)
   }, [])
 
@@ -227,6 +229,7 @@ export function PlanifierTab({
     const smId = matchSupermarketId(supermarkets, p.stopName, p.stopAddress)
     setProcurementRequestId(p.purchaseRequestId)
     setProcurementOrderId(p.purchaseOrderId ?? null)
+    setDeliveryMode('livreur')
     setNewTour({
       driverId: p.driverId ?? '',
       date: p.date,
@@ -461,7 +464,9 @@ export function PlanifierTab({
       const res = await authFetch('/dashboard/tours', {
         method: 'POST',
         body: JSON.stringify({
-          driverId: newTour.driverId,
+          ...(procurementRequestId && deliveryMode === 'fournisseur'
+            ? { deliverySource: 'supplier' }
+            : { driverId: newTour.driverId }),
           date: newTour.date,
           depotName: newTour.depotName,
           depotAddress: newTour.depotAddress,
@@ -543,36 +548,67 @@ export function PlanifierTab({
                   <input type="date" data-testid="mgr-planifier-date" value={newTour.date} required onChange={(e) => setNewTour((p) => ({ ...p, date: e.target.value }))} />
                   <div className="pl-hint">La tournée apparaîtra dans le dashboard du livreur à cette date.</div>
                 </div>
-                <div className="pl-field">
-                  <label>Livreur *</label>
-                  <select
-                    data-testid="mgr-create-driver"
-                    value={newTour.driverId}
-                    required
-                    disabled={driversLoading || drivers.filter((d) => d.status === 'active').length === 0}
-                    onChange={(e) => setNewTour((p) => ({ ...p, driverId: e.target.value }))}
-                  >
-                    <option value="">
-                      {driversLoading
-                        ? 'Chargement des livreurs…'
-                        : drivers.filter((d) => d.status === 'active').length === 0
-                          ? 'Aucun livreur actif'
-                          : 'Choisir un livreur'}
-                    </option>
-                    {drivers.filter((d) => d.status === 'active').map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                  {driversError && (
-                    <p style={{ margin: '6px 0 0', fontSize: 13, color: '#b91c1c' }}>
-                      {driversError}{' '}
-                      <button type="button" onClick={() => void loadDrivers()} className="pl-btn" style={{ padding: '2px 8px', fontSize: 12 }}>Réessayer</button>
-                    </p>
-                  )}
-                  {!driversLoading && !driversError && drivers.filter((d) => d.status === 'active').length === 0 && (
-                    <p className="pl-hint">Ajoutez ou réactivez un livreur dans l'onglet Équipe.</p>
-                  )}
-                </div>
+                {procurementRequestId && (
+                  <div className="pl-field">
+                    <label>Mode de livraison *</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        data-testid="mgr-delivery-mode-driver"
+                        onClick={() => setDeliveryMode('livreur')}
+                        className={deliveryMode === 'livreur' ? 'pl-btn pl-btn-primary' : 'pl-btn'}
+                      >
+                        Livreur TraceO
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="mgr-delivery-mode-supplier"
+                        onClick={() => setDeliveryMode('fournisseur')}
+                        className={deliveryMode === 'fournisseur' ? 'pl-btn pl-btn-primary' : 'pl-btn'}
+                      >
+                        Livraison directe fournisseur
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {procurementRequestId && deliveryMode === 'fournisseur' ? (
+                  <div className="pl-field">
+                    <label>Livreur</label>
+                    <input type="text" value="LIVRAISON FOURNISSEUR" disabled style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#334155', background: '#f1f5f9', boxSizing: 'border-box' }} />
+                    <div className="pl-hint">Réception confirmée par le chef de chantier — photos matériel + bon de livraison obligatoires.</div>
+                  </div>
+                ) : (
+                  <div className="pl-field">
+                    <label>Livreur *</label>
+                    <select
+                      data-testid="mgr-create-driver"
+                      value={newTour.driverId}
+                      required
+                      disabled={driversLoading || drivers.filter((d) => d.status === 'active').length === 0}
+                      onChange={(e) => setNewTour((p) => ({ ...p, driverId: e.target.value }))}
+                    >
+                      <option value="">
+                        {driversLoading
+                          ? 'Chargement des livreurs…'
+                          : drivers.filter((d) => d.status === 'active').length === 0
+                            ? 'Aucun livreur actif'
+                            : 'Choisir un livreur'}
+                      </option>
+                      {drivers.filter((d) => d.status === 'active').map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                    {driversError && (
+                      <p style={{ margin: '6px 0 0', fontSize: 13, color: '#b91c1c' }}>
+                        {driversError}{' '}
+                        <button type="button" onClick={() => void loadDrivers()} className="pl-btn" style={{ padding: '2px 8px', fontSize: 12 }}>Réessayer</button>
+                      </p>
+                    )}
+                    {!driversLoading && !driversError && drivers.filter((d) => d.status === 'active').length === 0 && (
+                      <p className="pl-hint">Ajoutez ou réactivez un livreur dans l'onglet Équipe.</p>
+                    )}
+                  </div>
+                )}
                 <div className="pl-field">
                   <label>{useFournisseurLabels ? 'Fournisseur *' : 'Nom du dépôt *'}</label>
                   <input type="text" data-testid="mgr-create-depot" value={newTour.depotName} required placeholder={useFournisseurLabels ? 'Ex: CimIvoire' : 'Ex: Entrepôt Nord'} onChange={(e) => setNewTour((p) => ({ ...p, depotName: e.target.value }))} />
@@ -609,7 +645,7 @@ export function PlanifierTab({
                 </div>
               </div>
               <div className="pl-summary">
-                <div><div className="lbl">Livreur</div><div className="big">{drivers.find((d) => d.id === newTour.driverId)?.name ?? '—'}</div></div>
+                <div><div className="lbl">Livreur</div><div className="big">{procurementRequestId && deliveryMode === 'fournisseur' ? 'LIVRAISON FOURNISSEUR' : drivers.find((d) => d.id === newTour.driverId)?.name ?? '—'}</div></div>
                 <div className="sep" />
                 <div><div className="lbl">Date</div><div className="big">{new Date(newTour.date + 'T12:00:00').toLocaleDateString('fr-FR')}</div></div>
                 <div className="sep" />

@@ -2,15 +2,21 @@
 // Extrait de routes/dashboard.ts lors de son decoupage en modules — aucun
 // changement de comportement (memes chemins, memes middlewares).
 import { Router } from 'express'
-import { clearOtp, createOtpManagerAssistTask, getDashboardDeliveries, getDeclaration, getDeliveryDetail, getDeliveryStopForCompany, getPhotoCount, getTourById } from '../../db/queries.js'
+import multer from 'multer'
+import { randomUUID } from 'crypto'
+import { checkAndAddPhotoHash, clearOtp, createOtpManagerAssistTask, expectedDeclarationLinesFromStop, getDashboardDeliveries, getDeclaration, getDeliveryDetail, getDeliveryStopForCompany, getPhotoCount, getSupplierReceptionForManager, getTourById, listSupplierReceptions, removePhotoHash, setDeclaration } from '../../db/queries.js'
 import { getDeliveryPhotosStore, isBlobsEnabled } from '../../lib/blobs.js'
-import { isLocalPhotoStorageEnabled, listPhotosLocal, readPhotoLocal } from '../../lib/deliveryPhotoLocal.js'
+import { isLocalPhotoStorageEnabled, listPhotosLocal, readPhotoLocal, savePhotoLocal } from '../../lib/deliveryPhotoLocal.js'
 import { buildPhotoListItem, resolvePhotoKey } from '../../lib/deliveryPhotoResponse.js'
 import { logSecurityEvent } from '../../lib/securityAudit.js'
 import { requireManager, type ManagerRequest } from '../../middleware/managerAuth.js'
+import { requireProcurementRole, type ProcurementManagerRequest } from '../../middleware/procurementAuth.js'
 import { finalizeDeliveryConfirmation } from '../../services/deliveryConfirmation.js'
 import { readOtpStatusForManager, resendOtpForManager } from '../../services/deliveryOtpAssist.js'
 import { localTodayIso } from '../../utils/dates.js'
+import { isValidDeclarationOutcome, parseDeclarationLines, validateDeclarationBeforeSubmit } from '../../../shared/declarationValidation.js'
+
+const chefUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
 export const deliveriesRoutes = Router()
 
@@ -340,3 +346,126 @@ deliveriesRoutes.get('/dashboard/photos/{*photoId}', requireManager, async (req,
     res.status(500).json({ message: 'Erreur serveur' })
   }
 })
+
+// ─── Livraison fournisseur directe — réception par le chef de chantier ───────
+
+/** Périmètre de réception : le chef ne voit que ses chantiers ; DT/admin voient tout. */
+function supplierReceptionScope(req: import('express').Request): string | null {
+  const { manager } = req as ManagerRequest
+  const role = (req as ProcurementManagerRequest).procurementRole
+  return role === 'site_manager' ? manager.sub : null
+}
+
+// GET /dashboard/supplier-receptions
+deliveriesRoutes.get('/dashboard/supplier-receptions', requireProcurementRole('site_manager', 'technical_director'), async (req, res) => {
+  const { manager } = req as ManagerRequest
+  try {
+    const receptions = await listSupplierReceptions(manager.companyId, supplierReceptionScope(req))
+    res.json({ receptions })
+  } catch (err) {
+    console.error('[dashboard] supplier-receptions error', err)
+    res.status(500).json({ message: 'Erreur serveur' })
+  }
+})
+
+// POST /dashboard/deliveries/:id/chef-photo — photo matériel / bon de livraison
+deliveriesRoutes.post('/dashboard/deliveries/:id/chef-photo', requireProcurementRole('site_manager', 'technical_director'), chefUpload.single('photo'), async (req, res) => {
+  const { manager } = req as ManagerRequest
+  const deliveryId = String(req.params.id)
+  if (!req.file) {
+    res.status(400).json({ message: 'Photo requise' })
+    return
+  }
+  try {
+    const reception = await getSupplierReceptionForManager(deliveryId, manager.companyId, supplierReceptionScope(req))
+    if (!reception) {
+      res.status(404).json({ message: 'Réception fournisseur introuvable' })
+      return
+    }
+    const hash = typeof req.body.hash === 'string' ? req.body.hash : ''
+    if (hash) {
+      const added = await checkAndAddPhotoHash(deliveryId, hash)
+      if (!added) {
+        res.status(409).json({ message: 'Photo en doublon détectée' })
+        return
+      }
+    }
+    const photoId = `${deliveryId}/${randomUUID()}`
+    const arrayBuffer = req.file.buffer.buffer.slice(
+      req.file.buffer.byteOffset,
+      req.file.buffer.byteOffset + req.file.buffer.byteLength,
+    ) as ArrayBuffer
+    const meta = {
+      deliveryId,
+      paletteNumber: typeof req.body.paletteNumber === 'string' ? req.body.paletteNumber : '',
+      uploadedAt: new Date().toISOString(),
+    }
+    if (isBlobsEnabled()) {
+      await getDeliveryPhotosStore().set(photoId, arrayBuffer, { metadata: meta })
+    } else if (isLocalPhotoStorageEnabled()) {
+      savePhotoLocal(photoId, req.file.buffer, meta)
+    } else {
+      if (hash) await removePhotoHash(deliveryId, hash)
+      res.status(503).json({ message: 'Stockage photo indisponible, réessayez.' })
+      return
+    }
+    const photosCount = await getPhotoCount(deliveryId)
+    res.json({ ok: true, photoId, size: req.file.size, photosCount })
+  } catch (err) {
+    console.error('[dashboard] chef-photo error', err)
+    res.status(500).json({ message: 'Erreur serveur' })
+  }
+})
+
+// POST /dashboard/deliveries/:id/chef-confirm — confirme la réception fournisseur
+deliveriesRoutes.post('/dashboard/deliveries/:id/chef-confirm', requireProcurementRole('site_manager', 'technical_director'), async (req, res) => {
+  const { manager } = req as ManagerRequest
+  const deliveryId = String(req.params.id)
+  const body = req.body as { outcome?: unknown; lines?: unknown; reason?: unknown }
+  try {
+    const reception = await getSupplierReceptionForManager(deliveryId, manager.companyId, supplierReceptionScope(req))
+    if (!reception) {
+      res.status(404).json({ message: 'Réception fournisseur introuvable' })
+      return
+    }
+    if (reception.status === 'delivered' || reception.status === 'failed') {
+      res.status(422).json({ message: 'Réception déjà terminée.' })
+      return
+    }
+    if (!isValidDeclarationOutcome(body.outcome)) {
+      res.status(400).json({ message: 'outcome invalide (full | partial | rejected)' })
+      return
+    }
+    const lines = parseDeclarationLines(body.lines)
+    if (!lines) {
+      res.status(400).json({ message: 'lines invalide : tableau de lignes produit requis' })
+      return
+    }
+    const planned = expectedDeclarationLinesFromStop(reception).map((p) => ({
+      productLabel: p.productLabel,
+      unit: p.unit,
+      quantityExpected: p.quantityExpected,
+    }))
+    const validationError = validateDeclarationBeforeSubmit(lines, reception.units, body.outcome, planned)
+    if (validationError) {
+      res.status(400).json({ message: validationError })
+      return
+    }
+    const photoCount = await getPhotoCount(deliveryId)
+    if (photoCount < reception.requiredPhotos) {
+      res.status(422).json({
+        message: `Photos insuffisantes (${photoCount}/${reception.requiredPhotos}) — photo(s) matériel + bon de livraison requises.`,
+      })
+      return
+    }
+    const note = `[Réception chef de chantier — ${manager.email}]${typeof body.reason === 'string' && body.reason.trim() ? ` ${body.reason.trim()}` : ''}`
+    await setDeclaration(deliveryId, body.outcome, lines)
+    const result = await finalizeDeliveryConfirmation(reception, { confirmationNote: note })
+    await clearOtp(deliveryId)
+    res.json({ ok: true, ...result })
+  } catch (err) {
+    console.error('[dashboard] chef-confirm error', err)
+    res.status(500).json({ message: 'Erreur serveur' })
+  }
+})
+

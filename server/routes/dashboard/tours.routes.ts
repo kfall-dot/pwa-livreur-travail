@@ -5,7 +5,7 @@ import { Router } from 'express'
 import { expectedProductLabelKey, validateStopProducts } from '../../../shared/expectedProducts.js'
 import { generateOrderRef } from '../../../shared/orderRef.js'
 import { getPurchaseRequestById, getPurchaseRequestLines } from '../../db/procurementQueries.js'
-import { createTourWithStops, deleteDeliveryPoints, deleteTourIfNoDeliveries, getBcProductKeysForTour, getDashboardTours, getDeliveryStopForCompany, getDriverById, getPartialDeliveryReplanTemplate, getStopsForTour, getTourById, getTourReplanTemplate, getTourWithStops, isActiveCompanyUnit, parseExpectedProducts, resolvePendingReassignForTour, resolveTourPurchaseOrderId, stopPayloadDiffersFromExisting, supersedeNonDeliveredStopsFromTour, updateDeliveryPointSequence, updateTourMeta, upsertDeliveryPoint } from '../../db/queries.js'
+import { createTourWithStops, deleteDeliveryPoints, deleteTourIfNoDeliveries, getBcProductKeysForTour, getDashboardTours, getDeliveryStopForCompany, getDriverById, getPartialDeliveryReplanTemplate, getStopsForTour, getTourById, getTourReplanTemplate, getTourWithStops, getVirtualSupplierDriver, isActiveCompanyUnit, parseExpectedProducts, resolvePendingReassignForTour, resolveTourPurchaseOrderId, stopPayloadDiffersFromExisting, supersedeNonDeliveredStopsFromTour, updateDeliveryPointSequence, updateTourMeta, upsertDeliveryPoint } from '../../db/queries.js'
 import { resolveStopFromCatalog } from '../../lib/resolveTourStop.js'
 import { requireManager, type ManagerRequest } from '../../middleware/managerAuth.js'
 import { markDeliveryScheduled, ProcurementWorkflowError } from '../../services/procurementWorkflow.js'
@@ -46,17 +46,30 @@ toursRoutes.get('/dashboard/tours', requireManager, async (req, res) => {
 toursRoutes.post('/dashboard/tours', requireManager, async (req, res) => {
   const { manager } = req as ManagerRequest
   const body = req.body as Record<string, unknown>
-  const { driverId, date, depotName, depotAddress, depotLat, depotLng, stops, replannedFromTourId } = body
+  const { driverId, deliverySource, date, depotName, depotAddress, depotLat, depotLng, stops, replannedFromTourId } = body
+  const isSupplierDelivery = deliverySource === 'supplier'
 
-  if (!driverId || !date || !depotName || !depotAddress || !Array.isArray(stops) || stops.length === 0) {
-    res.status(400).json({ message: 'Champs obligatoires manquants (driverId, date, depot, stops)' })
-    return
-  }
-
-  const driverCheck = await getDriverById(String(driverId))
-  if (!driverCheck || driverCheck.companyId !== manager.companyId) {
-    res.status(403).json({ message: 'Livreur introuvable pour votre entreprise' })
-    return
+  // Livraison directe fournisseur : pas de chauffeur physique, on rattache la
+  // tournée au livreur virtuel « LIVRAISON FOURNISSEUR ».
+  let resolvedDriverId: string
+  if (isSupplierDelivery) {
+    if (!date || !depotName || !depotAddress || !Array.isArray(stops) || stops.length === 0) {
+      res.status(400).json({ message: 'Champs obligatoires manquants (date, depot, stops)' })
+      return
+    }
+    const virtualDriver = await getVirtualSupplierDriver(manager.companyId)
+    resolvedDriverId = virtualDriver.id
+  } else {
+    if (!driverId || !date || !depotName || !depotAddress || !Array.isArray(stops) || stops.length === 0) {
+      res.status(400).json({ message: 'Champs obligatoires manquants (driverId, date, depot, stops)' })
+      return
+    }
+    const driverCheck = await getDriverById(String(driverId))
+    if (!driverCheck || driverCheck.companyId !== manager.companyId) {
+      res.status(403).json({ message: 'Livreur introuvable pour votre entreprise' })
+      return
+    }
+    resolvedDriverId = String(driverId)
   }
 
   // Tournée issue d'un BC : les produits doivent provenir du BC (pas d'ajout libre).
@@ -117,7 +130,7 @@ toursRoutes.post('/dashboard/tours', requireManager, async (req, res) => {
       contactPhone: resolved.stop.contactPhone,
       timeWindowStart: s.timeWindowStart ? String(s.timeWindowStart) : undefined,
       timeWindowEnd: s.timeWindowEnd ? String(s.timeWindowEnd) : undefined,
-      requiredPhotos: Number(s.requiredPhotos ?? 1),
+      requiredPhotos: isSupplierDelivery ? 2 : Number(s.requiredPhotos ?? 1),
       lat: resolved.stop.lat,
       lng: resolved.stop.lng,
       products,
@@ -127,7 +140,8 @@ toursRoutes.post('/dashboard/tours', requireManager, async (req, res) => {
   try {
     const result = await createTourWithStops({
       companyId: manager.companyId,
-      driverId: String(driverId),
+      driverId: resolvedDriverId,
+      deliverySource: isSupplierDelivery ? 'supplier' : 'driver',
       date: String(date),
       depotName: String(depotName),
       depotAddress: String(depotAddress),
@@ -164,7 +178,7 @@ toursRoutes.post('/dashboard/tours', requireManager, async (req, res) => {
     }
 
     let driverNotify: { sent: boolean; error?: string } = { sent: false }
-    const driver = await getDriverById(String(driverId))
+    const driver = await getDriverById(resolvedDriverId)
     if (driver?.phone) {
       const smsBody = buildTourAssignedSmsBody({
         tourDate: String(date),

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, isNotNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, lte, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { localTodayIso } from '../utils/dates.js'
 import {
@@ -1099,7 +1099,128 @@ export async function getDashboardTours(date: string, companyId: string): Promis
 }
 
 export async function getAllDrivers(companyId: string): Promise<Driver[]> {
-  return db.select().from(drivers).where(eq(drivers.companyId, companyId)).orderBy(drivers.name)
+  return db
+    .select()
+    .from(drivers)
+    .where(and(eq(drivers.companyId, companyId), eq(drivers.isVirtual, false)))
+    .orderBy(drivers.name)
+}
+
+/**
+ * Livreur virtuel « LIVRAISON FOURNISSEUR » — utilisé pour les tournées de
+ * livraison fournisseur directe sur chantier. Créé à la volée si absent
+ * (seed du pilote : `drv-supplier`). Ne figure jamais dans `getAllDrivers`.
+ */
+export async function getVirtualSupplierDriver(companyId: string): Promise<Driver> {
+  const [existing] = await db
+    .select()
+    .from(drivers)
+    .where(and(eq(drivers.companyId, companyId), eq(drivers.isVirtual, true)))
+    .limit(1)
+  if (existing) return existing
+
+  const id = `drv-supplier-${companyId}`
+  const [created] = await db
+    .insert(drivers)
+    .values({
+      id,
+      companyId,
+      phone: `supplier-${companyId}`,
+      pinHash: null,
+      name: 'LIVRAISON FOURNISSEUR',
+      isVirtual: true,
+      status: 'active',
+    })
+    .onConflictDoNothing()
+    .returning()
+  if (created) return created
+
+  const [row] = await db.select().from(drivers).where(eq(drivers.id, id)).limit(1)
+  if (!row) throw new Error('Impossible de créer le livreur virtuel fournisseur')
+  return row
+}
+
+export interface SupplierReception extends DeliveryPoint {
+  tourId: string
+  tourDate: string
+  supplierName: string
+  siteName: string
+}
+
+const SUPPLIER_PENDING_STATUSES = ['pending', 'in_progress', 'otp_sent'] as const
+
+/**
+ * Livraisons fournisseur directes à réceptionner. `managerId` null → toutes
+ * (DT/admin) ; sinon restreint aux chantiers dont le chef (`sites.manager_id`)
+ * est responsable.
+ */
+export async function listSupplierReceptions(
+  companyId: string,
+  managerId: string | null,
+): Promise<SupplierReception[]> {
+  const conds = [
+    eq(tours.companyId, companyId),
+    eq(tours.deliverySource, 'supplier'),
+    inArray(deliveryPoints.status, SUPPLIER_PENDING_STATUSES),
+  ]
+  if (managerId) conds.push(eq(sites.managerId, managerId))
+  const rows = await db
+    .select({
+      stop: deliveryPoints,
+      tourId: tours.id,
+      tourDate: tours.date,
+      supplierName: tours.depotName,
+      siteName: supermarkets.name,
+    })
+    .from(deliveryPoints)
+    .innerJoin(tours, eq(deliveryPoints.tourId, tours.id))
+    .innerJoin(supermarkets, eq(deliveryPoints.supermarketId, supermarkets.id))
+    .innerJoin(sites, eq(sites.supermarketId, supermarkets.id))
+    .where(and(...conds))
+    .orderBy(desc(tours.date), asc(deliveryPoints.sequence))
+  return rows.map((r) => ({
+    ...r.stop,
+    tourId: r.tourId,
+    tourDate: r.tourDate,
+    supplierName: r.supplierName,
+    siteName: r.siteName,
+  }))
+}
+
+/** Réception fournisseur par id, restreinte au périmètre chantier du chef si `managerId` fourni. */
+export async function getSupplierReceptionForManager(
+  deliveryId: string,
+  companyId: string,
+  managerId: string | null,
+): Promise<SupplierReception | null> {
+  const conds = [
+    eq(deliveryPoints.id, deliveryId),
+    eq(tours.companyId, companyId),
+    eq(tours.deliverySource, 'supplier'),
+  ]
+  if (managerId) conds.push(eq(sites.managerId, managerId))
+  const [row] = await db
+    .select({
+      stop: deliveryPoints,
+      tourId: tours.id,
+      tourDate: tours.date,
+      supplierName: tours.depotName,
+      siteName: supermarkets.name,
+    })
+    .from(deliveryPoints)
+    .innerJoin(tours, eq(deliveryPoints.tourId, tours.id))
+    .innerJoin(supermarkets, eq(deliveryPoints.supermarketId, supermarkets.id))
+    .innerJoin(sites, eq(sites.supermarketId, supermarkets.id))
+    .where(and(...conds))
+    .limit(1)
+  if (!row) return null
+  return {
+    ...row.stop,
+    tourId: row.tourId,
+    tourDate: row.tourDate,
+    supplierName: row.supplierName,
+    siteName: row.siteName,
+  }
 }
 
 export type TourUnitType = string
@@ -1107,6 +1228,8 @@ export type TourUnitType = string
 export interface CreateTourInput {
   companyId: string
   driverId: string
+  /** 'driver' (enlèvement chauffeur) | 'supplier' (livraison directe fournisseur). */
+  deliverySource?: 'driver' | 'supplier'
   date: string
   depotName: string
   depotAddress: string
@@ -1138,6 +1261,7 @@ export async function createTourWithStops(input: CreateTourInput): Promise<{ tou
       id: tourId,
       companyId: input.companyId,
       driverId: input.driverId,
+      deliverySource: input.deliverySource ?? 'driver',
       date: input.date,
       depotName: input.depotName,
       depotAddress: input.depotAddress,

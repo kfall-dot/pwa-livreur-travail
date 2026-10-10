@@ -50,7 +50,7 @@ import type { ParsedEbLine, ProcurementRole, PurchaseRequestStatus } from '../db
 import { managers } from '../db/schema.js'
 import { db } from '../db/index.js'
 import { and, eq } from 'drizzle-orm'
-import { createTourWithStops, ensureCompanyUnit, ensureProductsFromEbLines, getManagerById } from '../db/queries.js'
+import { createTourWithStops, ensureCompanyUnit, ensureProductsFromEbLines, getManagerById, getVirtualSupplierDriver } from '../db/queries.js'
 import { catalogUnitFromEb } from '../../shared/ebCatalog.js'
 import { detachSupplierChangeAttachments, linesForSupplier } from '../lib/procurementLines.js'
 import { hasComptantLines, saFinanceIncompleteMessage } from '../../shared/saFinanceGate.js'
@@ -197,7 +197,8 @@ const bulkLinesAttachmentSchema = z.object({
 })
 
 const scheduleSchema = z.object({
-  driverId: z.string().min(1),
+  driverId: z.string().min(1).optional(),
+  deliverySource: z.enum(['driver', 'supplier']).optional(),
   date: z.string().optional(),
   purchaseOrderId: z.string().optional(),
 })
@@ -1613,6 +1614,15 @@ procurementRouter.post(
         return
       }
 
+      const isSupplierDelivery = body.deliverySource === 'supplier'
+      const driverId = isSupplierDelivery
+        ? (await getVirtualSupplierDriver(manager.companyId)).id
+        : body.driverId
+      if (!driverId) {
+        res.status(400).json({ message: 'Livreur requis' })
+        return
+      }
+
       const poLines = linesForSupplier(detail.lines, supplier.name)
       const date = body.date ?? localTodayIso()
       for (const line of poLines) {
@@ -1620,7 +1630,8 @@ procurementRouter.post(
       }
       const { tourId } = await createTourWithStops({
         companyId: manager.companyId,
-        driverId: body.driverId,
+        driverId,
+        deliverySource: isSupplierDelivery ? 'supplier' : 'driver',
         date,
         depotName: supplier.name,
         depotAddress: supplier.address ?? '—',
@@ -1636,9 +1647,10 @@ procurementRouter.post(
             weightKg: '0',
             orderRef: targetPo?.reference ?? detail.request.reference,
             contactPhone: detail.site.managerId ?? undefined,
+            supermarketId: detail.site.supermarketId ?? undefined,
             lat: detail.site.lat ?? '5.3600',
             lng: detail.site.lng ?? '-4.0083',
-            requiredPhotos: 1,
+            requiredPhotos: isSupplierDelivery ? 2 : 1,
             products: poLines.map((l: { label: string; quantity: string | number; unit: string }) => ({
               label: l.label,
               qty: Number(l.quantity),

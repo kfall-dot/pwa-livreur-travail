@@ -107,6 +107,9 @@ export const drivers = pgTable('drivers', {
   phone: text('phone').notNull().unique(),
   pinHash: text('pin_hash'),
   name: text('name').notNull(),
+  /** Livreur virtuel « LIVRAISON FOURNISSEUR » — ne doit jamais apparaître dans
+   *  Équipe / Planifier ni pouvoir se connecter (téléphone sentinelle + aucun PIN). */
+  isVirtual: boolean('is_virtual').notNull().default(false),
   status: driverStatusEnum('status').notNull().default('pending'),
   inviteToken: text('invite_token'),
   inviteExpiresAt: timestamp('invite_expires_at'),
@@ -134,6 +137,8 @@ export const tours = pgTable('tours', {
   depotLng: numeric('depot_lng', { precision: 10, scale: 7 }).notNull(),
   optimizationScore: integer('optimization_score').notNull().default(0),
   purchaseOrderId: text('purchase_order_id'),
+  /** 'driver' (enlèvement par notre chauffeur) ou 'supplier' (livraison directe fournisseur). */
+  deliverySource: text('delivery_source').notNull().default('driver'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

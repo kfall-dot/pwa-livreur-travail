@@ -3,6 +3,7 @@ import { authFetch } from '../managerApi'
 import { formatQuantityWithUnit } from '../../../lib/deliveryUnits'
 import { appTodayString } from '../../../lib/appDate'
 import { css } from './procurementUi'
+import { SupplierReceptions } from './SupplierReceptions'
 
 type SiteOption = { id: string; name: string; address: string }
 type TaskRow = {
@@ -306,6 +307,8 @@ const localToday = (): string => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: 720 }}>
       {message && <div style={css.messageBox}>{message}</div>}
+
+      <SupplierReceptions handleAuth={handleAuth} />
 
       <div style={css.card}>
         <h3 style={{ marginTop: 0 }}>📁 Ma journée</h3>
