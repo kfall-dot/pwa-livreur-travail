@@ -13,6 +13,7 @@ import type {
   ScheduleDeliveryPayload,
   SiteRow,
   SupplierRow,
+  ReviseQuantitiesPayload,
   BcRegisterRow,
   SiteBudget,
   SiteIndicators,
@@ -261,6 +262,24 @@ export async function rejectRequest(id: string, payload?: ApproveRejectPayload):
   })
   if (!res.ok) {
     throw await apiErrorMessage(res, 'Rejet échoué')
+  }
+  await res.json()
+  return fetchRequest(id)
+}
+
+export async function reviseRequestQuantities(
+  id: string,
+  payload: ReviseQuantitiesPayload,
+): Promise<RequestDetailResponse> {
+  if (!payload.quantities || payload.quantities.length === 0) {
+    throw new Error('Aucune quantité à réviser.')
+  }
+  const res = await authFetch(`${BASE}/requests/${encodeURIComponent(id)}/revise-quantities`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    throw await apiErrorMessage(res, 'Révision des quantités échouée')
   }
   await res.json()
   return fetchRequest(id)

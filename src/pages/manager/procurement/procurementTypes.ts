@@ -28,7 +28,7 @@ export type PurchaseRequestStatus =
 
 export type WhatsappMessageType = 'text' | 'audio' | 'image' | 'document' | 'unknown'
 
-export type ApprovalDecision = 'approved' | 'rejected'
+export type ApprovalDecision = 'approved' | 'rejected' | 'revised'
 
 export type PurchaseDocType = 'bc' | 'bt'
 
@@ -141,6 +141,20 @@ export interface PurchaseRequestRow {
   updatedAt: string
   siteName?: string | null
   supplierName?: string | null
+  version?: number
+  ebVersion?: number
+  revisionComment?: string | null
+  revisedAt?: string | null
+}
+
+export interface PurchaseRequestVersion {
+  id: string
+  purchaseRequestId: string
+  version: number
+  quantities: Array<{ lineId: string; quantity: number }>
+  comment?: string | null
+  createdBy?: string | null
+  createdAt: string
 }
 
 export interface PurchaseOrderRow {
@@ -206,6 +220,7 @@ export interface RequestDetailResponse {
   purchaseOrders?: PurchaseOrderRow[]
   treasuryOrder?: TreasuryOrderRow | null
   suppliers?: SupplierRow[]
+  versions?: PurchaseRequestVersion[]
 }
 
 export interface DraftUpdatePayload {
@@ -244,6 +259,11 @@ export interface ProcurementTourPrefill {
 export interface ApproveRejectPayload {
   comment?: string
   pin?: string
+}
+
+export interface ReviseQuantitiesPayload {
+  quantities: Array<{ id: string; quantity: number }>
+  comment?: string
 }
 
 export interface BcRegisterMonth {

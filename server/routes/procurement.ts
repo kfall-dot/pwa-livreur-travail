@@ -73,6 +73,7 @@ import {
   markDeliveryScheduled,
   ProcurementWorkflowError,
   rejectPurchaseRequest,
+  revisePurchaseRequest,
 } from '../services/procurementWorkflow.js'
 import { wrapPoDocument } from '../services/pdfDocuments.js'
 import {
@@ -172,6 +173,18 @@ const submitDraftSchema = z.object({
 const approveSchema = z.object({
   comment: z.string().optional(),
   pin: z.string().optional(),
+})
+
+const reviseSchema = z.object({
+  quantities: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        quantity: z.number().nonnegative(),
+      }),
+    )
+    .min(1, 'Au moins une ligne à réviser'),
+  comment: z.string().optional(),
 })
 
 const createPoSchema = z.object({
@@ -1413,6 +1426,9 @@ procurementRouter.get('/requests/:id/eb-html', async (req, res) => {
     requesterName: detail.request.requestedByName ?? '',
     treatmentDate: new Date(detail.request.createdAt).toLocaleDateString('fr-FR'),
     urgency: detail.request.urgency,
+    version: detail.request.version ?? 1,
+    revisionComment: detail.request.revisionComment ?? null,
+    revisedAt: detail.request.revisedAt ?? null,
     lines: ficheLinesFromParsed(lines),
     showPdg: needsPdgApproval(
       sumLineAmountsFcfa(
@@ -1532,6 +1548,36 @@ procurementRouter.post('/requests/:id/reject', async (req, res) => {
     res.status(500).json({ message: 'Erreur rejet' })
   }
 })
+
+/**
+ * Révision PDG des quantités (option A). Autorisée uniquement au statut
+ * `pdg_review` (contrôlé dans le service). Enregistre la version, incrémente
+ * eb_version, renvoie la demande au SA et notifie le DT initiateur.
+ */
+procurementRouter.post(
+  '/requests/:id/revise-quantities',
+  requireProcurementRole('pdg'),
+  async (req, res) => {
+    const body = parseBody(reviseSchema, req.body, res)
+    if (!body) return
+    const { manager } = req as unknown as ProcurementManagerRequest
+    try {
+      const updated = await revisePurchaseRequest({
+        companyId: manager.companyId,
+        requestId: String(req.params.id),
+        managerId: manager.sub,
+        procurementRole: 'pdg',
+        quantities: body.quantities,
+        revisionComment: body.comment ?? null,
+      })
+      res.json({ request: updated })
+    } catch (err) {
+      if (handleWorkflowError(err, res)) return
+      console.error('[procurement] revise-quantities error', err)
+      res.status(500).json({ message: 'Erreur révision' })
+    }
+  },
+)
 
 procurementRouter.post(
   '/requests/:id/create-bt',

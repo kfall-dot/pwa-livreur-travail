@@ -170,3 +170,35 @@ export async function notifyPurchaseOrderReady(
     },
   )
 }
+
+/**
+ * Notifie une révision PDG d'une EB : le DT initiateur reçoit l'information et
+ * le Service achats est invité à poursuivre le processus sur la version révisée.
+ * L'EB révisée reste accessible par tous ceux qui avaient accès à la version
+ * initiale.
+ */
+export async function notifyRequestRevised(params: {
+  companyId: string
+  reference: string
+  createdByManagerId?: string | null
+  ebVersion: number
+  comment?: string | null
+}): Promise<void> {
+  const commentDetail = params.comment ? `\nMotif de la révision : ${params.comment}` : ''
+  const body =
+    `La demande ${params.reference} a été révisée par le PDG (version EB n° ${params.ebVersion}).` +
+    `${commentDetail}\nLes quantités ont été modifiées ; la demande a été renvoyée au Service achats pour suite.`
+
+  // Information au DT initiateur (si connu) + au Service achats pour poursuivre.
+  await notifyManagersByProcurementRole(
+    params.companyId,
+    ['technical_director'],
+    `EB ${params.reference} révisée — version ${params.ebVersion}`,
+    body,
+    {
+      link: `/manager/procurement/requests`,
+      refType: 'purchase_request',
+      notificationType: 'approval_required',
+    },
+  )
+}

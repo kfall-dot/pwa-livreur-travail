@@ -18,6 +18,7 @@ import {
   createBlankEbFiche,
     archiveDraft,
   rejectRequest,
+  reviseRequestQuantities,
   submitDraft,
   submitRequestFinance,
   updateDraft,
@@ -49,6 +50,7 @@ import {
   canEditDraft,
   canPriceRequest,
   canRejectRequest,
+  canReviseRequest,
   canScheduleDelivery,
   css,
   EmptyHint,
@@ -272,6 +274,9 @@ export function AchatsTab({
   const [actionLoading, setActionLoading] = useState(false)
   const [approvalComment, setApprovalComment] = useState('')
   const [approvalPin, setApprovalPin] = useState('')
+  const [reviseModalOpen, setReviseModalOpen] = useState(false)
+  const [reviseQuantities, setReviseQuantities] = useState<Record<string, string>>({})
+  const [reviseComment, setReviseComment] = useState('')
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [poAmount, setPoAmount] = useState('')
   const [, setDrivers] = useState<DriverOption[]>([])
@@ -769,6 +774,52 @@ export function AchatsTab({
     }
   }
 
+  const openReviseModal = () => {
+    if (!requestDetail) return
+    const initial: Record<string, string> = {}
+    for (const l of requestDetail.lines) {
+      initial[l.id] = String(Number.parseInt(String(l.quantity), 10) || 0)
+    }
+    setReviseQuantities(initial)
+    setReviseComment('')
+    setReviseModalOpen(true)
+  }
+
+  const handleReviseQuantities = async () => {
+    if (!selectedRequestId) return
+    const quantities = Object.entries(reviseQuantities)
+      .map(([id, qty]) => ({ id, quantity: Number.parseInt(qty, 10) }))
+      .filter((q) => Number.isFinite(q.quantity) && q.quantity >= 0)
+    if (quantities.length === 0) {
+      toast.error('Aucune quantité à réviser.')
+      return
+    }
+    if (quantities.every((q) => q.quantity === 0)) {
+      toast.error('Au moins une quantité doit être supérieure à 0.')
+      return
+    }
+    setActionLoading(true)
+    try {
+      const detail = await reviseRequestQuantities(selectedRequestId, {
+        quantities,
+        comment: reviseComment.trim() || undefined,
+      })
+      setRequestDetail(detail)
+      setReviseModalOpen(false)
+      setReviseComment('')
+      setReviseQuantities({})
+      toast.success(
+        `Demande révisée (version ${detail.request.version ?? '?'}). Renvoyée au SA.`,
+      )
+      void loadRequests()
+      onInboxCountChanged?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Révision des quantités échouée')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleCreateTreasury = async () => {
     if (!selectedRequestId || !requestDetail) return
     setActionLoading(true)
@@ -1118,6 +1169,16 @@ export function AchatsTab({
           onUploadAttachmentBulk={(lineIds, file) => void handleBulkUploadLineAttachments(lineIds, file)}
           onRemoveAttachment={(lineId) => void handleRemoveLineAttachment(lineId)}
           managerName={managerName ?? ''}
+          onReviseQuantities={openReviseModal}
+          reviseModalOpen={reviseModalOpen}
+          reviseQuantities={reviseQuantities}
+          reviseComment={reviseComment}
+          onReviseQuantityChange={(lineId, value) =>
+            setReviseQuantities((prev) => ({ ...prev, [lineId]: value }))
+          }
+          onReviseCommentChange={setReviseComment}
+          onReviseModalClose={() => setReviseModalOpen(false)}
+          onReviseConfirm={() => void handleReviseQuantities()}
         />
       ) : (
         <>
@@ -1924,6 +1985,14 @@ function RequestDetailPanel({
   onUploadAttachmentBulk,
   onRemoveAttachment,
   managerName,
+  onReviseQuantities,
+  reviseModalOpen,
+  reviseQuantities,
+  reviseComment,
+  onReviseQuantityChange,
+  onReviseCommentChange,
+  onReviseModalClose,
+  onReviseConfirm,
 }: {
   detail: RequestDetailResponse
   procurementRole: ProcurementRole | null
@@ -1960,6 +2029,14 @@ function RequestDetailPanel({
   onUploadAttachmentBulk: (lineIds: string[], file: File) => void
   onRemoveAttachment: (lineId: string) => void
   managerName: string
+  onReviseQuantities: () => void
+  reviseModalOpen: boolean
+  reviseQuantities: Record<string, string>
+  reviseComment: string
+  onReviseQuantityChange: (lineId: string, value: string) => void
+  onReviseCommentChange: (value: string) => void
+  onReviseModalClose: () => void
+  onReviseConfirm: () => void
 }) {
   const { request, lines, approvalSteps, site, supplier, purchaseOrder, purchaseOrders = [], treasuryOrder, suppliers = [] } = detail
   const [siteBudget, setSiteBudget] = useState<SiteBudget | null>(null)
@@ -1991,6 +2068,8 @@ function RequestDetailPanel({
   const allPosCreated =
     ebSuppliers.length > 0 && ebSuppliers.every((s) => orders.some((po) => po.supplierId === s.id))
   const showSchedule = canScheduleDelivery(request.status, procurementRole, orders)
+  const showRevise = canReviseRequest(request.status, procurementRole)
+  const nextVersion = (request.version ?? 1) + 1
   const pendingOrders = orders.filter((po) => !po.tourId)
   const showTreasury = Boolean(treasuryOrder) && hasComptantLines(lines)
   const canPrice = canPriceRequest(request.status, procurementRole)
@@ -3007,9 +3086,9 @@ function RequestDetailPanel({
         </div>
       )}
 
-      {(showApprove || showReject || showSchedule) && (
+      {(showApprove || showReject || showSchedule || showRevise) && (
         <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-          {(showApprove || showReject) && (
+          {(showApprove || showReject || showRevise) && (
             <Field label="Commentaire (optionnel sauf rejet)">
               <textarea
                 value={approvalComment}
@@ -3059,8 +3138,19 @@ function RequestDetailPanel({
             </div>
           )}
 
-          {(showApprove || showReject) && (
+          {(showApprove || showReject || showRevise) && (
           <div style={css.actionRow}>
+            {showRevise && (
+              <button
+                type="button"
+                data-testid="mgr-achats-revise-quantities"
+                onClick={onReviseQuantities}
+                disabled={actionLoading}
+                style={{ ...css.btnOutline, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
+              >
+                Réviser les quantités
+              </button>
+            )}
             {showApprove && (
               <button
                 type="button"
@@ -3181,6 +3271,117 @@ function RequestDetailPanel({
           </div>
         </div>
       )}
+
+      {reviseModalOpen && (
+        <div
+          data-testid="mgr-achats-revise-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Réviser les quantités"
+          onClick={onReviseModalClose}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 90,
+            background: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: 10,
+              margin: 'auto',
+              width: 'min(560px, 100%)',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxShadow: '0 20px 50px rgba(2, 6, 23, 0.35)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                padding: '10px 14px',
+                borderBottom: '1px solid var(--border)',
+              }}
+            >
+              <strong style={{ fontSize: 14 }}>Réviser les quantités — version {nextVersion}</strong>
+              <button
+                type="button"
+                data-testid="mgr-achats-revise-close"
+                onClick={onReviseModalClose}
+                style={css.btnGhost}
+              >
+                Fermer
+              </button>
+            </div>
+            <div style={{ padding: 14, overflow: 'auto' }}>
+              <p style={{ ...css.meta, marginBottom: 12 }}>
+                Ajustez les quantités commandées. La demande révisée sera renvoyée au SA et notifiée au DT initiateur.
+                Un nouveau numéro de version ({nextVersion}) sera attribué.
+              </p>
+              {lines.map((l, i) => (
+                <div
+                  key={l.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}
+                >
+                  <span style={{ ...css.meta, minWidth: 24 }}>{i + 1}.</span>
+                  <span style={{ flex: 1, fontSize: 13 }}>{l.label || 'Ligne'}</span>
+                  <span style={{ ...css.meta, minWidth: 28, textAlign: 'right' }}>{l.unit}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={reviseQuantities[l.id] ?? ''}
+                    onChange={(e) => onReviseQuantityChange(l.id, e.target.value)}
+                    style={{ ...css.input, width: 96 }}
+                    data-testid={`mgr-achats-revise-qty-${i}`}
+                  />
+                </div>
+              ))}
+              <Field label="Commentaire de révision (optionnel)">
+                <textarea
+                  value={reviseComment}
+                  onChange={(e) => onReviseCommentChange(e.target.value)}
+                  rows={2}
+                  style={{ ...css.input, resize: 'vertical' }}
+                  data-testid="mgr-achats-revise-comment"
+                />
+              </Field>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+                padding: '10px 14px',
+                borderTop: '1px solid var(--border)',
+              }}
+            >
+              <button type="button" onClick={onReviseModalClose} style={css.btnGhost}>
+                Annuler
+              </button>
+              <button
+                type="button"
+                data-testid="mgr-achats-revise-confirm"
+                onClick={onReviseConfirm}
+                disabled={actionLoading}
+                style={{ ...css.btnGold, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
+              >
+                {actionLoading ? 'Envoi…' : 'Valider la révision'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

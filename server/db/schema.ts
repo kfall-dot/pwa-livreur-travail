@@ -69,7 +69,7 @@ export const whatsappMessageTypeEnum = pgEnum('whatsapp_message_type', [
   'unknown',
 ])
 
-export const approvalDecisionEnum = pgEnum('approval_decision', ['approved', 'rejected'])
+export const approvalDecisionEnum = pgEnum('approval_decision', ['approved', 'rejected', 'revised'])
 
 export const purchaseDocTypeEnum = pgEnum('purchase_doc_type', ['bc', 'bt'])
 
@@ -548,6 +548,10 @@ export const purchaseRequests = pgTable('purchase_requests', {
   notes: text('notes'),
   createdByManagerId: text('created_by_manager_id').references(() => managers.id),
   submittedAt: timestamp('submitted_at'),
+  version: integer('version').notNull().default(1),
+  ebVersion: integer('eb_version').notNull().default(1),
+  revisionComment: text('revision_comment'),
+  revisedAt: timestamp('revised_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -555,6 +559,22 @@ export const purchaseRequests = pgTable('purchase_requests', {
 export type PurchaseRequest = typeof purchaseRequests.$inferSelect
 export type NewPurchaseRequest = typeof purchaseRequests.$inferInsert
 export type PurchaseRequestStatus = PurchaseRequest['status']
+
+/** Historique des versions d'une demande d'achat (snapshot pris à chaque révision PDG). */
+export const purchaseRequestVersions = pgTable('purchase_request_versions', {
+  id: text('id').primaryKey(),
+  purchaseRequestId: text('purchase_request_id')
+    .notNull()
+    .references(() => purchaseRequests.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  lines: jsonb('lines').notNull(),
+  comment: text('comment'),
+  createdByManagerId: text('created_by_manager_id').references(() => managers.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export type PurchaseRequestVersion = typeof purchaseRequestVersions.$inferSelect
+export type NewPurchaseRequestVersion = typeof purchaseRequestVersions.$inferInsert
 
 export const purchaseRequestLines = pgTable('purchase_request_lines', {
   id: text('id').primaryKey(),

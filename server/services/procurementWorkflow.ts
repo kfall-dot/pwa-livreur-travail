@@ -13,10 +13,12 @@ import {
   getTreasuryOrderByRequest,
   listPurchaseOrdersForRequest,
   recordApprovalStep,
+  recordPurchaseRequestVersion,
   setPurchaseOrderTour,
   setTourPurchaseOrder,
   updatePurchaseOrderHtml,
   updatePurchaseRequestStatus,
+  updateRequestLineQuantities,
   updateTreasuryOrderHtml,
 } from '../db/procurementQueries.js'
 import type { ProcurementRole, PurchaseRequestStatus } from '../db/schema.js'
@@ -31,6 +33,7 @@ import {
 import { signoffFromApprovalSteps } from './ebFiche.js'
 import {
   notifyPurchaseOrderReady,
+  notifyRequestRevised,
   notifyRequestStatusChange,
 } from './procurementNotifications.js'
 
@@ -256,6 +259,78 @@ export async function rejectPurchaseRequest(input: {
   })
 
   return updatePurchaseRequestStatus(input.companyId, input.requestId, 'rejected')
+}
+
+/**
+ * Révision PDG des quantités (option A) — autorisée uniquement au statut `pdg_review`.
+ * Enregistre l'étape `revised`, snapshot les lignes dans l'historique, applique les
+ * nouvelles quantités, incrémente version + eb_version, puis renvoie la demande au SA.
+ * Le DT initiateur et le SA sont notifiés (l'EB révisée reste visible par tous ceux
+ * qui avaient accès à la version initiale).
+ */
+export async function revisePurchaseRequest(input: {
+  companyId: string
+  requestId: string
+  managerId: string
+  procurementRole: ProcurementRole
+  quantities: Array<{ id: string; quantity: number }>
+  revisionComment?: string | null
+}) {
+  const request = await getPurchaseRequestById(input.companyId, input.requestId)
+  if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)
+  if (input.procurementRole !== 'pdg') {
+    throw new ProcurementWorkflowError('Seul le PDG peut réviser les quantités')
+  }
+  if (request.status !== 'pdg_review') {
+    throw new ProcurementWorkflowError(
+      `La révision n'est autorisée qu'au statut pdg_review (actuel : ${request.status})`,
+    )
+  }
+  if (!Array.isArray(input.quantities) || input.quantities.length === 0) {
+    throw new ProcurementWorkflowError('Aucune quantité à réviser')
+  }
+
+  const lines = await getPurchaseRequestLines(input.requestId)
+  // Snapshot AVANT révision → version courante
+  await recordPurchaseRequestVersion({
+    purchaseRequestId: input.requestId,
+    version: request.version,
+    lines,
+    comment: input.revisionComment ?? null,
+    createdByManagerId: input.managerId,
+  })
+
+  await recordApprovalStep({
+    purchaseRequestId: input.requestId,
+    role: input.procurementRole,
+    managerId: input.managerId,
+    decision: 'revised',
+    comment: input.revisionComment ?? null,
+  })
+
+  const detail = await updateRequestLineQuantities(input.companyId, input.requestId, input.quantities)
+  if (!detail) throw new ProcurementWorkflowError('Demande introuvable', 404)
+
+  const nextVersion = request.version + 1
+  const nextEbVersion = request.ebVersion + 1
+  const updated = await updatePurchaseRequestStatus(input.companyId, input.requestId, 'sa_review', {
+    version: nextVersion,
+    ebVersion: nextEbVersion,
+    revisionComment: input.revisionComment ?? null,
+    revisedAt: new Date(),
+  })
+
+  // Notifie le DT initiateur (information) + le SA (poursuite du processus).
+  await notifyRequestRevised({
+    companyId: input.companyId,
+    reference: request.reference,
+    createdByManagerId: request.createdByManagerId,
+    ebVersion: nextEbVersion,
+    comment: input.revisionComment ?? null,
+  })
+  await notifyRequestStatusChange(input.companyId, request.reference, 'sa_review', ['purchasing'])
+
+  return updated
 }
 
 export async function createPurchaseOrderForRequest(input: {

@@ -14,6 +14,7 @@ import {
   purchaseRequestDrafts,
   purchaseRequestLines,
   purchaseRequests,
+  purchaseRequestVersions,
   sites,
   siteBudgetAmendments,
   suppliers,
@@ -1264,6 +1265,71 @@ export async function updateRequestLinePrices(
   return getRequestDetail(companyId, requestId)
 }
 
+/**
+ * Met à jour les quantités des lignes (révision PDG) et recalcule montants + total.
+ * Ne touche que les lignes listées ; les autres gardent leur quantité.
+ */
+export async function updateRequestLineQuantities(
+  companyId: string,
+  requestId: string,
+  quantities: Array<{ id: string; quantity: number }>,
+) {
+  const request = await getPurchaseRequestById(companyId, requestId)
+  if (!request) return null
+  const lines = await getPurchaseRequestLines(requestId)
+  const byId = new Map(quantities.map((q) => [q.id, q.quantity]))
+  let total = 0
+  for (const line of lines) {
+    const patchQty = byId.get(line.id)
+    const qty = patchQty != null ? Math.max(0, patchQty) : Number(line.quantity)
+    const pu = Number(line.unitPriceFcfa ?? 0)
+    const amount = lineAmountFcfa(pu, qty)
+    total += amount
+    if (patchQty != null) {
+      await db
+        .update(purchaseRequestLines)
+        .set({
+          quantity: String(qty),
+          amountFcfa: String(amount),
+        })
+        .where(eq(purchaseRequestLines.id, line.id))
+    }
+  }
+  await updatePurchaseRequestStatus(companyId, requestId, request.status, { totalAmountFcfa: total })
+  return getRequestDetail(companyId, requestId)
+}
+
+/** Snapshot des lignes à une version donnée de la demande (historique de révision). */
+export async function recordPurchaseRequestVersion(input: {
+  purchaseRequestId: string
+  version: number
+  lines: unknown
+  comment?: string | null
+  createdByManagerId?: string | null
+}) {
+  const id = `prv-${randomUUID()}`
+  const [row] = await db
+    .insert(purchaseRequestVersions)
+    .values({
+      id,
+      purchaseRequestId: input.purchaseRequestId,
+      version: input.version,
+      lines: input.lines,
+      comment: input.comment ?? null,
+      createdByManagerId: input.createdByManagerId ?? null,
+    })
+    .returning()
+  return row!
+}
+
+export async function listPurchaseRequestVersions(requestId: string) {
+  return db
+    .select()
+    .from(purchaseRequestVersions)
+    .where(eq(purchaseRequestVersions.purchaseRequestId, requestId))
+    .orderBy(asc(purchaseRequestVersions.version))
+}
+
 export async function setRequestLineAttachment(
   companyId: string,
   requestId: string,
@@ -1437,6 +1503,10 @@ export async function updatePurchaseRequestStatus(
     supplierId: string | null
     totalAmountFcfa: number | null
     notes: string | null
+    version: number
+    ebVersion: number
+    revisionComment: string | null
+    revisedAt: Date | null
   }> = {},
 ) {
   const [row] = await db
@@ -1449,6 +1519,10 @@ export async function updatePurchaseRequestStatus(
         ? { totalAmountFcfa: patch.totalAmountFcfa != null ? String(patch.totalAmountFcfa) : null }
         : {}),
       ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+      ...(patch.version !== undefined ? { version: patch.version } : {}),
+      ...(patch.ebVersion !== undefined ? { ebVersion: patch.ebVersion } : {}),
+      ...(patch.revisionComment !== undefined ? { revisionComment: patch.revisionComment } : {}),
+      ...(patch.revisedAt !== undefined ? { revisedAt: patch.revisedAt } : {}),
     })
     .where(and(eq(purchaseRequests.id, requestId), eq(purchaseRequests.companyId, companyId)))
     .returning()
@@ -1459,7 +1533,7 @@ export async function recordApprovalStep(input: {
   purchaseRequestId: string
   role: ProcurementRole
   managerId: string
-  decision: 'approved' | 'rejected'
+  decision: 'approved' | 'rejected' | 'revised'
   comment?: string | null
   ip?: string | null
   etape?: string | null

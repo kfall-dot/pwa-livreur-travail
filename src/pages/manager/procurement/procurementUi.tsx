@@ -361,6 +361,15 @@ export function canRejectRequest(
   return canApproveRequest(status, role)
 }
 
+// Le PDG, à l'étape `pdg_review`, peut demander une révision des quantités :
+// la demande repart au SA (`sa_review`) avec une version révisée + une EB révisée.
+export function canReviseRequest(
+  status: PurchaseRequestStatus,
+  role: ProcurementRole | null | undefined,
+): boolean {
+  return role === 'pdg' && status === 'pdg_review'
+}
+
 export function canCreatePo(
   status: PurchaseRequestStatus,
   role: ProcurementRole | null | undefined,

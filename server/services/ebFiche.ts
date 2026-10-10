@@ -51,6 +51,9 @@ export type EbFicheData = {
   pdgDate?: string | null
   pdgSignature?: string | null
   showPdg?: boolean
+  version?: number
+  revisionComment?: string | null
+  revisedAt?: string | Date | null
 }
 
 const EMPTY_LINE_COUNT = 4
@@ -77,6 +80,12 @@ export function generateEbFicheHtml(data: EbFicheData): string {
     ),
   ].join('')
 
+  const isRevised = typeof data.version === 'number' && data.version > 1
+  const revisedDate = data.revisedAt ? new Date(data.revisedAt).toLocaleDateString('fr-FR') : ''
+  const revisionBanner = isRevised
+    ? `<div class="revision-banner">VERSION MODIFIÉE n° ${escapeHtml(String(data.version))} — révisée par le PDG${revisedDate ? ` le ${escapeHtml(revisedDate)}` : ''}${data.revisionComment ? ` — Motif : ${escapeHtml(data.revisionComment)}` : ''}</div>`
+    : ''
+
   return withPrintBar(`<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -88,6 +97,8 @@ export function generateEbFicheHtml(data: EbFicheData): string {
     .fiche { border: 2px solid #1e3a5f; }
     .title { background: #1e3a5f; color: #fff; text-align: center; font-size: 22px; font-weight: 700;
       letter-spacing: .08em; padding: 10px 12px; }
+    .revision-banner { background: #b91c1c; color: #fff; text-align: center; font-size: 14px; font-weight: 700;
+      padding: 6px 12px; border-bottom: 2px solid #7f1d1d; letter-spacing: .03em; }
     .meta { width: 100%; border-collapse: collapse; }
     .meta td { border: 1px solid #1e3a5f; padding: 8px 10px; vertical-align: top; }
     .meta .label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #1e3a5f; }
@@ -113,6 +124,7 @@ export function generateEbFicheHtml(data: EbFicheData): string {
 <body>
   <div class="fiche">
     <div class="title">EXPRESSION DU BESOIN</div>
+    ${revisionBanner}
     <table class="meta">
       <tr>
         <td class="demandeur" rowspan="3">DEMANDEUR</td>
