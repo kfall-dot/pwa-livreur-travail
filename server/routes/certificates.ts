@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getCertificate, getDeclaration, getStopWithDriverContext } from '../db/queries.js'
+import { getDeliveryDocumentRefs } from '../db/procurementQueries.js'
 import { authorizeCertificateAccess } from '../middleware/certificateAccess.js'
 import { rateLimitByIp } from '../middleware/rateLimit.js'
 import { paramId } from '../utils/params.js'
@@ -69,6 +70,8 @@ certificatesRouter.get('/:receiptId', async (req, res) => {
 
     const ctx = await getStopWithDriverContext(cert.deliveryId)
     const decl = await getDeclaration(cert.deliveryId)
+    // Réfs. croisées de la chaîne EB → BC → BL (best-effort : tournée hors achats).
+    const refs = await getDeliveryDocumentRefs(cert.deliveryId)
     const flags = certificateFlags(cert)
     const outcome = (decl?.outcome ?? (flags.isRejected ? 'rejected' : flags.isPartial ? 'partial' : 'full')) as
       | 'full'
@@ -98,6 +101,8 @@ certificatesRouter.get('/:receiptId', async (req, res) => {
         isRejected: flags.isRejected,
         expectedLines: expected,
         deliveredLines: delivered,
+        ebReference: refs.ebReference,
+        bcReference: refs.bcReference,
       })
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
       res.setHeader('Cache-Control', 'private, no-store')

@@ -1087,6 +1087,10 @@ test.describe('Achats chantier BTP (procurement)', () => {
       'href',
       new RegExp(`/documents/treasury/${beforeFinance.treasuryOrder.id}/html`),
     )
+    // I96 — chaîne documentaire : l'EB ouvre sa chaîne (EB → BT ; le BC suit après DAF/SA).
+    await expect(page.getByTestId('mgr-document-chain')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await expect(page.getByTestId('mgr-chain-refs')).toContainText(/EB-/)
+    await expect(page.getByTestId('mgr-chain-node-bt')).toContainText(beforeFinance.treasuryOrder.reference)
     await page.getByTestId('mgr-achats-sign-pin').fill('5678')
     await page.getByTestId('btp-approve-btn').click()
     await expect(page.getByText(/Demande approuvée/)).toBeVisible({ timeout: 15_000 })

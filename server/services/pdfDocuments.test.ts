@@ -37,6 +37,22 @@ describe('generateBcHtml — formulaire papier', () => {
     assert.match(html, /CimIvoire Distribution/)
     assert.doesNotMatch(html, /<script/i)
   })
+
+  it('imprime les réfs. croisées de la chaîne EB → BT (Lot 1)', () => {
+    const html = generateBcHtml(null, {
+      ...sample,
+      ebReference: 'EB-2026-0007 — v2',
+      btReferences: ['BT-2026-0003', 'BT-2026-0004'],
+    })
+    assert.match(html, /Réf\. EB : EB-2026-0007 — v2/)
+    assert.match(html, /· BT : BT-2026-0003, BT-2026-0004/)
+  })
+
+  it('n’imprime pas de réf. BT quand l’EB est en crédit (aucun BT)', () => {
+    const html = generateBcHtml(null, { ...sample, ebReference: 'EB-2026-0008', btReferences: [] })
+    assert.match(html, /Réf\. EB : EB-2026-0008/)
+    assert.doesNotMatch(html, /· BT :/)
+  })
 })
 
 const btSample: BtTemplateData = {
@@ -79,6 +95,15 @@ describe('generateBtHtml — fiche trésorerie achats', () => {
     const fallback = generateBtHtml(null, { ...btSample, lines: undefined })
     assert.match(fallback, /<td class="qty"><\/td><td class="pu"><\/td>/)
   })
+
+  it('imprime la réf. EB sur la fiche de trésorerie (Lot 1)', () => {
+    const html = generateBtHtml(null, { ...btSample, ebReference: 'EB-2026-0007 — v2' })
+    assert.match(html, /Réf\. EB \(demande d’achat\)<\/th><td>EB-2026-0007 — v2<\/td>/)
+    // Sans réf. connue, la cellule reste un tiret (jamais de placeholder brut).
+    const bare = generateBtHtml(null, btSample)
+    assert.match(bare, /Réf\. EB \(demande d’achat\)<\/th><td>—<\/td>/)
+  })
+
 
   it('reporte la signature DAF/PDG sur le BT', () => {
     const html = generateBtHtml(null, {

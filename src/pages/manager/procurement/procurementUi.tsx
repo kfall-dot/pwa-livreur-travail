@@ -345,6 +345,29 @@ export function formatConfidence(score?: string | number | null): string {
   return `${Math.round(n * 100)} %`
 }
 
+/**
+ * Réfs. croisées de la chaîne documentaire, prêtes à imprimer ou à afficher :
+ * « EB EB-2026-0007 — v2 · BT BT-2026-0003 · BC BC-2026-0012 · BL RCT-A1B2C3D4 ».
+ * Les maillons absents sont omis (une EB sans BC n'affiche jamais « BC — »).
+ */
+export function chainReferencesLabel(references: {
+  eb?: string | null
+  bt?: string | null
+  bc?: string | null
+  bl?: string | null
+}): string {
+  const parts: string[] = []
+  const push = (prefix: string, value?: string | null) => {
+    const v = (value ?? '').trim()
+    if (v) parts.push(`${prefix} ${v}`)
+  }
+  push('EB', references.eb)
+  push('BT', references.bt)
+  push('BC', references.bc)
+  push('BL', references.bl)
+  return parts.join(' · ')
+}
+
 export function canApproveRequest(
   status: PurchaseRequestStatus,
   role: ProcurementRole | null | undefined,

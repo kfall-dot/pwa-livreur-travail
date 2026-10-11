@@ -69,5 +69,44 @@ describe('renderCertificateHtml', () => {
     assert.match(html, /Tomates/)
     assert.doesNotMatch(html, /Réception conforme/)
     assert.doesNotMatch(html, /Motif/)
+
+  it('imprime les réfs. EB / BC de la chaîne documentaire sur le BL (Lot 1)', () => {
+    const html = renderCertificateHtml({
+      receiptId: 'RCT-CHAIN01',
+      deliveryName: 'Résidence Cocody — Tour A',
+      deliveryAddress: 'Boulevard Latrille',
+      tourDate: '2026-10-12',
+      driverName: 'Kouassi',
+      orderRef: 'CMD-1',
+      outcome: 'full',
+      isPartial: false,
+      isRejected: false,
+      expectedLines: [{ label: 'Ciment', qty: 50, unit: 'sac' }],
+      deliveredLines: [{ label: 'Ciment', qty: 50, unit: 'sac' }],
+      ebReference: 'EB-2026-0007 — v2',
+      bcReference: 'BC-2026-0012',
+    })
+    assert.match(html, /Réf\. EB<\/dt><dd>EB-2026-0007 — v2<\/dd>/)
+    assert.match(html, /Réf\. BC<\/dt><dd>BC-2026-0012<\/dd>/)
+  })
+
+  it('omet les réfs. EB / BC quand la livraison est hors achats', () => {
+    const html = renderCertificateHtml({
+      receiptId: 'RCT-CHAIN02',
+      deliveryName: 'Dépôt',
+      deliveryAddress: 'Zone 4',
+      tourDate: '2026-10-12',
+      driverName: 'Kouassi',
+      orderRef: 'CMD-2',
+      outcome: 'full',
+      isPartial: false,
+      isRejected: false,
+      expectedLines: [{ label: 'Ciment', qty: 50, unit: 'sac' }],
+      deliveredLines: [{ label: 'Ciment', qty: 50, unit: 'sac' }],
+    })
+    assert.doesNotMatch(html, /Réf\. EB/)
+    assert.doesNotMatch(html, /Réf\. BC/)
+  })
+
   })
 })

@@ -30,6 +30,7 @@ import {
   fetchSiteBudget,
   fetchSiteBudgets,
 } from './procurementApi'
+import { DocumentChain } from './DocumentChain'
 import type {
   DraftDetailResponse,
   ParsedEbLine,
@@ -3000,6 +3001,8 @@ function RequestDetailPanel({
           </p>
         </div>
       )}
+
+      <DocumentChain requestId={request.id} canAttachBl={procurementRole === 'purchasing'} />
 
       {canPrice && (
         <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }} data-testid="mgr-achats-sa-pricing">

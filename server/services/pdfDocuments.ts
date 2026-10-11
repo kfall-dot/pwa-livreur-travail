@@ -31,6 +31,10 @@ export type BcTemplateData = {
   }>
   notes?: string | null
   createdAt: string
+  /** Réf. de l'EB d'origine (chaîne documentaire) — « EB-2026-0007 — v2 ». */
+  ebReference?: string
+  /** Réfs. des bons de trésorerie rattachés à l'EB (mode comptant). */
+  btReferences?: string[]
 }
 
 export type BtTemplateData = {
@@ -67,6 +71,8 @@ export type BtTemplateData = {
   version?: number
   revisedAt?: string | Date | null
   revisionComment?: string | null
+  /** Réf. de l'EB d'origine (chaîne documentaire) — « EB-2026-0007 — v2 ». */
+  ebReference?: string
 }
 
 function escapeHtml(s: string): string {
@@ -113,6 +119,7 @@ const DEFAULT_BC_TEMPLATE = `<!DOCTYPE html>
   table.lines td.desc { min-width: 40%; }
   .dotrow td { height: 22px; border-bottom-style: dotted; }
   .totals td { font-weight: 700; }
+  .refs { font-size: 10px; margin: 0 0 6px; color: #333; letter-spacing: .02em; }
   .foot { display: flex; gap: 10px; margin-top: 10px; }
   .terms { flex: 1.2; font-size: 10px; line-height: 1.35; }
   .sign { flex: 1; }
@@ -125,6 +132,7 @@ const DEFAULT_BC_TEMPLATE = `<!DOCTYPE html>
     <div class="brand">{{companyName}}</div>
     <div class="title">BON DE COMMANDE N°{{reference}}</div>
   </div>
+  <div class="refs">Réf. EB : {{ebReference}}{{btReferencesBlock}}</div>
   <table class="meta">
     <tr>
       <th>Date B.C.</th>
@@ -200,6 +208,7 @@ const DEFAULT_BT_TEMPLATE = `<!DOCTYPE html>
   {{revisionBanner}}
   <div class="pad">
     <table class="meta">
+      <tr><th>Réf. EB (demande d’achat)</th><td>{{ebReference}}</td></tr>
       <tr><th>N° de l’avance</th><td>{{avanceNumber}}</td></tr>
       <tr><th>Nom du demandeur</th><td>{{requesterName}}</td></tr>
       <tr><th>Devise</th><td>{{currency}}</td></tr>
@@ -274,10 +283,18 @@ export function generateBcHtml(
       dateBc: formatDateFr(data.createdAt),
       createdAt: data.createdAt,
       modePaiement: data.modePaiement,
+      ebReference: data.ebReference?.trim() || '—',
+      btReferencesBlock: btReferencesBlock(data.btReferences),
       linesRows: linesToRows(data.lines, total),
     },
     ['linesRows'],
   ))
+}
+
+/** « · BT : BT-2026-0003, BT-2026-0004 » — vide si aucun BT (mode crédit). */
+function btReferencesBlock(refs?: string[]): string {
+  const list = (refs ?? []).map((r) => r.trim()).filter(Boolean)
+  return list.length > 0 ? ` · BT : ${list.join(', ')}` : ''
 }
 
 function btLinesRows(data: BtTemplateData): string {
@@ -326,6 +343,7 @@ export function generateBtHtml(
       reference: data.reference,
       versionSuffix: versionSuffix(data.version),
       revisionBanner,
+      ebReference: data.ebReference?.trim() || '—',
       avanceNumber: data.avanceNumber ?? '',
       siteName: data.siteName,
       requesterName: data.requesterName || '—',

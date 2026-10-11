@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from './index.js'
 import { sitesWithEbCreatedBy } from './siteEbScope.js'
 import {
   approvalSteps,
+  certificates,
   companies,
   documentTemplates,
   deliveryPoints,
@@ -35,6 +36,7 @@ import {
 } from '../services/siteIndicators.js'
 import { linesForSupplier } from '../lib/procurementLines.js'
 import { normalizeEbSpendCategory } from '../../shared/ebSpendCategory.js'
+import { versionSuffix } from '../../shared/requestVersion.js'
 import {
   bcRegisterAttachments,
   bcRegisterDate,
@@ -1798,6 +1800,14 @@ export type BcRegisterRow = {
   invoiceTransmitted: boolean
   attachment: string
   attachments: Array<{ lineId: string; fileName: string }>
+  /** Chaîne documentaire : EB d'origine (réf. + version) et BT rattachés au BC. */
+  ebReference: string
+  ebVersion: number
+  btReferences: string[]
+  /** Copie du bon de livraison fournisseur (pièce jointe SA). */
+  blFile: { fileName: string } | null
+  /** N° du BL interne (certificat RCT-…) émis à la confirmation de livraison. */
+  blReceiptId: string | null
 }
 
 /** Registre POINTS FOURNISSEURS — une ligne par BC dont la livraison est confirmée. */
@@ -1821,6 +1831,11 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       saInvoicePaid: purchaseOrders.saInvoicePaid,
       saInvoiceFileName: purchaseOrders.saInvoiceFileName,
       saInvoiceTransmitted: purchaseOrders.saInvoiceTransmitted,
+      requestReference: purchaseRequests.reference,
+      requestVersion: purchaseRequests.version,
+      blFileName: purchaseOrders.blFileName,
+      blBlobKey: purchaseOrders.blBlobKey,
+      receiptId: certificates.receiptId,
     })
     .from(purchaseOrders)
     .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
@@ -1829,6 +1844,7 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
     .innerJoin(deliveryPoints, eq(deliveryPoints.tourId, purchaseOrders.tourId))
     .leftJoin(tours, eq(tours.id, purchaseOrders.tourId))
     .leftJoin(declarations, eq(declarations.deliveryId, deliveryPoints.id))
+    .leftJoin(certificates, eq(certificates.deliveryId, deliveryPoints.id))
     .where(
       and(
         eq(purchaseOrders.companyId, companyId),
@@ -1853,6 +1869,18 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
     const list = linesByRequest.get(line.purchaseRequestId) ?? []
     list.push(line)
     linesByRequest.set(line.purchaseRequestId, list)
+  }
+
+  // Chaîne documentaire : les BT rattachés à chaque EB (un BT par ligne comptant).
+  const allTreasury = await db
+    .select({ requestId: treasuryOrders.purchaseRequestId, reference: treasuryOrders.reference })
+    .from(treasuryOrders)
+    .where(inArray(treasuryOrders.purchaseRequestId, requestIds))
+  const treasuryByRequest = new Map<string, string[]>()
+  for (const t of allTreasury) {
+    const list = treasuryByRequest.get(t.requestId) ?? []
+    list.push(t.reference)
+    treasuryByRequest.set(t.requestId, list)
   }
 
   return rows.map((row) => {
@@ -1904,6 +1932,11 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       invoiceTransmitted: row.saInvoiceTransmitted,
       attachment: bcRegisterAttachments(supplierLines),
       attachments,
+      ebReference: row.requestReference,
+      ebVersion: row.requestVersion ?? 1,
+      btReferences: treasuryByRequest.get(row.requestId) ?? [],
+      blFile: row.blBlobKey && (row.blFileName ?? '').trim() ? { fileName: row.blFileName!.trim() } : null,
+      blReceiptId: row.receiptId ?? null,
     }
   })
 }
@@ -1995,6 +2028,109 @@ export async function getBcInvoiceFile(
   const blobKey = row?.blobKey?.trim()
   if (!row || !blobKey) return null
   return { blobKey, fileName: row.fileName, contentType: row.contentType }
+}
+
+// ─── Chaîne documentaire EB ↔ BC ↔ BT ↔ BL ───────────────────────────────────
+
+/** Enregistre (ou retire, avec null) la copie du bon de livraison fournisseur. */
+export async function setBcBlFile(
+  companyId: string,
+  purchaseOrderId: string,
+  file: { blobKey: string; fileName: string; contentType: string } | null,
+): Promise<boolean> {
+  const set = file
+    ? {
+        blBlobKey: file.blobKey,
+        blFileName: file.fileName,
+        blContentType: file.contentType,
+        blUploadedAt: new Date(),
+      }
+    : { blBlobKey: null, blFileName: null, blContentType: null, blUploadedAt: null }
+  const [updated] = await db
+    .update(purchaseOrders)
+    .set(set)
+    .where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId)))
+    .returning({ id: purchaseOrders.id })
+  return Boolean(updated)
+}
+
+/** Lit les métadonnées du bon de livraison fournisseur (clé blob + nom + type). */
+export async function getBcBlFile(
+  companyId: string,
+  purchaseOrderId: string,
+): Promise<{ blobKey: string; fileName: string | null; contentType: string | null } | null> {
+  const rows = await db
+    .select({
+      blobKey: purchaseOrders.blBlobKey,
+      fileName: purchaseOrders.blFileName,
+      contentType: purchaseOrders.blContentType,
+    })
+    .from(purchaseOrders)
+    .where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId)))
+    .limit(1)
+  const row = rows[0]
+  const blobKey = row?.blobKey?.trim()
+  if (!row || !blobKey) return null
+  return { blobKey, fileName: row.fileName, contentType: row.contentType }
+}
+
+/** Tous les bons de trésorerie d'une EB (un BT par ligne comptant). */
+export async function listTreasuryOrdersForRequest(companyId: string, requestId: string) {
+  return db
+    .select()
+    .from(treasuryOrders)
+    .where(and(eq(treasuryOrders.purchaseRequestId, requestId), eq(treasuryOrders.companyId, companyId)))
+    .orderBy(treasuryOrders.createdAt)
+}
+
+/** Rattache le BT au BC qu'il finance (chaîne EB → BT → BC). */
+export async function setTreasuryOrderPurchaseOrder(id: string, purchaseOrderId: string | null) {
+  await db.update(treasuryOrders).set({ purchaseOrderId }).where(eq(treasuryOrders.id, id))
+}
+
+/**
+ * Rattache les arrêts d'une tournée à leur BC (chaîne EB → BC → BL).
+ * Ne remplace jamais un rattachement existant : le premier BC qui planifie la
+ * tournée gagne — le modèle ne connaît qu'un BC par tournée
+ * (`tours.purchase_order_id`), les arrêts héritent donc de ce BC.
+ */
+export async function linkDeliveryPointsToPurchaseOrder(tourId: string, purchaseOrderId: string) {
+  await db
+    .update(deliveryPoints)
+    .set({ purchaseOrderId })
+    .where(and(eq(deliveryPoints.tourId, tourId), isNull(deliveryPoints.purchaseOrderId)))
+}
+
+/**
+ * Réfs. croisées d'un arrêt livré, imprimées sur le BL (certificat) :
+ * « EB-2026-0007 — v2 » et « BC-2026-0012 ». Best-effort : null si l'arrêt
+ * n'est pas rattaché à un BC (tournée hors achats).
+ */
+export async function getDeliveryDocumentRefs(
+  deliveryId: string,
+): Promise<{ ebReference: string | null; bcReference: string | null }> {
+  const [row] = await db
+    .select({
+      ebReference: purchaseRequests.reference,
+      ebVersion: purchaseRequests.version,
+      bcReference: purchaseOrders.reference,
+    })
+    .from(deliveryPoints)
+    .leftJoin(
+      purchaseOrders,
+      and(
+        eq(purchaseOrders.docType, 'bc'),
+        or(eq(deliveryPoints.purchaseOrderId, purchaseOrders.id), eq(purchaseOrders.tourId, deliveryPoints.tourId)),
+      ),
+    )
+    .leftJoin(purchaseRequests, eq(purchaseRequests.id, purchaseOrders.purchaseRequestId))
+    .where(eq(deliveryPoints.id, deliveryId))
+    .limit(1)
+  if (!row) return { ebReference: null, bcReference: null }
+  return {
+    ebReference: row.ebReference ? `${row.ebReference}${versionSuffix(row.ebVersion ?? 1)}` : null,
+    bcReference: row.bcReference ?? null,
+  }
 }
 
 export type SiteStockRow = {

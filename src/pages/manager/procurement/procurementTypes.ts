@@ -309,6 +309,67 @@ export interface BcRegisterRow {
   invoiceTransmitted: boolean
   attachment: string
   attachments: Array<{ lineId: string; fileName: string }>
+  /** Chaîne documentaire : réf. de l'EB d'origine (+ version) et BT rattachés. */
+  ebReference: string
+  ebVersion: number
+  btReferences: string[]
+  /** Copie du bon de livraison fournisseur jointe par le SA. */
+  blFile: { fileName: string } | null
+  /** N° du BL interne (certificat RCT-…) émis à la livraison de l'arrêt. */
+  blReceiptId: string | null
+}
+
+// ─── Chaîne documentaire EB → BT → BC → BL → facture ─────────────────────────
+
+export interface DocumentChainBl {
+  receiptId: string
+  deliveryId: string
+  purchaseOrderId: string
+  stopName: string
+  tourId: string
+  tourDate: string | null
+  status: string
+  outcome: 'full' | 'partial' | 'rejected' | null
+  declaredAt: string | null
+  certificateUrl: string | null
+  isDelivered: boolean
+}
+
+export interface DocumentChainBc {
+  id: string
+  reference: string
+  supplierName: string
+  amountFcfa: number
+  tourId: string | null
+  tourDate: string | null
+  invoiceReference: string
+  invoiceFile: { fileName: string } | null
+  blFile: { fileName: string } | null
+  bls: DocumentChainBl[]
+}
+
+export interface DocumentChainBt {
+  id: string
+  reference: string
+  amountFcfa: number
+  purchaseOrderId: string | null
+  bcReference: string | null
+}
+
+export interface DocumentChain {
+  requestId: string
+  eb: {
+    reference: string
+    version: number
+    versionLabel: string
+    status: string
+    siteName: string
+    totalAmountFcfa: number | null
+  }
+  bts: DocumentChainBt[]
+  bcs: DocumentChainBc[]
+  bls: DocumentChainBl[]
+  references: { eb: string; bt: string; bc: string; bl: string }
 }
 
 export interface SiteBudgetAmendmentRow {

@@ -3,6 +3,7 @@ import { apiErrorMessage } from '../../../lib/apiError'
 import type {
   ApproveRejectPayload,
   CreatePoPayload,
+  DocumentChain,
   DraftDetailResponse,
   DraftUpdatePayload,
   ParsedEbLine,
@@ -476,6 +477,66 @@ export async function fetchBcInvoiceFile(poId: string): Promise<{ blob: Blob; fi
 export function bcInvoiceFileUrl(poId: string): string {
   const apiBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '') || '/api/v1'
   return `${apiBase}${BASE}/bc-register/${encodeURIComponent(poId)}/invoice-file`
+}
+
+/** SA : joint la copie du bon de livraison fournisseur au BC (base64, max 5 Mo). */
+export async function uploadBcBlFile(poId: string, file: File): Promise<void> {
+  const buf = new Uint8Array(await file.arrayBuffer())
+  const chunk = 8192
+  let binary = ''
+  for (let i = 0; i < buf.length; i += chunk) {
+    binary += String.fromCharCode(...Array.from(buf.subarray(i, i + chunk)))
+  }
+  const res = await authFetch(`${BASE}/bc-register/${encodeURIComponent(poId)}/bl-file`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+      data: btoa(binary),
+    }),
+  })
+  if (!res.ok) {
+    throw await apiErrorMessage(res, 'Jointure du bon de livraison refusée')
+  }
+}
+
+/** SA + comptable : télécharge le bon de livraison fournisseur joint au BC. */
+export async function fetchBcBlFile(poId: string): Promise<{ blob: Blob; fileName: string | null }> {
+  const res = await fetch(`${API_ROOT}${BASE}/bc-register/${encodeURIComponent(poId)}/bl-file`, {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+  })
+  if (!res.ok) {
+    throw await apiErrorMessage(res, 'Bon de livraison introuvable')
+  }
+  const blob = new Blob([await res.arrayBuffer()], { type: res.headers.get('content-type') || 'application/octet-stream' })
+  const named = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] ?? null
+  return { blob, fileName: named }
+}
+
+export function bcBlFileUrl(poId: string): string {
+  const apiBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '') || '/api/v1'
+  return `${apiBase}${BASE}/bc-register/${encodeURIComponent(poId)}/bl-file`
+}
+
+/**
+ * BL interne : page imprimable du certificat `RCT-…` (la session manager est
+ * acceptée par la route `/certificates/:receiptId`).
+ */
+export function certificateHtmlUrl(receiptId: string): string {
+  const apiBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '') || '/api/v1'
+  return `${apiBase}/certificates/${encodeURIComponent(receiptId)}?view=html`
+}
+
+/** Chaîne documentaire d'une EB : EB → BT → BC → BL → facture. */
+export async function fetchDocumentChain(requestId: string): Promise<DocumentChain> {
+  const res = await authFetch(`${BASE}/requests/${encodeURIComponent(requestId)}/chain`)
+  if (!res.ok) {
+    throw await apiErrorMessage(res, 'Chaîne documentaire indisponible')
+  }
+  const body = (await res.json()) as { chain: DocumentChain }
+  return body.chain
 }
 
 export function documentHtmlUrl(poId: string): string {

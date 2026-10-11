@@ -172,6 +172,13 @@ export const deliveryPoints = pgTable('delivery_points', {
   supermarketId: text('supermarket_id'),
   requiredPhotos: integer('required_photos').notNull().default(1),
   receiptId: text('receipt_id'),
+  /**
+   * BC dont cet arrêt est la livraison (chaîne EB → BC → BL). Alimenté par
+   * `markDeliveryScheduled` ; la clé étrangère est posée par la migration
+   * (colonne déclarée ici en texte, comme `supermarket_id`, car la table
+   * `purchase_orders` est déclarée plus bas dans ce fichier).
+   */
+  purchaseOrderId: text('purchase_order_id'),
   // [{ label: string, qty: number, unit: string }]
   products: jsonb('products'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -644,6 +651,11 @@ export const purchaseOrders = pgTable('purchase_orders', {
   saInvoiceContentType: text('sa_invoice_content_type'),
   saInvoiceUploadedAt: timestamp('sa_invoice_uploaded_at'),
   saInvoiceTransmitted: boolean('sa_invoice_transmitted').notNull().default(false),
+  /** Copie du bon de livraison fournisseur (miroir de sa_invoice_*). */
+  blBlobKey: text('bl_blob_key'),
+  blFileName: text('bl_file_name'),
+  blContentType: text('bl_content_type'),
+  blUploadedAt: timestamp('bl_uploaded_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -658,6 +670,8 @@ export const treasuryOrders = pgTable('treasury_orders', {
   purchaseRequestId: text('purchase_request_id')
     .notNull()
     .references(() => purchaseRequests.id),
+  /** BC financé par ce bon de trésorerie (chaîne EB → BT → BC). */
+  purchaseOrderId: text('purchase_order_id').references(() => purchaseOrders.id),
   reference: text('reference').notNull(),
   amountFcfa: numeric('amount_fcfa', { precision: 14, scale: 0 }).notNull(),
   quotationUrls: jsonb('quotation_urls'),

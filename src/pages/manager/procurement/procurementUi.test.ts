@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { approvalDecisionLabel, canReviseRequest } from './procurementUi.tsx'
+import { approvalDecisionLabel, canReviseRequest, chainReferencesLabel } from './procurementUi.tsx'
 
 /**
  * Historique des approbations (page Achats chantier) : la révision PDG des
@@ -34,3 +34,27 @@ describe('canReviseRequest — révision réservée au PDG au statut pdg_review'
     assert.equal(canReviseRequest('sa_review', 'pdg'), false)
   })
 })
+
+describe('chainReferencesLabel — réfs. croisées EB → BT → BC → BL', () => {
+  it('compose la chaîne complète dans l’ordre des documents', () => {
+    assert.equal(
+      chainReferencesLabel({
+        eb: 'EB-2026-0007 — v2',
+        bt: 'BT-2026-0003, BT-2026-0004',
+        bc: 'BC-2026-0012',
+        bl: 'RCT-A1B2C3D4',
+      }),
+      'EB EB-2026-0007 — v2 · BT BT-2026-0003, BT-2026-0004 · BC BC-2026-0012 · BL RCT-A1B2C3D4',
+    )
+  })
+
+  it('omet les maillons absents au lieu d’afficher un tiret', () => {
+    assert.equal(chainReferencesLabel({ eb: 'EB-2026-0008', bt: '', bc: null }), 'EB EB-2026-0008')
+    assert.equal(chainReferencesLabel({}), '')
+  })
+
+  it('ignore les espaces parasites des références', () => {
+    assert.equal(chainReferencesLabel({ eb: '  EB-1  ', bc: ' BC-2 ' }), 'EB EB-1 · BC BC-2')
+  })
+})
+

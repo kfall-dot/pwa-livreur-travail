@@ -32,6 +32,8 @@ import {
   updateBcRegisterFollowup,
   setBcInvoiceFile,
   getBcInvoiceFile,
+  setBcBlFile,
+  getBcBlFile,
   listSiteStock,
   listPurchaseRequests,
   listSites,
@@ -76,6 +78,7 @@ import {
   revisePurchaseRequest,
 } from '../services/procurementWorkflow.js'
 import { wrapPoDocument } from '../services/pdfDocuments.js'
+import { getDocumentChain } from '../services/documentChain.js'
 import {
   availableBcRegisterMonths,
   filterBcRegisterByMonth,
@@ -384,6 +387,81 @@ procurementRouter.get(
       blob = await getLineAttachment(stored.blobKey)
     } catch (err) {
       console.error('[procurement] bc invoice read', err)
+      res.status(503).json({ message: 'Stockage des pièces jointes indisponible' })
+      return
+    }
+    if (!blob?.data?.length) {
+      res.status(404).json({ message: 'Fichier introuvable' })
+      return
+    }
+    res.setHeader('Content-Type', stored.contentType || 'application/octet-stream')
+    if (stored.fileName) {
+      res.setHeader('Content-Disposition', `inline; filename="${stored.fileName.replace(/"/g, '')}"`)
+    }
+    res.send(blob.data)
+  },
+)
+
+// ── Bon de livraison fournisseur rattaché au BC (chaîne EB → BC → BL) ─────────
+
+const MAX_BC_BL_BYTES = LINE_ATTACHMENT_MAX_BYTES
+
+procurementRouter.post(
+  '/bc-register/:poId/bl-file',
+  requireProcurementRole('purchasing'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    const poId = String(req.params.poId)
+    const file = parseJsonAttachment(req.body)
+    if ('error' in file) {
+      res.status(400).json({ message: file.error })
+      return
+    }
+    if (file.buffer.length === 0 || file.buffer.length > MAX_BC_BL_BYTES) {
+      res.status(400).json({ message: 'Fichier trop volumineux (max. 5 Mo)' })
+      return
+    }
+    const contentType = resolveLineAttachmentMime(file.originalname, file.mimetype)
+    if (!contentType) {
+      res.status(400).json({ message: 'Type de fichier non autorisé (PDF ou image attendu)' })
+      return
+    }
+    const key = `sa-bl/${poId}/${randomUUID()}`
+    try {
+      await putLineAttachment(key, file.buffer, { contentType, fileName: file.originalname })
+    } catch (err) {
+      console.error('[procurement] bc bl store', err)
+      res.status(503).json({ message: 'Stockage des pièces jointes indisponible' })
+      return
+    }
+    const ok = await setBcBlFile(manager.companyId, poId, {
+      blobKey: key,
+      fileName: file.originalname,
+      contentType,
+    })
+    if (!ok) {
+      res.status(404).json({ message: 'BC introuvable dans le registre' })
+      return
+    }
+    res.json({ ok: true, fileName: file.originalname })
+  },
+)
+
+procurementRouter.get(
+  '/bc-register/:poId/bl-file',
+  requireProcurementRole('purchasing', 'accountant'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    const stored = await getBcBlFile(manager.companyId, String(req.params.poId))
+    if (!stored) {
+      res.status(404).json({ message: 'Aucun bon de livraison joint à ce BC' })
+      return
+    }
+    let blob: { data: Buffer } | null
+    try {
+      blob = await getLineAttachment(stored.blobKey)
+    } catch (err) {
+      console.error('[procurement] bc bl read', err)
       res.status(503).json({ message: 'Stockage des pièces jointes indisponible' })
       return
     }
@@ -1090,6 +1168,23 @@ procurementRouter.get('/requests/:id', async (req, res) => {
     return
   }
   res.json(detail)
+})
+
+// GET /requests/:id/chain — chaîne documentaire EB → BT → BC → BL → facture.
+// Ouvert à tous les rôles achats : c'est la vue de navigation entre les pièces.
+procurementRouter.get('/requests/:id/chain', async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  try {
+    const chain = await getDocumentChain(manager.companyId, String(req.params.id))
+    if (!chain) {
+      res.status(404).json({ message: 'Demande introuvable' })
+      return
+    }
+    res.json({ chain })
+  } catch (err) {
+    console.error('[procurement] request chain error', err)
+    res.status(500).json({ message: 'Chaîne documentaire indisponible' })
+  }
 })
 
 procurementRouter.patch(

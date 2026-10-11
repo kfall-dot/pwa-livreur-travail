@@ -13,6 +13,10 @@ export type CertificateHtmlInput = {
   isRejected: boolean
   expectedLines: Array<{ label: string; qty: number; unit: string }>
   deliveredLines: Array<{ label: string; qty: number; unit: string; justification?: string }>
+  /** Réf. de l'EB d'origine (chaîne documentaire) — imprimée sur le BL. */
+  ebReference?: string | null
+  /** Réf. du BC dont cet arrêt est la livraison. */
+  bcReference?: string | null
 }
 
 function escapeHtml(value: string): string {
@@ -138,7 +142,9 @@ export function renderCertificateHtml(input: CertificateHtmlInput): string {
     <span class="badge ${klass}">${escapeHtml(title)}</span>
     <dl>
       <dt>Certificat</dt><dd>${escapeHtml(input.receiptId)}</dd>
-      <dt>Réf. commande</dt><dd>${escapeHtml(input.orderRef || '—')}</dd>
+      <dt>Réf. commande</dt><dd>${escapeHtml(input.orderRef || '—')}</dd>${input.ebReference ? `
+      <dt>Réf. EB</dt><dd>${escapeHtml(input.ebReference)}</dd>` : ''}${input.bcReference ? `
+      <dt>Réf. BC</dt><dd>${escapeHtml(input.bcReference)}</dd>` : ''}
       <dt>Date tournée</dt><dd>${escapeHtml(input.tourDate)}</dd>
       <dt>Livreur</dt><dd>${escapeHtml(input.driverName)}</dd>
       <dt>Adresse</dt><dd>${escapeHtml(input.deliveryAddress)}</dd>

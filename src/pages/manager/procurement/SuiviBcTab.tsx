@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { useProcurementStore } from '../../../stores/procurementStore'
 import {
+  certificateHtmlUrl,
+  fetchBcBlFile,
   fetchBcInvoiceFile,
   fetchRequestLineAttachment,
   patchBcRegisterFollowup,
+  uploadBcBlFile,
   uploadBcInvoiceFile,
 } from './procurementApi'
 import type { BcRegisterRow } from './procurementTypes'
@@ -133,6 +136,8 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   const previewUrlRef = useRef<string | null>(null)
   const invoiceInputRef = useRef<HTMLInputElement | null>(null)
   const invoiceUploadRowRef = useRef<BcRegisterRow | null>(null)
+  const blInputRef = useRef<HTMLInputElement | null>(null)
+  const blUploadRowRef = useRef<BcRegisterRow | null>(null)
 
   useEffect(() => {
     void load(handleAuth)
@@ -246,6 +251,40 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     }
   }
 
+  // Bon de livraison fournisseur : pièce de la chaîne EB → BC → BL (miroir facture).
+  const openBlPicker = (row: BcRegisterRow) => {
+    blUploadRowRef.current = row
+    blInputRef.current?.click()
+  }
+
+  const openBlPreview = async (row: BcRegisterRow) => {
+    if (!row.blFile) return
+    try {
+      const { blob } = await fetchBcBlFile(row.purchaseOrderId)
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+      const url = URL.createObjectURL(blob)
+      previewUrlRef.current = url
+      setPreview({ url, fileName: row.blFile.fileName, contentType: blob.type })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Aperçu indisponible')
+    }
+  }
+
+  const handleBlFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const row = blUploadRowRef.current
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    blUploadRowRef.current = null
+    if (!row || !file) return
+    try {
+      await uploadBcBlFile(row.purchaseOrderId, file)
+      patchRow(row.purchaseOrderId, { blFile: { fileName: file.name } })
+      toast.show(`Bon de livraison joint · ${file.name}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Jointure impossible')
+    }
+  }
+
   // Transmettre la facture au comptable (CMPT) : PJ + n° de facture requis.
   const transmitInvoice = async (row: BcRegisterRow) => {
     if (!row.invoiceFile || !row.invoice.trim()) return
@@ -297,6 +336,14 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
         style={{ display: 'none' }}
         onChange={(e) => void handleInvoiceFileChange(e)}
         data-testid="mgr-suivi-bc-invoice-input"
+      />
+      <input
+        ref={blInputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => void handleBlFileChange(e)}
+        data-testid="mgr-suivi-bc-bl-input"
       />
       <div className="page">
         <div className="topbar">
@@ -472,7 +519,13 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                         <td>{row.siteName}</td>
                         <td>{row.supplierName}</td>
                         <td className="mono">{row.date}</td>
-                        <td className="bon">{row.bon}</td>
+                        <td className="bon">
+                          {row.bon}
+                          <div style={{ fontSize: 11, color: '#667', fontWeight: 400 }}>
+                            EB {row.ebReference}
+                            {row.btReferences.length > 0 ? ` · BT ${row.btReferences.join(', ')}` : ''}
+                          </div>
+                        </td>
                         <td>{row.paymentMode}</td>
                         <td className="mono tot">{row.amountLabel}</td>
                         <td>{followupInput(row, 'invoice', 'n° facture…')}</td>
@@ -572,6 +625,54 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                               📎 Joindre
                             </button>
                           )}
+                          {row.blFile ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                              <button
+                                type="button"
+                                className="att"
+                                data-testid={`mgr-suivi-bc-bl-preview-${row.purchaseOrderId}`}
+                                onClick={() => void openBlPreview(row)}
+                                title="Bon de livraison fournisseur (image ou PDF)"
+                              >
+                                📎 BL {row.blFile.fileName}
+                              </button>
+                              <button
+                                type="button"
+                                className="att"
+                                style={{ padding: '2px 7px' }}
+                                data-testid={`mgr-suivi-bc-bl-replace-${row.purchaseOrderId}`}
+                                onClick={() => openBlPicker(row)}
+                                title="Remplacer le bon de livraison"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ padding: '4px 10px', fontSize: 12, marginTop: 4 }}
+                              data-testid={`mgr-suivi-bc-bl-attach-${row.purchaseOrderId}`}
+                              onClick={() => openBlPicker(row)}
+                              title="Joindre le bon de livraison fournisseur (PDF ou image)"
+                            >
+                              📎 BL
+                            </button>
+                          )}
+                          {row.blReceiptId ? (
+                            <div style={{ marginTop: 4 }}>
+                              <a
+                                className="att"
+                                href={certificateHtmlUrl(row.blReceiptId)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-testid={`mgr-suivi-bc-bl-link-${row.purchaseOrderId}`}
+                                title="Bon de livraison interne (certificat de livraison)"
+                              >
+                                🧾 {row.blReceiptId}
+                              </a>
+                            </div>
+                          ) : null}
                         </td>
                       </tr>
                     )

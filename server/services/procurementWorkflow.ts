@@ -11,11 +11,14 @@ import {
   getSiteById,
   getSupplierById,
   getTreasuryOrderByRequest,
+  linkDeliveryPointsToPurchaseOrder,
   listPurchaseOrdersForRequest,
+  listTreasuryOrdersForRequest,
   recordApprovalStep,
   recordPurchaseRequestVersion,
   setPurchaseOrderTour,
   setTourPurchaseOrder,
+  setTreasuryOrderPurchaseOrder,
   updatePurchaseOrderHtml,
   updatePurchaseRequestStatus,
   updateRequestLineQuantities,
@@ -25,6 +28,7 @@ import {
 import type { ProcurementRole, PurchaseRequestStatus } from '../db/schema.js'
 import { comptantLines, distinctSupplierNames, namesMatch } from '../lib/procurementLines.js'
 import { hasComptantLines } from '../../shared/saFinanceGate.js'
+import { versionSuffix } from '../../shared/requestVersion.js'
 import {
   buildBcDataFromRequest,
   buildBtDataFromRequest,
@@ -174,6 +178,13 @@ export async function ensureTreasuryAdvance(companyId: string, requestId: string
     ? cash.reduce((s, l) => s + (Number(l.amountFcfa ?? 0) || Number(l.unitPriceFcfa ?? 0) * Number(l.quantity ?? 0)), 0)
     : (amountHint ?? Number(request.totalAmountFcfa ?? 0))
   const signoff = signoffFromApprovalSteps(steps)
+  // Réf. croisée imprimée sur les BT : « EB-2026-0007 » (+ « — v2 » si révisée).
+  const ebReference = `${request.reference}${versionSuffix(request.version)}`
+  // Chaîne EB → BT → BC : renseigné dès qu'un BC unique existe. Les EB
+  // multi-fournisseurs gardent le BT rattaché à la demande et la chaîne
+  // documentaire affiche alors l'ensemble des BC de l'EB.
+  const linkedPos = await listPurchaseOrdersForRequest(companyId, requestId)
+  const linkedBcId = linkedPos.length === 1 ? (linkedPos[0]?.id ?? null) : null
 
   if (existing) {
     const data = buildBtDataFromRequest(request, site, existing, lines)
@@ -181,6 +192,7 @@ export async function ensureTreasuryAdvance(companyId: string, requestId: string
       ...data,
       ...signoff,
       reference: existing.reference,
+      ebReference,
       amountFcfa: amount || data.amountFcfa,
       avanceNumber: '',
     })
@@ -189,7 +201,8 @@ export async function ensureTreasuryAdvance(companyId: string, requestId: string
     // `amount_fcfa` est une colonne distincte du HTML : sans cette écriture, un BT
     // déjà généré garderait l'ancien total après une révision PDG des quantités.
     await updateTreasuryOrderAmount(existing.id, finalAmount)
-    return { ...existing, pdfHtml, amountFcfa: String(finalAmount) }
+    if (linkedBcId) await setTreasuryOrderPurchaseOrder(existing.id, linkedBcId)
+    return { ...existing, pdfHtml, amountFcfa: String(finalAmount), purchaseOrderId: linkedBcId ?? existing.purchaseOrderId }
   }
 
   const draft = await createTreasuryOrder({
@@ -202,6 +215,7 @@ export async function ensureTreasuryAdvance(companyId: string, requestId: string
       amountFcfa: amount,
       requesterName: request.requestedByName ?? undefined,
       createdAt: new Date().toISOString().slice(0, 10),
+      ebReference,
       avanceNumber: '',
       ...signoff,
     }),
@@ -211,10 +225,12 @@ export async function ensureTreasuryAdvance(companyId: string, requestId: string
     ...data,
     ...signoff,
     reference: draft.reference,
+    ebReference,
     avanceNumber: '',
   })
   await updateTreasuryOrderHtml(draft.id, pdfHtml)
-  return { ...draft, pdfHtml }
+  if (linkedBcId) await setTreasuryOrderPurchaseOrder(draft.id, linkedBcId)
+  return { ...draft, pdfHtml, purchaseOrderId: linkedBcId ?? draft.purchaseOrderId }
 }
 
 export async function createTreasuryAdvanceForRequest(input: {
@@ -393,6 +409,11 @@ export async function createPurchaseOrderForRequest(input: {
 
   const bcData = buildBcDataFromRequest(request, site, supplier, lines, companyName)
   const amount = bcData.amountFcfa
+  // Réfs. croisées imprimées sur le BC : EB d'origine + BT déjà générés (comptant).
+  const chainRefs = {
+    ebReference: `${request.reference}${versionSuffix(request.version)}`,
+    btReferences: (await listTreasuryOrdersForRequest(input.companyId, request.id)).map((b) => b.reference),
+  }
 
   const po = await createPurchaseOrder({
     companyId: input.companyId,
@@ -400,9 +421,9 @@ export async function createPurchaseOrderForRequest(input: {
     supplierId,
     amountFcfa: amount,
     templateId: template?.id ?? null,
-    pdfHtml: generateBcHtml(template, { ...bcData, reference: request.reference }),
+    pdfHtml: generateBcHtml(template, { ...bcData, ...chainRefs, reference: request.reference }),
   })
-  const pdfHtml = generateBcHtml(template, { ...bcData, reference: po.reference })
+  const pdfHtml = generateBcHtml(template, { ...bcData, ...chainRefs, reference: po.reference })
   await updatePurchaseOrderHtml(po.id, pdfHtml)
 
   await updatePurchaseRequestStatus(input.companyId, request.id, 'po_ready', { supplierId })
@@ -482,6 +503,9 @@ export async function markDeliveryScheduled(
     // Lien inverse : tours.purchase_order_id — sans lui, la replanification
     // perd le lien BC (verrou produits + re-liaison du BC à la nouvelle tournée).
     await setTourPurchaseOrder(tourId, target.id)
+    // Chaîne EB → BC → BL : les arrêts de la tournée héritent du BC, ce qui
+    // permet de retrouver le BL (certificat RCT-…) depuis le BC.
+    await linkDeliveryPointsToPurchaseOrder(tourId, target.id)
   }
   const refreshed = await listPurchaseOrdersForRequest(companyId, requestId)
   const allLinked = refreshed.length > 0 && refreshed.every((p) => p.tourId)
