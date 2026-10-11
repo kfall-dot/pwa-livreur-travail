@@ -78,7 +78,7 @@ import {
   revisePurchaseRequest,
 } from '../services/procurementWorkflow.js'
 import { wrapPoDocument } from '../services/pdfDocuments.js'
-import { getDocumentChain } from '../services/documentChain.js'
+import { getDocumentChain, resolveDocumentChain } from '../services/documentChain.js'
 import {
   availableBcRegisterMonths,
   filterBcRegisterByMonth,
@@ -1184,6 +1184,36 @@ procurementRouter.get('/requests/:id/chain', async (req, res) => {
   } catch (err) {
     console.error('[procurement] request chain error', err)
     res.status(500).json({ message: 'Chaîne documentaire indisponible' })
+  }
+})
+
+// GET /document-chain?ref=… — résolveur : n'importe quel identifiant de la
+// chaîne (EB-…, BT-…/AV-…, BC-…, RCT-… ou id technique) → la pièce trouvée
+// (`matched`) et sa chaîne complète. Ouvert à tous les rôles achats : c'est de
+// la navigation entre pièces, comme /requests/:id/chain.
+procurementRouter.get('/document-chain', async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  const ref = String(req.query.ref ?? '').trim()
+  if (!ref) {
+    res.status(400).json({ message: 'Identifiant manquant' })
+    return
+  }
+  try {
+    const resolved = await resolveDocumentChain(manager.companyId, ref)
+    if (resolved === 'invalid') {
+      res.status(422).json({
+        message: 'Identifiant non reconnu — attendu : EB-…, BT-…, BC-…, RCT-… ou un id technique',
+      })
+      return
+    }
+    if (!resolved) {
+      res.status(404).json({ message: 'Aucune pièce ne correspond à cet identifiant' })
+      return
+    }
+    res.json(resolved)
+  } catch (err) {
+    console.error('[procurement] document chain resolve error', err)
+    res.status(500).json({ message: 'Résolution de la chaîne indisponible' })
   }
 })
 

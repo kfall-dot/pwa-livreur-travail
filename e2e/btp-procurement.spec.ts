@@ -1091,6 +1091,15 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await expect(page.getByTestId('mgr-document-chain')).toBeVisible({ timeout: UI_READY_TIMEOUT })
     await expect(page.getByTestId('mgr-chain-refs')).toContainText(/EB-/)
     await expect(page.getByTestId('mgr-chain-node-bt')).toContainText(beforeFinance.treasuryOrder.reference)
+    // I97 — résolution par identifiant : coller la réf. du BT ouvre la même EB
+    // et surligne le maillon BT de la chaîne documentaire.
+    await page.getByTestId('mgr-chain-lookup-input').fill(beforeFinance.treasuryOrder.reference)
+    await page.getByTestId('mgr-chain-lookup-submit').click()
+    await expect(page.getByTestId('mgr-chain-node-bt')).toHaveAttribute(
+      'data-chain-highlighted',
+      'true',
+      { timeout: UI_READY_TIMEOUT },
+    )
     await page.getByTestId('mgr-achats-sign-pin').fill('5678')
     await page.getByTestId('btp-approve-btn').click()
     await expect(page.getByText(/Demande approuvée/)).toBeVisible({ timeout: 15_000 })

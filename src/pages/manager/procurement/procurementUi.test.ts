@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { approvalDecisionLabel, canReviseRequest, chainReferencesLabel } from './procurementUi.tsx'
+import { approvalDecisionLabel, canReviseRequest, chainHighlightMatches, chainReferencesLabel } from './procurementUi.tsx'
 
 /**
  * Historique des approbations (page Achats chantier) : la révision PDG des
@@ -55,6 +55,21 @@ describe('chainReferencesLabel — réfs. croisées EB → BT → BC → BL', ()
 
   it('ignore les espaces parasites des références', () => {
     assert.equal(chainReferencesLabel({ eb: '  EB-1  ', bc: ' BC-2 ' }), 'EB EB-1 · BC BC-2')
+  })
+})
+
+describe('chainHighlightMatches — maillon trouvé par le résolveur d’identifiants', () => {
+  const bt = { kind: 'bt', id: 'bt-1', reference: 'BT-2026-0003' }
+
+  it('surligne le maillon dont l’id et le type correspondent', () => {
+    assert.equal(chainHighlightMatches(bt, 'bt', 'bt-1'), true)
+    assert.equal(chainHighlightMatches(bt, 'eb', 'bt-1'), false)
+    assert.equal(chainHighlightMatches(bt, 'bt', 'bt-2'), false)
+  })
+
+  it('ne surligne rien sans recherche (chaîne ouverte depuis la liste)', () => {
+    assert.equal(chainHighlightMatches(null, 'bt', 'bt-1'), false)
+    assert.equal(chainHighlightMatches(undefined, 'bt', 'bt-1'), false)
   })
 })
 

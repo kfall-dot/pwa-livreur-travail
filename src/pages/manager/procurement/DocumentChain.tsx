@@ -8,8 +8,8 @@ import {
   treasuryHtmlUrl,
   uploadBcBlFile,
 } from './procurementApi'
-import type { DocumentChain as DocumentChainData, DocumentChainBl } from './procurementTypes'
-import { chainReferencesLabel, css, formatFcfa } from './procurementUi'
+import type { DocumentChain as DocumentChainData, DocumentChainBl, DocumentChainMatch } from './procurementTypes'
+import { chainHighlightMatches, chainReferencesLabel, css, formatFcfa } from './procurementUi'
 
 /**
  * Chaîne documentaire d'une EB : EB → BT → BC → BL → facture.
@@ -36,12 +36,15 @@ function ChainBlock({
   title,
   subtitle,
   amountFcfa,
+  highlighted,
   children,
 }: {
   kind: 'eb' | 'bt' | 'bc' | 'bl' | 'invoice'
   title: string
   subtitle?: string | null
   amountFcfa?: number | null
+  /** Maillon retrouvé par le résolveur d'identifiants (recherche par réf.). */
+  highlighted?: boolean
   children?: React.ReactNode
 }) {
   const colors: Record<string, string> = {
@@ -54,9 +57,11 @@ function ChainBlock({
   return (
     <div
       data-testid={`mgr-chain-node-${kind}`}
+      data-chain-highlighted={highlighted ? 'true' : undefined}
       style={{
         borderLeft: `3px solid ${colors[kind] ?? '#e5e7eb'}`,
-        background: 'var(--bg-elevated, #fff)',
+        background: highlighted ? '#fffbeb' : 'var(--bg-elevated, #fff)',
+        outline: highlighted ? '2px solid #f59e0b' : undefined,
         borderRadius: 8,
         padding: '0.5rem 0.75rem',
         fontSize: 13,
@@ -84,12 +89,15 @@ function Link({ href, label, testId }: { href: string; label: string; testId: st
 export function DocumentChain({
   requestId,
   canAttachBl = false,
+  highlight = null,
   onError,
   onNotice,
 }: {
   requestId: string
   /** SA (rôle purchasing) : affiche « Joindre le BL fournisseur » sur chaque BC. */
   canAttachBl?: boolean
+  /** Pièce retrouvée par le résolveur d'identifiants : son maillon est surligné. */
+  highlight?: DocumentChainMatch | null
   onError?: (message: string) => void
   onNotice?: (message: string) => void
 }) {
@@ -180,6 +188,7 @@ export function DocumentChain({
           title={`EB ${chain.eb.versionLabel}`}
           subtitle={`${chain.eb.siteName} · ${chain.eb.status}`}
           amountFcfa={chain.eb.totalAmountFcfa}
+          highlighted={chainHighlightMatches(highlight, 'eb', chain.requestId)}
         >
           <Link
             href={ebRequestFicheHtmlUrl(chain.requestId)}
@@ -198,6 +207,7 @@ export function DocumentChain({
               title={`BT ${bt.reference}`}
               subtitle={bt.bcReference ? `Finance le BC ${bt.bcReference}` : 'BC non encore émis'}
               amountFcfa={bt.amountFcfa}
+              highlighted={chainHighlightMatches(highlight, 'bt', bt.id)}
             >
               <Link href={treasuryHtmlUrl(bt.id)} label="Voir la fiche trésorerie" testId={`mgr-chain-bt-link-${bt.id}`} />
             </ChainBlock>
@@ -214,6 +224,7 @@ export function DocumentChain({
               title={`BC ${bc.reference}`}
               subtitle={`${bc.supplierName}${bc.tourDate ? ` · tournée du ${bc.tourDate}` : ''}`}
               amountFcfa={bc.amountFcfa}
+              highlighted={chainHighlightMatches(highlight, 'bc', bc.id)}
             >
               <Link href={documentHtmlUrl(bc.id)} label="Voir le document" testId={`mgr-chain-bc-link-${bc.id}`} />
               {bc.invoiceFile ? (
@@ -256,6 +267,7 @@ export function DocumentChain({
               kind="bl"
               title={`BL ${bl.receiptId || 'en attente'}`}
               subtitle={`${bl.stopName}${bl.tourDate ? ` · ${bl.tourDate}` : ''} · ${blStatusLabel(bl)}`}
+              highlighted={chainHighlightMatches(highlight, 'bl', bl.deliveryId)}
             >
               {bl.certificateUrl ? (
                 <Link href={bl.certificateUrl} label="Voir le BL" testId={`mgr-chain-bl-link-${bl.deliveryId}`} />

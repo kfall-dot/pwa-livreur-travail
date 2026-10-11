@@ -11,6 +11,7 @@ import type {
   PurchaseRequestDraftRow,
   PurchaseRequestRow,
   RequestDetailResponse,
+  ResolvedDocumentChain,
   ScheduleDeliveryPayload,
   SiteRow,
   SupplierRow,
@@ -537,6 +538,18 @@ export async function fetchDocumentChain(requestId: string): Promise<DocumentCha
   }
   const body = (await res.json()) as { chain: DocumentChain }
   return body.chain
+}
+
+/**
+ * Résout un identifiant collé (réf. `EB-…` / `BT-…` / `BC-…` / `RCT-…` ou id
+ * technique) → la pièce trouvée (`matched`) et sa chaîne documentaire.
+ */
+export async function resolveDocumentChain(ref: string): Promise<ResolvedDocumentChain> {
+  const res = await authFetch(`${BASE}/document-chain?ref=${encodeURIComponent(ref)}`)
+  if (!res.ok) {
+    throw await apiErrorMessage(res, 'Aucune pièce ne correspond à cet identifiant')
+  }
+  return (await res.json()) as ResolvedDocumentChain
 }
 
 export function documentHtmlUrl(poId: string): string {

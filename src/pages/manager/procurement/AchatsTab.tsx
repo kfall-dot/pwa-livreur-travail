@@ -18,6 +18,7 @@ import {
   createBlankEbFiche,
     archiveDraft,
   rejectRequest,
+  resolveDocumentChain,
   reviseRequestQuantities,
   submitDraft,
   submitRequestFinance,
@@ -32,6 +33,7 @@ import {
 } from './procurementApi'
 import { DocumentChain } from './DocumentChain'
 import type {
+  DocumentChainMatch,
   DraftDetailResponse,
   ParsedEbLine,
   ProcurementRole,
@@ -273,6 +275,11 @@ export function AchatsTab({
   const [editPin, setEditPin] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Résolveur d'identifiants : réf. collée, pièce trouvée (surlignée) et erreur.
+  const [chainRef, setChainRef] = useState('')
+  const [chainLookup, setChainLookup] = useState<DocumentChainMatch | null>(null)
+  const [chainLookupError, setChainLookupError] = useState<string | null>(null)
+  const [chainLookupLoading, setChainLookupLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [approvalComment, setApprovalComment] = useState('')
   const [approvalPin, setApprovalPin] = useState('')
@@ -480,6 +487,7 @@ export function AchatsTab({
     if (!focusRequestId) return
     setView('inbox')
     setSelectedRequestId(focusRequestId)
+    setChainLookup(null)
     onFocusConsumed?.()
     scrollToChiffrageZone()
     // onFocusConsumed volontairement omis : callback stable du parent
@@ -1003,6 +1011,31 @@ export function AchatsTab({
     }
   }
 
+  /**
+   * Résolveur d'identifiants : on colle une réf. (`EB-…`, `BT-…`, `BC-…`,
+   * `RCT-…`) ou un id technique → on ouvre l'EB de la pièce et son maillon est
+   * surligné dans la chaîne documentaire.
+   */
+  const handleChainLookup = async () => {
+    const ref = chainRef.trim()
+    if (!ref) return
+    setChainLookupLoading(true)
+    setChainLookupError(null)
+    try {
+      const resolved = await resolveDocumentChain(ref)
+      setChainLookup(resolved.matched)
+      setSelectedDraftId(null)
+      setSelectedRequestId(resolved.requestId)
+      setView('requests')
+      toast.success(`Pièce retrouvée : ${resolved.matched.reference}`)
+    } catch (err) {
+      setChainLookup(null)
+      setChainLookupError(err instanceof Error ? err.message : 'Pièce introuvable')
+    } finally {
+      setChainLookupLoading(false)
+    }
+  }
+
   const showDraftReview = view === 'inbox' && selectedDraftId && draftDetail
   const showRequestDetail = view === 'requests' && selectedRequestId && requestDetail
 
@@ -1124,6 +1157,49 @@ export function AchatsTab({
         </button>
       </div>
 
+      {/* Résolveur d'identifiants : n'importe quelle pièce → sa chaîne (I97). */}
+      <div
+        style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}
+        data-testid="mgr-chain-lookup"
+      >
+        <input
+          type="text"
+          value={chainRef}
+          onChange={(e) => setChainRef(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void handleChainLookup()
+          }}
+          placeholder="Retrouver une pièce : EB-2026-0007, BT-…, BC-…, RCT-…"
+          aria-label="Retrouver une pièce par identifiant"
+          data-testid="mgr-chain-lookup-input"
+          style={{
+            minWidth: 300,
+            padding: '9px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            fontSize: 13,
+            background: 'var(--bg-elevated)',
+            color: 'var(--text)',
+            outline: 'none',
+          }}
+        />
+        <button
+          type="button"
+          className="btn"
+          style={{ padding: '9px 14px', fontSize: 13 }}
+          data-testid="mgr-chain-lookup-submit"
+          disabled={chainLookupLoading || !chainRef.trim()}
+          onClick={() => void handleChainLookup()}
+        >
+          {chainLookupLoading ? 'Recherche…' : 'Retrouver'}
+        </button>
+        {chainLookupError ? (
+          <span style={{ ...css.meta, color: '#b91c1c' }} data-testid="mgr-chain-lookup-error">
+            {chainLookupError}
+          </span>
+        ) : null}
+      </div>
+
       {error && <AlertBox>{error}</AlertBox>}
 
       {showDraftReview ? (
@@ -1157,6 +1233,7 @@ export function AchatsTab({
         <RequestDetailPanel
           detail={requestDetail}
           procurementRole={procurementRole}
+          highlight={chainLookup}
           approvalComment={approvalComment}
           approvalPin={approvalPin}
           selectedSupplierId={selectedSupplierId}
@@ -1399,7 +1476,7 @@ export function AchatsTab({
                     <tr
                       key={r.id}
                       data-testid={`mgr-achats-request-${r.id}`}
-                      onClick={() => setSelectedRequestId(r.id)}
+                      onClick={() => { setSelectedRequestId(r.id); setChainLookup(null) }}
                       style={{
                         cursor: 'pointer',
                         background: idx % 2 === 0 ? 'var(--bg-elevated)' : '#faf9f7',
@@ -1983,6 +2060,7 @@ function DraftReviewPanel({
 function RequestDetailPanel({
   detail,
   procurementRole,
+  highlight,
   approvalComment,
   approvalPin,
   selectedSupplierId: _selectedSupplierId,
@@ -2020,6 +2098,8 @@ function RequestDetailPanel({
 }: {
   detail: RequestDetailResponse
   procurementRole: ProcurementRole | null
+  /** Pièce retrouvée par le résolveur d'identifiants : son maillon est surligné. */
+  highlight: DocumentChainMatch | null
   approvalComment: string
   approvalPin: string
   selectedSupplierId: string
@@ -3002,7 +3082,11 @@ function RequestDetailPanel({
         </div>
       )}
 
-      <DocumentChain requestId={request.id} canAttachBl={procurementRole === 'purchasing'} />
+      <DocumentChain
+        requestId={request.id}
+        canAttachBl={procurementRole === 'purchasing'}
+        highlight={highlight}
+      />
 
       {canPrice && (
         <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }} data-testid="mgr-achats-sa-pricing">

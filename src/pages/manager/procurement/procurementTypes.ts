@@ -372,6 +372,20 @@ export interface DocumentChain {
   references: { eb: string; bt: string; bc: string; bl: string }
 }
 
+/** Maillon par lequel on est entré dans la chaîne (résolveur d'identifiants). */
+export interface DocumentChainMatch {
+  kind: 'eb' | 'bt' | 'bc' | 'bl'
+  id: string
+  reference: string
+}
+
+/** Réponse de `GET /procurement/document-chain?ref=…`. */
+export interface ResolvedDocumentChain {
+  requestId: string
+  matched: DocumentChainMatch
+  chain: DocumentChain
+}
+
 export interface SiteBudgetAmendmentRow {
   id: string
   reference: string

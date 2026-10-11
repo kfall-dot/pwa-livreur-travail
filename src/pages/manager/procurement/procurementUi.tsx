@@ -368,6 +368,19 @@ export function chainReferencesLabel(references: {
   return parts.join(' · ')
 }
 
+/**
+ * Le maillon affiché correspond-il à la pièce retrouvée par le résolveur
+ * d'identifiants ? (surlignage du maillon trouvé dans la chaîne)
+ */
+export function chainHighlightMatches(
+  highlight: { kind: string; id: string } | null | undefined,
+  kind: 'eb' | 'bt' | 'bc' | 'bl',
+  id: string,
+): boolean {
+  if (!highlight) return false
+  return highlight.kind === kind && highlight.id === id
+}
+
 export function canApproveRequest(
   status: PurchaseRequestStatus,
   role: ProcurementRole | null | undefined,
