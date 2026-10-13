@@ -151,13 +151,13 @@ export async function approveBtpRequest(
   request: APIRequestContext,
   requestId: string,
   role: 'daf' | 'pdg' | 'cdg',
-): Promise<{ request: { status: string } }> {
+): Promise<{ request: { id: string; status: string } }> {
   await loginBtpApi(request, role)
   const res = await request.post(`${API_BASE}/api/v1/procurement/requests/${requestId}/approve`, {
     data: { pin: BTP_PINS[role] },
   })
   expect(res.ok(), await res.text()).toBeTruthy()
-  return (await res.json()) as { request: { status: string } }
+  return (await res.json()) as { request: { id: string; status: string } }
 }
 
 export async function dtSubmitDraft(

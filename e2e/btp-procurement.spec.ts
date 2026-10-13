@@ -1574,7 +1574,7 @@ test('DT : le sélecteur Chantier inclut les chantiers avec EB émise par le DT 
   await loginBtpApi(request, 'dt')
 
   // Chantier créé par le DT (pas d'affectation). Sans EB il reste exclu du périmètre.
-  const createSite = async (name: string): Promise<string> => {
+  const createSite = async (name: string): Promise<{ site: { id: string } }> => {
     const res = await request.post(`${API_BASE}/api/v1/procurement/sites`, {
       data: { name, address: 'Abidjan Yopougon' },
     })
@@ -1602,7 +1602,7 @@ test('DT : le sélecteur Chantier inclut les chantiers avec EB émise par le DT 
   const paste = await request.post(`${API_BASE}/api/v1/procurement/drafts/from-paste`, {
     data: { bodyText: '50 sacs ciment', siteId: siteNoSupervisor },
   })
-  expect(paste.ok(), await res.text()).toBeTruthy()
+  expect(paste.ok(), await paste.text()).toBeTruthy()
   const { draftId } = (await paste.json()) as { draftId: string }
   const submitted = await dtSubmitDraft(request, draftId)
   expect(submitted.id).toBeTruthy()
@@ -1614,7 +1614,7 @@ test('DT : le sélecteur Chantier inclut les chantiers avec EB émise par le DT 
 
   // Cohérence côté budgets (listSupervisedSiteIds — même union que le sélecteur).
   const budgets = await request.get(`${API_BASE}/api/v1/procurement/site-budgets`)
-  expect(budgets.ok(), await res.text()).toBeTruthy()
+  expect(budgets.ok(), await budgets.text()).toBeTruthy()
   const budgetBody = (await budgets.json()) as { budgets: { siteId: string }[] }
   expect(budgetBody.budgets.map((b) => b.siteId)).toContain(siteNoSupervisor)
 
