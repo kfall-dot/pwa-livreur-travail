@@ -672,6 +672,10 @@ export const treasuryOrders = pgTable('treasury_orders', {
     .references(() => purchaseRequests.id),
   /** BC financé par ce bon de trésorerie (chaîne EB → BT → BC). */
   purchaseOrderId: text('purchase_order_id').references(() => purchaseOrders.id),
+  /** Ligne EB comptant financée par ce BT (Lot 2 : un BT par ligne).
+   *  NULL = BT agrégé historique (avant le découpage par ligne). */
+  purchaseRequestLineId: text('purchase_request_line_id').references(() => purchaseRequestLines.id),
+
   reference: text('reference').notNull(),
   amountFcfa: numeric('amount_fcfa', { precision: 14, scale: 0 }).notNull(),
   quotationUrls: jsonb('quotation_urls'),

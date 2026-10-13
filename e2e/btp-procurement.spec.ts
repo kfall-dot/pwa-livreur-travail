@@ -1082,20 +1082,22 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await openAchatsTab(page)
     await page.getByTestId(`mgr-achats-request-${submitted.id}`).click()
     await expect(page.getByTestId('mgr-achats-finance-dossier')).toBeVisible({ timeout: UI_READY_TIMEOUT })
-    await expect(page.getByTestId('mgr-achats-treasury-link')).toBeVisible()
-    await expect(page.getByTestId('mgr-achats-treasury-link')).toHaveAttribute(
+    await expect(page.getByTestId(/^mgr-achats-treasury-link-.*$/)).toHaveCount(2)
+    await expect(page.getByTestId(`mgr-achats-treasury-link-${beforeFinance.treasuryOrder.id}`)).toBeVisible()
+    await expect(page.getByTestId(`mgr-achats-treasury-link-${beforeFinance.treasuryOrder.id}`)).toHaveAttribute(
       'href',
       new RegExp(`/documents/treasury/${beforeFinance.treasuryOrder.id}/html`),
     )
     // I96 — chaîne documentaire : l'EB ouvre sa chaîne (EB → BT ; le BC suit après DAF/SA).
     await expect(page.getByTestId('mgr-document-chain')).toBeVisible({ timeout: UI_READY_TIMEOUT })
     await expect(page.getByTestId('mgr-chain-refs')).toContainText(/EB-/)
-    await expect(page.getByTestId('mgr-chain-node-bt')).toContainText(beforeFinance.treasuryOrder.reference)
+    await expect(page.getByTestId(/^mgr-chain-node-bt-.*$/)).toHaveCount(2)
+    await expect(page.getByTestId(`mgr-chain-node-bt-${beforeFinance.treasuryOrder.id}`)).toContainText(beforeFinance.treasuryOrder.reference)
     // I97 — résolution par identifiant : coller la réf. du BT ouvre la même EB
     // et surligne le maillon BT de la chaîne documentaire.
     await page.getByTestId('mgr-chain-lookup-input').fill(beforeFinance.treasuryOrder.reference)
     await page.getByTestId('mgr-chain-lookup-submit').click()
-    await expect(page.getByTestId('mgr-chain-node-bt')).toHaveAttribute(
+    await expect(page.getByTestId(`mgr-chain-node-bt-${beforeFinance.treasuryOrder.id}`)).toHaveAttribute(
       'data-chain-highlighted',
       'true',
       { timeout: UI_READY_TIMEOUT },
@@ -1131,9 +1133,10 @@ test.describe('Achats chantier BTP (procurement)', () => {
       { data: {} },
     )
     expect(createBt.ok(), await createBt.text()).toBeTruthy()
-    const bt = (await createBt.json()) as { treasuryOrder: { id: string } }
+    const bt = (await createBt.json()) as { treasuryOrder: { id: string }; treasuryOrders: Array<{ id: string }> }
     const btId = bt.treasuryOrder.id
     expect(btId).toBeTruthy()
+    expect(bt.treasuryOrders).toHaveLength(2)
 
     const finance = await request.post(
       `${API_BASE}/api/v1/procurement/requests/${submitted.id}/submit-finance`,
@@ -1155,10 +1158,10 @@ test.describe('Achats chantier BTP (procurement)', () => {
     const before = (await beforeRes.json()) as {
       request: { version: number }
       lines: Array<{ id: string; quantity: string }>
-      treasuryOrder: { amountFcfa: string | number } | null
+      treasuryOrders: Array<{ id: string; purchaseRequestLineId: string | null; amountFcfa: string | number }>
     }
     expect(before.request.version).toBe(1)
-    const oldBtAmount = Number(before.treasuryOrder?.amountFcfa)
+    const oldBtAmount = before.treasuryOrders.reduce((sum, t) => sum + Number(t.amountFcfa), 0)
     expect(oldBtAmount).toBeGreaterThanOrEqual(500_000)
     const newQty = Math.round(Number(before.lines[0].quantity)) + 1
     const newBtAmount = oldBtAmount + unitPrice
@@ -1185,22 +1188,27 @@ test.describe('Achats chantier BTP (procurement)', () => {
       timeout: 20_000,
     })
 
-    // Le BT suit la révision : montant en base, bandeau et visa PDG sur la fiche.
+    // Les BT suivent la révision : montant en base, bandeau et visa PDG sur la fiche.
     await loginBtpApi(request, 'pdg')
     const afterRes = await request.get(`${API_BASE}/api/v1/procurement/requests/${submitted.id}`)
     expect(afterRes.ok(), await afterRes.text()).toBeTruthy()
     const after = (await afterRes.json()) as {
       request: { status: string; version: number; ebVersion: number; totalAmountFcfa: string | number }
-      treasuryOrder: { amountFcfa: string | number } | null
+      treasuryOrders: Array<{ id: string; purchaseRequestLineId: string | null; amountFcfa: string | number }>
     }
     expect(after.request.status).toBe('sa_review')
     expect(after.request.version).toBe(2)
     expect(after.request.ebVersion).toBe(2)
-    expect(Number(after.treasuryOrder?.amountFcfa)).toBe(newBtAmount)
-    expect(Number(after.treasuryOrder?.amountFcfa)).toBe(Number(after.request.totalAmountFcfa))
+    const afterBtTotal = after.treasuryOrders.reduce((sum, t) => sum + Number(t.amountFcfa), 0)
+    expect(after.treasuryOrders).toHaveLength(2)
+    expect(afterBtTotal).toBe(newBtAmount)
+    expect(afterBtTotal).toBe(Number(after.request.totalAmountFcfa))
 
+    // Un BT par ligne : on relit celui rattaché à la ligne révisée.
+    const revisedBt = after.treasuryOrders.find((t) => t.purchaseRequestLineId === before.lines[0].id)
+    expect(revisedBt, 'le BT de la ligne révisée doit exister').toBeTruthy()
     const btHtmlRes = await request.get(
-      `${API_BASE}/api/v1/procurement/documents/treasury/${btId}/html`,
+      `${API_BASE}/api/v1/procurement/documents/treasury/${revisedBt!.id}/html`,
     )
     expect(btHtmlRes.ok(), await btHtmlRes.text()).toBeTruthy()
     const btHtml = normalizeNbsp(await btHtmlRes.text())
@@ -1211,8 +1219,10 @@ test.describe('Achats chantier BTP (procurement)', () => {
     // Les deux visas portent leur horodatage (date + heure), pas seulement le nom.
     expect(btHtml).toMatch(/Diabaté PDG[\s\S]{0,80}\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}/)
     expect(btHtml).toMatch(/Aya DAF[\s\S]{0,80}\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}/)
-    expect(btHtml).toContain(fcfa(newBtAmount))
-    expect(btHtml).not.toContain(fcfa(oldBtAmount))
+    const newLineAmount = newQty * unitPrice
+    const oldLineAmount = (newQty - 1) * unitPrice
+    expect(btHtml).toContain(fcfa(newLineAmount))
+    expect(btHtml).not.toContain(fcfa(oldLineAmount))
 
     // La fiche EB v2 porte elle aussi le bandeau et le visa du PDG.
     const ficheRes = await request.get(
@@ -1286,7 +1296,7 @@ test.describe('Achats chantier BTP (procurement)', () => {
     await page.getByTestId('mgr-achats-save-pricing').click()
     await expect(page.getByText(/Lignes enregistrées/)).toBeVisible({ timeout: 15_000 })
     await expect(page.getByTestId('mgr-achats-create-bt')).toHaveCount(0)
-    await expect(page.getByTestId('mgr-achats-treasury-link')).toHaveCount(0)
+    await expect(page.getByTestId(/^mgr-achats-treasury-link-.*$/)).toHaveCount(0)
   })
 
   test('Créer les BC génère un BC par fournisseur et une tournée par BC (I60)', async ({ page, request }) => {

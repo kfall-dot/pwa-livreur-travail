@@ -33,6 +33,7 @@ function blStatusLabel(bl: DocumentChainBl): string {
 
 function ChainBlock({
   kind,
+  id,
   title,
   subtitle,
   amountFcfa,
@@ -40,6 +41,8 @@ function ChainBlock({
   children,
 }: {
   kind: 'eb' | 'bt' | 'bc' | 'bl' | 'invoice'
+  /** Id technique du maillon (ex. un BT par ligne) : rend le testid unique par pièce. */
+  id?: string | null
   title: string
   subtitle?: string | null
   amountFcfa?: number | null
@@ -56,7 +59,7 @@ function ChainBlock({
   }
   return (
     <div
-      data-testid={`mgr-chain-node-${kind}`}
+      data-testid={`mgr-chain-node-${kind}${id ? `-${id}` : ''}`}
       data-chain-highlighted={highlighted ? 'true' : undefined}
       style={{
         borderLeft: `3px solid ${colors[kind] ?? '#e5e7eb'}`,
@@ -204,6 +207,7 @@ export function DocumentChain({
             <ChainBlock
               key={bt.id}
               kind="bt"
+              id={bt.id}
               title={`BT ${bt.reference}`}
               subtitle={bt.bcReference ? `Finance le BC ${bt.bcReference}` : 'BC non encore émis'}
               amountFcfa={bt.amountFcfa}

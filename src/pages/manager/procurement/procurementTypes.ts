@@ -218,7 +218,7 @@ export interface RequestDetailResponse {
   supplier?: SupplierRow | null
   purchaseOrder?: PurchaseOrderRow | null
   purchaseOrders?: PurchaseOrderRow[]
-  treasuryOrder?: TreasuryOrderRow | null
+  treasuryOrders?: TreasuryOrderRow[] | null
   suppliers?: SupplierRow[]
   versions?: PurchaseRequestVersion[]
 }

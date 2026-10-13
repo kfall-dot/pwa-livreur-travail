@@ -2144,7 +2144,7 @@ function RequestDetailPanel({
   onReviseModalClose: () => void
   onReviseConfirm: () => void
 }) {
-  const { request, lines, approvalSteps, site, supplier, purchaseOrder, purchaseOrders = [], treasuryOrder, suppliers = [] } = detail
+  const { request, lines, approvalSteps, site, supplier, purchaseOrder, purchaseOrders = [], treasuryOrders = [], suppliers = [] } = detail
   const [siteBudget, setSiteBudget] = useState<SiteBudget | null>(null)
   useEffect(() => {
     const siteId = request.siteId ?? site?.id
@@ -2177,7 +2177,7 @@ function RequestDetailPanel({
   const showRevise = canReviseRequest(request.status, procurementRole)
   const nextVersion = (request.version ?? 1) + 1
   const pendingOrders = orders.filter((po) => !po.tourId)
-  const showTreasury = Boolean(treasuryOrder) && hasComptantLines(lines)
+  const showTreasury = Boolean(treasuryOrders?.[0]) && hasComptantLines(lines)
   const canPrice = canPriceRequest(request.status, procurementRole)
   const total = lines.reduce((s, l) => s + Number(l.amountFcfa ?? 0), 0)
   const wouldExceedBudget =
@@ -2446,29 +2446,31 @@ function RequestDetailPanel({
                 : 'Le bon de trésorerie joint sera également approuvé : le DAF puis le PDG y apposeront leur signature.'}
             </p>
           )}
-          {showTreasury && (
-            <p style={{ fontSize: 13, marginTop: 8 }}>
-              Bon de trésorerie {treasuryOrder!.reference}
-              {' · '}
-              <a
-                href={treasuryHtmlUrl(treasuryOrder!.id)}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="mgr-achats-treasury-link"
-              >
-                Voir la fiche trésorerie
-              </a>
-              {' · '}
-              <button
-                type="button"
-                data-testid="mgr-achats-treasury-print"
-                onClick={() => printHtml(treasuryHtmlUrl(treasuryOrder!.id))}
-                style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
-              >
-                Imprimer
-              </button>
-            </p>
-          )}
+           {showTreasury &&
+             treasuryOrders!.map((b) => (
+               <p key={b.id} style={{ fontSize: 13, marginTop: 8 }}>
+                 Bon de trésorerie {b.reference}
+                 {' · '}
+                 <a
+                   href={treasuryHtmlUrl(b.id)}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   data-testid={`mgr-achats-treasury-link-${b.id}`}
+                 >
+                   Voir la fiche trésorerie
+                 </a>
+                 {' · '}
+                 <button
+                   type="button"
+                   data-testid={`mgr-achats-treasury-print-${b.id}`}
+                   onClick={() => printHtml(treasuryHtmlUrl(b.id))}
+                   style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
+                 >
+                   Imprimer
+                 </button>
+               </p>
+             ))
+           }
         </div>
       )}
 
@@ -3055,32 +3057,31 @@ function RequestDetailPanel({
         </div>
       )}
 
-      {showTreasury && !showApprove && (
-        <div style={{ marginTop: '1rem' }}>
-          <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Bon de trésorerie</h4>
-          <p style={{ fontSize: 13 }}>
-            {treasuryOrder!.reference}
-            {' · '}
-            <a
-              href={treasuryHtmlUrl(treasuryOrder!.id)}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="mgr-achats-treasury-link"
-            >
-              Voir la fiche trésorerie
-            </a>
-            {' · '}
-            <button
-              type="button"
-              data-testid="mgr-achats-treasury-print"
-              onClick={() => printHtml(treasuryHtmlUrl(treasuryOrder!.id))}
-              style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
-            >
-              Imprimer
-            </button>
-          </p>
-        </div>
-      )}
+      {showTreasury && !showApprove &&
+        treasuryOrders!.map((b) => (
+          <div key={b.id} style={{ marginTop: '1rem' }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Bon de trésorerie {b.reference}</h4>
+            <p style={{ fontSize: 13 }}>
+              <a
+                href={treasuryHtmlUrl(b.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid={`mgr-achats-treasury-link-${b.id}`}
+              >
+                Voir la fiche trésorerie
+              </a>
+              {' · '}
+              <button
+                type="button"
+                data-testid={`mgr-achats-treasury-print-${b.id}`}
+                onClick={() => printHtml(treasuryHtmlUrl(b.id))}
+                style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
+              >
+                Imprimer
+              </button>
+            </p>
+          </div>
+        ))}
 
       <DocumentChain
         requestId={request.id}
@@ -3108,7 +3109,7 @@ function RequestDetailPanel({
                 disabled={actionLoading}
                 style={{ ...css.btnOutline, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
               >
-                {actionLoading ? 'Génération…' : treasuryOrder ? 'Regénérer le bon de trésorerie' : 'Générer le bon de trésorerie'}
+                {actionLoading ? 'Génération…' : treasuryOrders?.length ? 'Regénérer le bon de trésorerie' : 'Générer le bon de trésorerie'}
               </button>
             </div>
           )}
@@ -3510,3 +3511,5 @@ function RequestDetailPanel({
     </div>
   )
 }
+
+

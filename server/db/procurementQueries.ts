@@ -1562,7 +1562,7 @@ export async function recordApprovalStep(input: {
 export async function getRequestDetail(companyId: string, requestId: string) {
   const request = await getPurchaseRequestById(companyId, requestId)
   if (!request) return null
-  const [lines, steps, site, supplier, suppliersList, pos, treasury] = await Promise.all([
+  const [lines, steps, site, supplier, suppliersList, pos, treasuries] = await Promise.all([
     getPurchaseRequestLines(requestId),
     getApprovalSteps(requestId),
     getSiteById(companyId, request.siteId),
@@ -1573,7 +1573,7 @@ export async function getRequestDetail(companyId: string, requestId: string) {
       .from(purchaseOrders)
       .where(eq(purchaseOrders.purchaseRequestId, requestId))
       .orderBy(purchaseOrders.createdAt),
-    getTreasuryOrderByRequest(companyId, requestId),
+    listTreasuryOrdersForRequest(companyId, requestId),
   ])
   return {
     request: {
@@ -1589,7 +1589,7 @@ export async function getRequestDetail(companyId: string, requestId: string) {
     suppliers: suppliersList,
     purchaseOrder: pos[pos.length - 1] ?? null,
     purchaseOrders: pos,
-    treasuryOrder: treasury,
+    treasuryOrders: treasuries,
   }
 }
 
@@ -1685,6 +1685,7 @@ export async function setTourPurchaseOrder(tourId: string, purchaseOrderId: stri
 export async function createTreasuryOrder(input: {
   companyId: string
   purchaseRequestId: string
+  purchaseRequestLineId?: string | null
   amountFcfa: number
   quotationUrls?: string[] | null
   pdfHtml: string
@@ -1697,6 +1698,7 @@ export async function createTreasuryOrder(input: {
       id,
       companyId: input.companyId,
       purchaseRequestId: input.purchaseRequestId,
+      purchaseRequestLineId: input.purchaseRequestLineId ?? null,
       reference,
       amountFcfa: String(input.amountFcfa),
       quotationUrls: input.quotationUrls ?? null,
@@ -1727,6 +1729,18 @@ export async function getTreasuryOrderByRequest(companyId: string, requestId: st
     .from(treasuryOrders)
     .where(
       and(eq(treasuryOrders.purchaseRequestId, requestId), eq(treasuryOrders.companyId, companyId)),
+    )
+    .orderBy(desc(treasuryOrders.createdAt))
+    .limit(1)
+  return row ?? null
+}
+
+export async function getTreasuryOrderByLine(companyId: string, lineId: string) {
+  const [row] = await db
+    .select()
+    .from(treasuryOrders)
+    .where(
+      and(eq(treasuryOrders.purchaseRequestLineId, lineId), eq(treasuryOrders.companyId, companyId)),
     )
     .orderBy(desc(treasuryOrders.createdAt))
     .limit(1)

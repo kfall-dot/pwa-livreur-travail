@@ -10,6 +10,7 @@ import {
   getRequestDetail,
   getSiteById,
   getSupplierById,
+  getTreasuryOrderByLine,
   getTreasuryOrderByRequest,
   linkDeliveryPointsToPurchaseOrder,
   listPurchaseOrdersForRequest,
@@ -25,7 +26,7 @@ import {
   updateTreasuryOrderAmount,
   updateTreasuryOrderHtml,
 } from '../db/procurementQueries.js'
-import type { ProcurementRole, PurchaseRequestStatus } from '../db/schema.js'
+import type { ProcurementRole, PurchaseRequestStatus, TreasuryOrder } from '../db/schema.js'
 import { comptantLines, distinctSupplierNames, namesMatch } from '../lib/procurementLines.js'
 import { hasComptantLines } from '../../shared/saFinanceGate.js'
 import { versionSuffix } from '../../shared/requestVersion.js'
@@ -158,79 +159,115 @@ export async function approvePurchaseRequest(input: {
 }
 
 async function ensureTreasuryOrder(companyId: string, requestId: string, amount: number) {
-  return ensureTreasuryAdvance(companyId, requestId, amount)
+  return ensureTreasuryAdvances(companyId, requestId, amount)
 }
 
-export async function ensureTreasuryAdvance(companyId: string, requestId: string, amountHint?: number) {
-  const existing = await getTreasuryOrderByRequest(companyId, requestId)
+function treasuryLineAmount(line: { amountFcfa?: string | number | null; unitPriceFcfa?: string | number | null; quantity?: string | number | null }): number {
+  return Number(line.amountFcfa ?? 0) || Number(line.unitPriceFcfa ?? 0) * Number(line.quantity ?? 0)
+}
+
+async function buildTreasuryPdf(
+  request: NonNullable<Awaited<ReturnType<typeof getPurchaseRequestById>>>,
+  site: NonNullable<Awaited<ReturnType<typeof getSiteById>>>,
+  treasury: TreasuryOrder,
+  lines: Awaited<ReturnType<typeof getPurchaseRequestLines>>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  template: any,
+  steps: Awaited<ReturnType<typeof getApprovalSteps>>,
+  reference: string,
+  ebReference: string,
+  lineSubset: Awaited<ReturnType<typeof getPurchaseRequestLines>> | null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  const signoff = signoffFromApprovalSteps(steps)
+  const data = buildBtDataFromRequest(request, site, treasury, lineSubset ?? lines)
+  return generateBtHtml(template, {
+    ...data,
+    ...signoff,
+    reference,
+    ebReference,
+    avanceNumber: '',
+  })
+}
+
+/**
+ * Lot 2 — un BT par ligne comptant.
+ * Crée (ou régénère) un bon de trésorerie pour chaque ligne EB en COMPTANT,
+ * avec le montant de la seule ligne. Idempotent par ligne : un second appel
+ * régénère le HTML/montant sans créer de doublon (clé purchase_request_line_id).
+ * Les BT agrégés historiques (ligne NULL) sont régénérés au total comme avant,
+ * pour ne pas casser les EB déjà émises.
+ */
+export async function ensureTreasuryAdvances(companyId: string, requestId: string, amountHint?: number) {
   const request = await getPurchaseRequestById(companyId, requestId)
-  if (!request) return existing
+  if (!request) return []
   const [site, lines, template, steps] = await Promise.all([
     getSiteById(companyId, request.siteId),
     getPurchaseRequestLines(requestId),
     getActiveDocumentTemplate(companyId, 'bt'),
     getApprovalSteps(requestId),
   ])
-  if (!site) return existing
+  if (!site) return []
 
   const cash = comptantLines(lines)
-  const amount = cash.length > 0
-    ? cash.reduce((s, l) => s + (Number(l.amountFcfa ?? 0) || Number(l.unitPriceFcfa ?? 0) * Number(l.quantity ?? 0)), 0)
-    : (amountHint ?? Number(request.totalAmountFcfa ?? 0))
-  const signoff = signoffFromApprovalSteps(steps)
-  // Réf. croisée imprimée sur les BT : « EB-2026-0007 » (+ « — v2 » si révisée).
   const ebReference = `${request.reference}${versionSuffix(request.version)}`
-  // Chaîne EB → BT → BC : renseigné dès qu'un BC unique existe. Les EB
-  // multi-fournisseurs gardent le BT rattaché à la demande et la chaîne
-  // documentaire affiche alors l'ensemble des BC de l'EB.
   const linkedPos = await listPurchaseOrdersForRequest(companyId, requestId)
   const linkedBcId = linkedPos.length === 1 ? (linkedPos[0]?.id ?? null) : null
 
-  if (existing) {
-    const data = buildBtDataFromRequest(request, site, existing, lines)
-    const pdfHtml = generateBtHtml(template, {
-      ...data,
-      ...signoff,
-      reference: existing.reference,
-      ebReference,
-      amountFcfa: amount || data.amountFcfa,
-      avanceNumber: '',
-    })
-    const finalAmount = amount || data.amountFcfa
-    await updateTreasuryOrderHtml(existing.id, pdfHtml)
-    // `amount_fcfa` est une colonne distincte du HTML : sans cette écriture, un BT
-    // déjà généré garderait l'ancien total après une révision PDG des quantités.
-    await updateTreasuryOrderAmount(existing.id, finalAmount)
-    if (linkedBcId) await setTreasuryOrderPurchaseOrder(existing.id, linkedBcId)
-    return { ...existing, pdfHtml, amountFcfa: String(finalAmount), purchaseOrderId: linkedBcId ?? existing.purchaseOrderId }
+  // Sans ligne comptant : repli sur l'ancien comportement agrégé (hint ou total).
+  const targets = cash.length > 0 ? cash : []
+  if (targets.length === 0) {
+    const existing = await getTreasuryOrderByRequest(companyId, requestId)
+    const amount = amountHint ?? Number(request.totalAmountFcfa ?? 0)
+    if (existing) {
+      const pdfHtml = await buildTreasuryPdf(request, site, existing, lines, template, steps, existing.reference, ebReference, null)
+      const finalAmount = amount || Number(existing.amountFcfa ?? 0)
+      await updateTreasuryOrderHtml(existing.id, pdfHtml)
+      await updateTreasuryOrderAmount(existing.id, finalAmount)
+      if (linkedBcId) await setTreasuryOrderPurchaseOrder(existing.id, linkedBcId)
+      return [{ ...existing, pdfHtml, amountFcfa: String(finalAmount), purchaseOrderId: linkedBcId ?? existing.purchaseOrderId }]
+    }
+    return []
   }
 
-  const draft = await createTreasuryOrder({
-    companyId,
-    purchaseRequestId: requestId,
-    amountFcfa: amount,
-    pdfHtml: generateBtHtml(template, {
-      reference: 'BT-PENDING',
-      siteName: site.name,
+  const out = []
+  for (const line of targets) {
+    const amount = treasuryLineAmount(line)
+    const existing = await getTreasuryOrderByLine(companyId, line.id)
+    if (existing) {
+      const pdfHtml = await buildTreasuryPdf(request, site, existing, lines, template, steps, existing.reference, ebReference, [line])
+      await updateTreasuryOrderHtml(existing.id, pdfHtml)
+      await updateTreasuryOrderAmount(existing.id, amount)
+      if (linkedBcId) await setTreasuryOrderPurchaseOrder(existing.id, linkedBcId)
+      out.push({ ...existing, pdfHtml, amountFcfa: String(amount), purchaseOrderId: linkedBcId ?? existing.purchaseOrderId })
+      continue
+    }
+    const draft = await createTreasuryOrder({
+      companyId,
+      purchaseRequestId: requestId,
+      purchaseRequestLineId: line.id,
       amountFcfa: amount,
-      requesterName: request.requestedByName ?? undefined,
-      createdAt: new Date().toISOString().slice(0, 10),
-      ebReference,
-      avanceNumber: '',
-      ...signoff,
-    }),
-  })
-  const data = buildBtDataFromRequest(request, site, draft, lines)
-  const pdfHtml = generateBtHtml(template, {
-    ...data,
-    ...signoff,
-    reference: draft.reference,
-    ebReference,
-    avanceNumber: '',
-  })
-  await updateTreasuryOrderHtml(draft.id, pdfHtml)
-  if (linkedBcId) await setTreasuryOrderPurchaseOrder(draft.id, linkedBcId)
-  return { ...draft, pdfHtml, purchaseOrderId: linkedBcId ?? draft.purchaseOrderId }
+      pdfHtml: generateBtHtml(template, {
+        reference: 'BT-PENDING',
+        siteName: site.name,
+        amountFcfa: amount,
+        requesterName: request.requestedByName ?? undefined,
+        createdAt: new Date().toISOString().slice(0, 10),
+        ebReference,
+      }),
+    })
+    const pdfHtml = await buildTreasuryPdf(request, site, draft, lines, template, steps, draft.reference, ebReference, [line])
+    await updateTreasuryOrderHtml(draft.id, pdfHtml)
+    if (linkedBcId) await setTreasuryOrderPurchaseOrder(draft.id, linkedBcId)
+    out.push({ ...draft, pdfHtml, purchaseOrderId: linkedBcId ?? draft.purchaseOrderId })
+  }
+  return out
+}
+
+export async function ensureTreasuryAdvance(companyId: string, requestId: string, amountHint?: number) {
+  const created = await ensureTreasuryAdvances(companyId, requestId, amountHint)
+  if (created.length > 0) return created[0]!
+  return getTreasuryOrderByRequest(companyId, requestId)
 }
 
 export async function createTreasuryAdvanceForRequest(input: {
