@@ -47,8 +47,11 @@ Régénérer le PDF synthèse : `npm run presentation:btp-synthese-pdf`
 | Document | CDC | État |
 |----------|-----|------|
 | [BTP-SPEC-F01-FICHE-CHANTIER-BUDGET.md](./BTP-SPEC-F01-FICHE-CHANTIER-BUDGET.md) | **F01** | F01.1 développé hors prod |
-| *(à rédiger avant code)* | F02 natures de charge | Après F01 |
-| *(à rédiger avant code)* | F03 / F04 / F09 | Après F01+F02 |
+| [BTP-SPEC-F02-NATURES-CHARGE-DEPENSES-HORS-SA.md](./BTP-SPEC-F02-NATURES-CHARGE-DEPENSES-HORS-SA.md) | **F02** — lot A natures de charge · lot B dépenses hors SA | ✅ **A, B.1, B.2, B.3 livrés** |
+| [BTP-ANNEXE-ENTRETIEN-CDG.md](./BTP-ANNEXE-ENTRETIEN-CDG.md) | **Annexe F02 / F03 / T08** — 60 questions + référentiels | v1.1 — **réponses CdG du 16/10/2026 (§6)** |
+| [BTP-SPEC-F03-BUDGET-VS-REALISE.md](./BTP-SPEC-F03-BUDGET-VS-REALISE.md) | **F03** — budget vs réalisé (ventilation par famille) | ✅ implémenté |
+| *(à rédiger)* | F04 / F09 | — |
+| *(dans la spec F02 §5.3)* | **T08** — **rejeu** de l'historique CdG (lignes **hors BC** uniquement) | ✅ **livré** — `historical_expense_lines`, `/historical-expenses/{preview,import}` + annulation par lot, `CdgHistoricalCard` |
 | [BTP-WHATSAPP-DOSSIER-CHANTIER.md](./BTP-WHATSAPP-DOSSIER-CHANTIER.md) | F05, F07 | Décision WhatsApp (D2) |
 
 ---
@@ -60,6 +63,7 @@ Régénérer le PDF synthèse : `npm run presentation:btp-synthese-pdf`
 | [BTP-WHATSAPP-DOSSIER-CHANTIER.md](./BTP-WHATSAPP-DOSSIER-CHANTIER.md) | Intrant WhatsApp + dossier chantier |
 | [BTP-WHATSFORM-EB-MAQUETTE-PILOTE.md](./BTP-WHATSFORM-EB-MAQUETTE-PILOTE.md) | Maquette WhatsForm |
 | [BTP-RETEX-QUESTIONNAIRE-FINANCE-2026.md](./BTP-RETEX-QUESTIONNAIRE-FINANCE-2026.md) | Questionnaire SA / finance |
+| [BTP-ANNEXE-ENTRETIEN-CDG.md](./BTP-ANNEXE-ENTRETIEN-CDG.md) | **Annexe d’entretien CdG** v1.1 — 60 questions + **réponses de la séance du 16/10/2026** (§6) |
 
 Cahier des charges source : `docs/originaux/Cahier_des_charges_ERP_Fadym.docx`
 
@@ -70,8 +74,8 @@ Cahier des charges source : `docs/originaux/Cahier_des_charges_ERP_Fadym.docx`
 | ID | Dans TraceO ? | Doc de référence |
 |----|---------------|------------------|
 | F01 Budget + avenants | Oui | [Spéc. F01](./BTP-SPEC-F01-FICHE-CHANTIER-BUDGET.md) · [Synthèse §4](./BTP-SYNTHESE-EXECUTIVE-DIRECTION.md) |
-| F02 Natures de charge | Oui (backlog) | Synthèse §4–§5 |
-| F03 Budget vs réalisé | Oui (backlog) | Synthèse §4–§5 |
+| F02 Natures de charge | Oui (backlog) | [Spéc. F02](./BTP-SPEC-F02-NATURES-CHARGE-DEPENSES-HORS-SA.md) — **natures + circuit hors SA** · [Annexe entretien CdG](./BTP-ANNEXE-ENTRETIEN-CDG.md) |
+| F03 Budget vs réalisé | Oui | [Spéc. F03](./BTP-SPEC-F03-BUDGET-VS-REALISE.md) — **ventilation par famille** · remplace le fichier manuel du CdG |
 | F04 % financier | Oui (backlog) | Synthèse §4–§5 |
 | F05 Avancement physique | Oui (WhatsApp) | [WhatsApp dossier](./BTP-WHATSAPP-DOSSIER-CHANTIER.md) |
 | F06 Alertes dérive | Oui (backlog) | Synthèse §4–§5 |
@@ -87,6 +91,6 @@ Cahier des charges source : `docs/originaux/Cahier_des_charges_ERP_Fadym.docx`
 | Document | Rôle |
 |----------|------|
 | [FONCTIONNALITES.md](./FONCTIONNALITES.md) | Capacités du dépôt (livreur + manager + Achats BTP) |
-| [e2e/INVARIANTS.md](../e2e/INVARIANTS.md) | Invariants E2E (I01–I72 dont F01 I66–I72) |
+| [e2e/INVARIANTS.md](../e2e/INVARIANTS.md) | Invariants E2E (I01–I97 + **I99, I100, I102–I110** livrés — **I98, I101 à écrire**) |
 | [SUPPORT-PILOTE.md](./SUPPORT-PILOTE.md) | Support éditeur pilote |
 | [CONFIGURATION-PILOTE.md](./CONFIGURATION-PILOTE.md) | Config Netlify / env |
