@@ -5,10 +5,18 @@ import {
   documentHtmlUrl,
   ebRequestFicheHtmlUrl,
   fetchDocumentChain,
+  fetchRequestDisbursements,
   treasuryHtmlUrl,
+  treasuryInvoiceUrl,
   uploadBcBlFile,
 } from './procurementApi'
-import type { DocumentChain as DocumentChainData, DocumentChainBl, DocumentChainMatch } from './procurementTypes'
+import type {
+  DocumentChain as DocumentChainData,
+  DocumentChainBl,
+  DocumentChainMatch,
+  RequestDisbursement,
+} from './procurementTypes'
+import { DISBURSEMENT_METHOD_LABELS } from './procurementTypes'
 import { chainHighlightMatches, chainReferencesLabel, css, formatFcfa } from './procurementUi'
 
 /**
@@ -105,6 +113,7 @@ export function DocumentChain({
   onNotice?: (message: string) => void
 }) {
   const [chain, setChain] = useState<DocumentChainData | null>(null)
+  const [disbursements, setDisbursements] = useState<RequestDisbursement[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -114,7 +123,15 @@ export function DocumentChain({
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      setChain(await fetchDocumentChain(requestId))
+      const [nextChain, nextDisbursements] = await Promise.all([
+        fetchDocumentChain(requestId),
+        // Les déboursés (F02 lot B) complètent la chaîne : la facture du
+        // paiement reste consultable depuis l'EB. Un rôle sans accès ne doit
+        // pas casser l'affichage de la chaîne.
+        fetchRequestDisbursements(requestId).catch(() => [] as RequestDisbursement[]),
+      ])
+      setChain(nextChain)
+      setDisbursements(nextDisbursements)
       setError(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Chaîne documentaire indisponible'
@@ -216,6 +233,35 @@ export function DocumentChain({
               <Link href={treasuryHtmlUrl(bt.id)} label="Voir la fiche trésorerie" testId={`mgr-chain-bt-link-${bt.id}`} />
             </ChainBlock>
           ))
+        )}
+
+        {disbursements.length > 0 && (
+          <ChainBlock
+            kind="invoice"
+            title={`Déboursé${disbursements.length > 1 ? 's' : ''} — ${disbursements.length}`}
+            subtitle="Circuit hors SA · facture exigée au déboursé (I103)"
+            amountFcfa={disbursements.reduce((sum, d) => sum + d.amountFcfa, 0)}
+          >
+            {disbursements.map((d) => (
+              <span
+                key={d.treasuryId}
+                style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}
+                data-testid={`mgr-chain-disbursement-${d.treasuryId}`}
+              >
+                <span style={css.meta}>
+                  {d.treasuryReference} · {DISBURSEMENT_METHOD_LABELS[d.method] ?? d.method}
+                  {d.transactionReference ? ` · ${d.transactionReference}` : ''}
+                </span>
+                {d.hasInvoice && (
+                  <Link
+                    href={treasuryInvoiceUrl(d.treasuryId)}
+                    label={`📎 ${d.invoiceFileName ?? 'facture'}`}
+                    testId={`mgr-chain-invoice-${d.treasuryId}`}
+                  />
+                )}
+              </span>
+            ))}
+          </ChainBlock>
         )}
 
         {chain.bcs.length === 0 ? (

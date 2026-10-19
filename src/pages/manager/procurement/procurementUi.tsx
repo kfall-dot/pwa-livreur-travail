@@ -166,6 +166,7 @@ export const PROCUREMENT_ROLE_LABELS: Record<ProcurementRole, string> = {
   controle_gestion: 'Contrôle de gestion',
   site_manager: 'Chef de chantier',
   accountant: 'Comptabilité',
+  treasury: 'Trésorerie',
 }
 
 export function approvalDecisionLabel(role: ProcurementRole, decision: string): string {
@@ -186,7 +187,7 @@ export function formatApprovalAt(iso: string): string {
   return `${date} ${time}`.replace(',', '')
 }
 
-/** DT, SA, DAF, PDG, CdG : espace achats (pas le cockpit tournées). */
+/** DT, SA, DAF, PDG, CdG, CmPT, Trésorerie : espace achats (pas le cockpit tournées). */
 export function isProcurementWorkspaceRole(role: string | null | undefined): boolean {
   return (
     role === 'technical_director' ||
@@ -195,7 +196,8 @@ export function isProcurementWorkspaceRole(role: string | null | undefined): boo
     role === 'daf' ||
     role === 'pdg' ||
     role === 'controle_gestion' ||
-    role === 'accountant'
+    role === 'accountant' ||
+    role === 'treasury'
   )
 }
 
@@ -268,6 +270,9 @@ export const STATUS_LABELS: Record<PurchaseRequestStatus, string> = {
   daf_review: 'Validation DAF',
   sa_review: 'Émission BC',
   bt_pending: 'BT en préparation',
+  bt_ready: 'BT émis — à débourser',
+  deboursed: 'Déboursé — facture à joindre',
+  paid: 'Payé',
   daf_bt_review: 'BT — validation DAF',
   pdg_review: 'Validation PDG',
   po_ready: 'BC prêt',
@@ -282,6 +287,10 @@ const STATUS_COLORS: Partial<Record<PurchaseRequestStatus, { color: string; bg: 
   daf_review: { color: '#1d4ed8', bg: '#dbeafe' },
   sa_review: { color: '#6d28d9', bg: '#ede9fe' },
   pdg_review: { color: '#9d174d', bg: '#fce7f3' },
+  bt_pending: { color: '#b45309', bg: '#fef3c7' },
+  bt_ready: { color: '#b45309', bg: '#fef3c7' },
+  deboursed: { color: '#0369a1', bg: '#e0f2fe' },
+  paid: { color: '#166534', bg: '#dcfce7' },
   po_ready: { color: '#166534', bg: '#dcfce7' },
   delivery_scheduled: { color: '#0f766e', bg: '#ccfbf1' },
   delivered: { color: 'var(--success)', bg: '#dcfce7' },

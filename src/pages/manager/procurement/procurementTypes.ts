@@ -9,6 +9,7 @@ export type ProcurementRole =
   | 'controle_gestion'
   | 'site_manager'
   | 'accountant'
+  | 'treasury'
 
 export type PurchaseRequestStatus =
   | 'whatsapp_ingested'
@@ -19,6 +20,9 @@ export type PurchaseRequestStatus =
   | 'daf_review'
   | 'sa_review'
   | 'bt_pending'
+  | 'bt_ready'
+  | 'deboursed'
+  | 'paid'
   | 'daf_bt_review'
   | 'pdg_review'
   | 'po_ready'
@@ -444,6 +448,97 @@ export interface SiteIndicatorCategory {
   shareOfBudgetPct: number | null
 }
 
+/** Ventilation par famille de charge (F02 lot A). */
+export interface SiteIndicatorFamily {
+  family: string
+  label: string
+  amountFcfa: number
+  shareOfRealizedPct: number | null
+}
+
+// ─── F03 — budget vs réalisé par famille ─────────────────────────────────────
+
+export type FamilyTrafficLight = 'none' | 'ok' | 'watch' | 'alert'
+
+export interface BudgetFamilyAllocation {
+  family: string
+  amountFcfa: number
+}
+
+/** Une ligne du tableau à double entrée : enveloppe ventilée vs réalisé. */
+export interface FamilyVarianceRow {
+  family: string
+  label: string
+  allocatedFcfa: number
+  realizedFcfa: number
+  /** `alloué − réalisé` — négatif = dépassement. */
+  varianceFcfa: number
+  consumedPct: number | null
+  overrun: boolean
+  trafficLight: FamilyTrafficLight
+}
+
+export interface FamilyVariance {
+  rows: FamilyVarianceRow[]
+  allocatedFcfa: number
+  realizedFcfa: number
+  varianceFcfa: number
+  /** Enveloppe non encore ventilée (`budget_total − Σ allocations`). */
+  unallocatedFcfa: number | null
+  allocationOverBudget: boolean
+  overrunFamilies: string[]
+}
+
+// ─── F02 lot B — poste Trésorerie ────────────────────────────────────────────
+
+export type DisbursementMethodValue = 'orange_money' | 'cash' | 'bank' | 'cheque'
+
+/** Déboursé enregistré pour un bon de trésorerie. */
+export interface TreasuryDisbursementRow {
+  id: string
+  amountFcfa: string | number
+  method: DisbursementMethodValue
+  transactionReference: string | null
+  paidAt: string
+  invoiceFileName: string | null
+  invoicePrintedAt: string | null
+  invoiceBlobKey: string | null
+}
+
+/** Ligne de la file du poste Trésorerie (`GET /procurement/treasury`). */
+export interface TreasuryQueueItem {
+  treasuryId: string
+  reference: string
+  amountFcfa: number
+  status: 'pending' | 'issued' | 'deboursed' | 'paid' | 'cancelled'
+  lineId: string | null
+  requestId: string
+  requestReference: string
+  requestStatus: string
+  siteId: string
+  disbursement: TreasuryDisbursementRow | null
+}
+
+/** Déboursé d'une EB (`GET /procurement/requests/:id/disbursements`). */
+export interface RequestDisbursement {
+  treasuryId: string
+  treasuryReference: string
+  amountFcfa: number
+  method: DisbursementMethodValue
+  transactionReference: string | null
+  paidAt: string
+  invoiceFileName: string | null
+  invoicePrintedAt: string | null
+  hasInvoice: boolean
+}
+
+export const DISBURSEMENT_METHOD_LABELS: Record<DisbursementMethodValue, string> = {
+  orange_money: 'Orange Money',
+  cash: 'Espèces',
+  bank: 'Virement',
+  cheque: 'Chèque',
+}
+
 export interface SiteIndicators {
   siteId: string
   siteName: string
@@ -459,5 +554,93 @@ export interface SiteIndicators {
   materialsSharePct: number | null
   top3: SiteIndicatorProduct[]
   byCategory: SiteIndicatorCategory[]
+  byFamily?: SiteIndicatorFamily[]
+  /** F03 — tableau à double entrée (enveloppe ventilée vs réalisé). */
+  familyVariance?: FamilyVariance
   daily: SiteIndicatorDay[]
+}
+
+// ─── T08 — rejeu de l'historique du CdG ──────────────────────────────────────
+
+/** Ligne du journal écartée au parsing (date / montant / nature illisibles). */
+export interface JournalRejectedRow {
+  row: number
+  reason: string
+}
+
+/** Sort d'un libellé de chantier du journal : imputé, ou non. */
+export interface JournalSiteMapping {
+  journalName: string
+  siteId: string | null
+  siteName: string | null
+  lines: number
+  fcfa: number
+}
+
+/** Répartition du rejeu par nature de charge — aperçu du réalisé F02/F03. */
+export interface JournalNatureSummary {
+  nature: string
+  label: string
+  family: string
+  lines: number
+  fcfa: number
+}
+
+/**
+ * Aperçu du rapprochement journal ↔ TraceO — **n'écrit rien** (I106).
+ *
+ * `excluded` = lignes portant un n° de BC, **déjà dans TraceO** (I100) ;
+ * `toImport` = lignes hors BC, le rejeu réel.
+ */
+export interface HistoricalJournalPreview {
+  parsedLines: number
+  rejected: JournalRejectedRow[]
+  totalFcfa: number
+  excluded: { lines: number; fcfa: number }
+  toImport: { lines: number; fcfa: number }
+  unmappedBcReferences: string[]
+  matchRatePct: number
+  sites: JournalSiteMapping[]
+  /** Lignes qu'aucun chantier n'absorbe — à désigner avant d'importer. */
+  unassigned: { lines: number; fcfa: number }
+  byNature: JournalNatureSummary[]
+}
+
+/** Résultat d'un rejeu — idempotent (I99), annulable par `batchId`. */
+export interface HistoricalImportResult {
+  batchId: string
+  imported: number
+  skipped: number
+  importedFcfa: number
+  unassignedSites: string[]
+  totalFcfa: number
+  excluded: { lines: number; fcfa: number }
+  rejected: JournalRejectedRow[]
+  matchRatePct: number
+}
+
+export interface HistoricalImportBatch {
+  batchId: string
+  source: string
+  lines: number
+  amountFcfa: number
+  importedAt: string
+}
+
+export interface HistoricalExpenseRow {
+  id: string
+  siteId: string | null
+  siteName: string | null
+  occurredOn: string
+  label: string
+  nature: string
+  natureLabel: string | null
+  supplierName: string | null
+  amountFcfa: number
+  batchId: string
+}
+
+export interface HistoricalExpensesResponse {
+  batches: HistoricalImportBatch[]
+  lines: HistoricalExpenseRow[]
 }

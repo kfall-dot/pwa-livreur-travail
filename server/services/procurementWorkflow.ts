@@ -1,18 +1,22 @@
 import { getProcurementConfig } from '../config/procurement.js'
 import {
   createPurchaseOrder,
+  createTreasuryDisbursement,
   createTreasuryOrder,
   getActiveDocumentTemplate,
   getApprovalSteps,
   getCompanyName,
+  getDisbursementByTreasuryOrder,
   getPurchaseRequestById,
   getPurchaseRequestLines,
   getRequestDetail,
   getSiteById,
   getSupplierById,
+  getTreasuryOrderById,
   getTreasuryOrderByLine,
   getTreasuryOrderByRequest,
   linkDeliveryPointsToPurchaseOrder,
+  listDisbursementsForRequest,
   listPurchaseOrdersForRequest,
   listTreasuryOrdersForRequest,
   recordApprovalStep,
@@ -25,10 +29,17 @@ import {
   updateRequestLineQuantities,
   updateTreasuryOrderAmount,
   updateTreasuryOrderHtml,
+  updateTreasuryOrderStatus,
 } from '../db/procurementQueries.js'
-import type { ProcurementRole, PurchaseRequestStatus, TreasuryOrder } from '../db/schema.js'
+import type {
+  DisbursementMethod,
+  ProcurementRole,
+  PurchaseRequestStatus,
+  TreasuryOrder,
+} from '../db/schema.js'
 import { comptantLines, distinctSupplierNames, namesMatch } from '../lib/procurementLines.js'
 import { hasComptantLines } from '../../shared/saFinanceGate.js'
+import { isHorsSaFlow } from '../../shared/chargeFlow.js'
 import { versionSuffix } from '../../shared/requestVersion.js'
 import {
   buildBcDataFromRequest,
@@ -115,13 +126,25 @@ export async function approvePurchaseRequest(input: {
   let nextStatus: PurchaseRequestStatus
   let notifyRoles: ProcurementRole[]
 
+  // Routage par la **famille de charge** (F02 lot B — décision CdG 16/10/2026) :
+  // une EB de main-d'œuvre / engins / frais **saute le SA**, et son BT est émis
+  // **après** l'approbation DAF/PDG — jamais au moment du visa DAF.
+  const lines = await getPurchaseRequestLines(request.id)
+  const horsSa = isHorsSaFlow(lines)
+
   switch (request.status) {
     case 'cdg_review':
       nextStatus = 'daf_review'
       notifyRoles = needsPdg ? ['daf', 'pdg'] : ['daf']
       break
     case 'daf_review':
-      if (needsBt) {
+      if (horsSa) {
+        // Même seuil PDG que le BC (500 000 F par défaut).
+        nextStatus = needsPdg
+          ? 'pdg_review'
+          : await issueHorsSaTreasury(input.companyId, request.id, amount)
+        notifyRoles = needsPdg ? ['pdg'] : ['treasury']
+      } else if (needsBt) {
         await ensureTreasuryOrder(input.companyId, request.id, amount)
         nextStatus = needsPdg ? 'daf_bt_review' : 'sa_review'
         notifyRoles = needsPdg ? ['daf'] : ['purchasing']
@@ -138,8 +161,13 @@ export async function approvePurchaseRequest(input: {
       notifyRoles = needsPdg ? ['pdg'] : ['purchasing']
       break
     case 'pdg_review':
-      nextStatus = 'sa_review'
-      notifyRoles = ['purchasing']
+      if (horsSa) {
+        nextStatus = await issueHorsSaTreasury(input.companyId, request.id, amount)
+        notifyRoles = ['treasury']
+      } else {
+        nextStatus = 'sa_review'
+        notifyRoles = ['purchasing']
+      }
       break
     case 'sa_review':
       throw new ProcurementWorkflowError('Utilisez create-po pour générer le bon de commande')
@@ -148,9 +176,14 @@ export async function approvePurchaseRequest(input: {
   }
 
   const updated = await updatePurchaseRequestStatus(input.companyId, input.requestId, nextStatus)
-  const treasury = await getTreasuryOrderByRequest(input.companyId, input.requestId)
-  if (treasury) {
-    await ensureTreasuryAdvance(input.companyId, input.requestId)
+  // Régénération des BT existants — **circuit matériaux uniquement** : le circuit
+  // hors SA a déjà émis ses BT par ligne dans `issueHorsSaTreasury`, et les
+  // régénérer ici écraserait un BT de ligne avec le total de l'EB.
+  if (!horsSa) {
+    const treasury = await getTreasuryOrderByRequest(input.companyId, input.requestId)
+    if (treasury) {
+      await ensureTreasuryAdvance(input.companyId, input.requestId)
+    }
   }
   if (notifyRoles.length > 0) {
     await notifyRequestStatusChange(input.companyId, request.reference, nextStatus, notifyRoles)
@@ -198,7 +231,12 @@ async function buildTreasuryPdf(
  * Les BT agrégés historiques (ligne NULL) sont régénérés au total comme avant,
  * pour ne pas casser les EB déjà émises.
  */
-export async function ensureTreasuryAdvances(companyId: string, requestId: string, amountHint?: number) {
+export async function ensureTreasuryAdvances(
+  companyId: string,
+  requestId: string,
+  amountHint?: number,
+  options?: { allLines?: boolean },
+) {
   const request = await getPurchaseRequestById(companyId, requestId)
   if (!request) return []
   const [site, lines, template, steps] = await Promise.all([
@@ -209,7 +247,11 @@ export async function ensureTreasuryAdvances(companyId: string, requestId: strin
   ])
   if (!site) return []
 
-  const cash = comptantLines(lines)
+  // Circuit hors SA : un BT par ligne (la main-d'œuvre se paie par bénéficiaire).
+  // Circuit matériaux : un BT par ligne COMPTANT (comportement historique).
+  const cash = options?.allLines
+    ? lines.filter((l) => (l.label ?? '').trim().length > 0)
+    : comptantLines(lines)
   const ebReference = `${request.reference}${versionSuffix(request.version)}`
   const linkedPos = await listPurchaseOrdersForRequest(companyId, requestId)
   const linkedBcId = linkedPos.length === 1 ? (linkedPos[0]?.id ?? null) : null
@@ -268,6 +310,123 @@ export async function ensureTreasuryAdvance(companyId: string, requestId: string
   const created = await ensureTreasuryAdvances(companyId, requestId, amountHint)
   if (created.length > 0) return created[0]!
   return getTreasuryOrderByRequest(companyId, requestId)
+}
+
+/**
+ * Circuit **hors SA** : émet les BT (un par ligne) **après** l'approbation
+ * finance, puis les marque `issued`.
+ *
+ * Décision CdG 16/10/2026 : *« On utilisera le BT généré automatiquement suite
+ * à l'approbation du DAF et/ou PDG »*. Le BT n'est donc **jamais** émis au
+ * moment du visa DAF, contrairement au circuit matériaux.
+ *
+ * @returns `bt_ready` si au moins un BT a été émis, sinon `bt_pending`
+ * (gabarit de document ou chantier manquant — le BT pourra être régénéré).
+ */
+async function issueHorsSaTreasury(
+  companyId: string,
+  requestId: string,
+  amount: number,
+): Promise<PurchaseRequestStatus> {
+  const created = await ensureTreasuryAdvances(companyId, requestId, amount, { allLines: true })
+  const treasury = created.length > 0 ? created : await listTreasuryOrdersForRequest(companyId, requestId)
+  if (treasury.length === 0) return 'bt_pending'
+  for (const t of treasury) {
+    await updateTreasuryOrderStatus(t.id, 'issued')
+  }
+  return 'bt_ready'
+}
+
+/**
+ * Déboursé d'un bon de trésorerie — action du rôle **Trésorerie** (F02 lot B).
+ *
+ * Règles validées en séance CdG :
+ * - la **facture (ou le reçu) est exigée au déboursé** — invariant **I103** ;
+ * - le mode de paiement est **Orange Money ou un autre reçu** (`method`) ;
+ * - la facture est **rattachée à l'EB** (via ce déboursé) et y reste consultable ;
+ * - **un seul déboursé par BT**.
+ *
+ * Statuts : le BT passe `deboursed` ; l'EB passe `deboursed` dès le premier
+ * déboursé, puis `paid` quand **tous** ses BT sont déboursés.
+ */
+export async function disburseTreasuryOrder(input: {
+  companyId: string
+  treasuryOrderId: string
+  managerId: string
+  amountFcfa?: number
+  method: DisbursementMethod
+  transactionReference?: string | null
+  paidAt: Date
+  invoice: { blobKey: string; fileName: string; contentType: string } | null
+}) {
+  const treasury = await getTreasuryOrderById(input.companyId, input.treasuryOrderId)
+  if (!treasury) throw new ProcurementWorkflowError('Bon de trésorerie introuvable', 404)
+
+  const request = await getPurchaseRequestById(input.companyId, treasury.purchaseRequestId)
+  if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)
+  if (request.status !== 'bt_ready' && request.status !== 'deboursed') {
+    throw new ProcurementWorkflowError(
+      `Déboursé impossible au statut ${request.status} (attendu : bt_ready)`,
+    )
+  }
+
+  if (await getDisbursementByTreasuryOrder(input.companyId, input.treasuryOrderId)) {
+    throw new ProcurementWorkflowError('Ce bon de trésorerie a déjà été déboursé', 409)
+  }
+
+  // I103 — aucun déboursé sans pièce justificative.
+  if (!input.invoice?.blobKey) {
+    throw new ProcurementWorkflowError(
+      'La facture (ou le reçu) est obligatoire pour enregistrer un déboursé',
+    )
+  }
+
+  const due = Number(treasury.amountFcfa ?? 0)
+  const amountFcfa = Math.round(input.amountFcfa && input.amountFcfa > 0 ? input.amountFcfa : due)
+  if (amountFcfa <= 0) throw new ProcurementWorkflowError('Montant déboursé invalide')
+  if (amountFcfa > due) {
+    throw new ProcurementWorkflowError('Le déboursé dépasse le montant du bon de trésorerie')
+  }
+
+  const disbursement = await createTreasuryDisbursement({
+    companyId: input.companyId,
+    treasuryOrderId: input.treasuryOrderId,
+    amountFcfa,
+    method: input.method,
+    transactionReference: input.transactionReference ?? null,
+    paidAt: input.paidAt,
+    recordedByManagerId: input.managerId,
+    invoiceBlobKey: input.invoice.blobKey,
+    invoiceFileName: input.invoice.fileName,
+    invoiceContentType: input.invoice.contentType,
+  })
+
+  await updateTreasuryOrderStatus(input.treasuryOrderId, 'deboursed')
+
+  // L'EB est `paid` quand tous ses BT sont déboursés, `deboursed` sinon.
+  const [all, disbursed] = await Promise.all([
+    listTreasuryOrdersForRequest(input.companyId, treasury.purchaseRequestId),
+    listDisbursementsForRequest(input.companyId, treasury.purchaseRequestId),
+  ])
+  const paidIds = new Set(disbursed.map((d) => d.treasury.id))
+  const allPaid = all.length > 0 && all.every((t) => paidIds.has(t.id))
+  if (allPaid) {
+    for (const t of all) await updateTreasuryOrderStatus(t.id, 'paid')
+  }
+
+  const nextStatus: PurchaseRequestStatus = allPaid ? 'paid' : 'deboursed'
+  const updated = await updatePurchaseRequestStatus(
+    input.companyId,
+    treasury.purchaseRequestId,
+    nextStatus,
+  )
+  await notifyRequestStatusChange(input.companyId, request.reference, nextStatus, [
+    'treasury',
+    'controle_gestion',
+    'daf',
+  ])
+
+  return { disbursement, request: updated, allPaid }
 }
 
 export async function createTreasuryAdvanceForRequest(input: {

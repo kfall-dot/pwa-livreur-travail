@@ -3,6 +3,14 @@ import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { getProcurementConfig } from '../config/procurement.js'
 import { normalizeEbSpendCategory } from '../../shared/ebSpendCategory.js'
+import { normalizeAllocations } from '../../shared/budgetAllocation.js'
+import {
+  parseCdgJournalRows,
+  reconcileCdgJournal,
+  resolveJournalSiteId,
+  type ParsedCdgLine,
+} from '../../shared/cdgJournal.js'
+import { chargeNatureFamily, chargeNatureLabel } from '../../shared/chargeNatures.js'
 import {
   createPurchaseRequestFromDraft,
   createSite,
@@ -15,6 +23,14 @@ import {
   getDraftById,
   getPurchaseOrderById,
   getTreasuryOrderById,
+  getDisbursementByTreasuryOrder,
+  getFamilyAllocations,
+  setFamilyAllocations,
+  importHistoricalExpenseLines,
+  listHistoricalExpenseLines,
+  listHistoricalImportBatches,
+  deleteHistoricalImportBatch,
+  listKnownPurchaseOrderReferences,
   getPurchaseRequestById,
   getPurchaseRequestLines,
   getRequestDetail,
@@ -22,9 +38,13 @@ import {
   getSiteBySupermarketId,
   getSiteIndicators,
   listChantiersWithBc,
+  listDisbursementsForRequest,
   listSiteBudgets,
   listSiteMonthlyExpenses,
   listSupervisedSiteIds,
+  listTreasuryOrdersToDisburse,
+  markDisbursementInvoicePrinted,
+  setDisbursementInvoice,
   SiteBudgetError,
   linkDraftToRequest,
   listDrafts,
@@ -71,6 +91,7 @@ import {
   approvePurchaseRequest,
   createPurchaseOrdersForEb,
   createTreasuryAdvanceForRequest,
+  disburseTreasuryOrder,
   ensureTreasuryAdvance,
   markDeliveryScheduled,
   ProcurementWorkflowError,
@@ -195,6 +216,46 @@ const reviseSchema = z.object({
 const createPoSchema = z.object({
   supplierId: z.string().optional(),
   allSuppliers: z.boolean().optional(),
+})
+
+/** F03 — ventilation de l'enveloppe par famille de charge (action CdG). */
+const budgetAllocationsSchema = z.object({
+  allocations: z.array(
+    z.object({
+      family: z.string(),
+      amountFcfa: z.number().nonnegative(),
+    }),
+  ),
+})
+
+/**
+ * T08 — lignes brutes du journal du CdG (feuille convertie en tableaux de cellules).
+ *
+ * Le **parsing** vit dans `shared/cdgJournal.ts` : le client se contente de lire
+ * la feuille (`XLSX.utils.sheet_to_json(ws, { header: 1 })`) et d'envoyer les
+ * cellules. Le serveur reste la **seule autorité** sur ce qui entre en base —
+ * les lignes sont re-parsées et re-rapprochées ici, jamais reçues « prêtes ».
+ */
+const cdgJournalRowsSchema = z.object({
+  rows: z.array(z.array(z.unknown())).min(1).max(5000),
+  /**
+   * Chantier désigné par le CdG, appliqué aux lignes dont le libellé du journal
+   * n'est pas reconnu. Le journal réel porte le nom de **la société**
+   * (« DG CI ENERGIE ») : sans ce champ, rien ne serait imputable.
+   */
+  siteId: z.string().trim().min(1).optional(),
+})
+
+/** Déboursé d'un BT (rôle Trésorerie) — la facture est exigée (invariant I103). */
+const disburseSchema = z.object({
+  amountFcfa: z.number().nonnegative().optional(),
+  method: z.enum(['orange_money', 'cash', 'bank', 'cheque']).default('orange_money'),
+  transactionReference: z.string().trim().max(120).optional(),
+  paidAt: z.string().optional(),
+  /** Pièce justificative — même format que les PJ de ligne EB (`parseJsonAttachment`). */
+  data: z.string().optional(),
+  fileName: z.string().optional(),
+  contentType: z.string().optional(),
 })
 
 const pricingSchema = z.object({
@@ -654,6 +715,277 @@ procurementRouter.get('/sites/:id/budget', async (req, res) => {
   }
   res.json(budget)
 })
+
+/**
+ * F03 — **ventilation de l'enveloppe par famille de charge**.
+ *
+ * Lecture ouverte à tous les rôles achats (l'enveloppe est déjà visible) ;
+ * écriture réservée au **CdG**, même acteur que le gel du budget initial
+ * (D-F01-1). Écriture **complète** : les familles absentes sont remises à zéro.
+ */
+procurementRouter.get('/sites/:id/budget/allocations', async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  const allocations = await getFamilyAllocations(manager.companyId, String(req.params.id))
+  res.json({ allocations })
+})
+
+procurementRouter.put(
+  '/sites/:id/budget/allocations',
+  requireExactProcurementRole('controle_gestion'),
+  async (req, res) => {
+    const body = parseBody(budgetAllocationsSchema, req.body, res)
+    if (!body) return
+    const { manager } = req as unknown as ManagerRequest
+    try {
+      const allocations = await setFamilyAllocations({
+        companyId: manager.companyId,
+        siteId: String(req.params.id),
+        allocations: normalizeAllocations(body.allocations),
+        managerId: manager.sub,
+      })
+      // L'écart est recalculé côté serveur : source unique (I100 — le réalisé
+      // intègre BC livrés ET EB hors SA payées).
+      const indicators = await getSiteIndicators(manager.companyId, String(req.params.id))
+      res.json({ allocations, familyVariance: indicators?.familyVariance ?? null })
+    } catch (err) {
+      if (err instanceof SiteBudgetError) {
+        res.status(err.status).json({ message: err.message })
+        return
+      }
+      console.error('[procurement] budget allocations error', err)
+      res.status(500).json({ message: 'Erreur enregistrement de la ventilation' })
+    }
+  },
+)
+
+// ─── T08 — Rejeu de l'historique du CdG ─────────────────────────────────────
+
+/** Répartition du rejeu par **nature** de charge (aperçu F02/F03). */
+function summarizeJournalByNature(lines: ParsedCdgLine[]) {
+  const map = new Map<
+    string,
+    { nature: string; label: string; family: string; lines: number; fcfa: number }
+  >()
+  for (const line of lines) {
+    let entry = map.get(line.nature)
+    if (!entry) {
+      entry = {
+        nature: line.nature,
+        label: chargeNatureLabel(line.nature),
+        family: chargeNatureFamily(line.nature) ?? 'inconnue',
+        lines: 0,
+        fcfa: 0,
+      }
+      map.set(line.nature, entry)
+    }
+    entry.lines += 1
+    entry.fcfa += line.amountFcfa
+  }
+  return [...map.values()].sort((a, b) => b.fcfa - a.fcfa)
+}
+
+/**
+ * Assemble l'aperçu du rejeu : parsing, rapprochement (I100 / I106) et sort de
+ * chaque libellé de chantier. **Fonction pure** — elle n'écrit rien, elle décrit.
+ */
+function buildJournalPreview(
+  rows: unknown[][],
+  sites: Array<{ id: string; name: string }>,
+  knownBcReferences: string[],
+  fallbackSiteId?: string | null,
+) {
+  const parsed = parseCdgJournalRows(rows)
+  const recon = reconcileCdgJournal(parsed.lines, knownBcReferences)
+
+  // Sort de chaque libellé de chantier du journal : imputé ou non. Un libellé
+  // inconnu n'est **jamais deviné** — il est montré comme tel, et c'est au CdG
+  // de désigner le chantier cible (`fallbackSiteId`).
+  const bySite = new Map<
+    string,
+    { journalName: string; siteId: string | null; siteName: string | null; lines: number; fcfa: number }
+  >()
+  let unassignedLines = 0
+  let unassignedFcfa = 0
+  for (const line of recon.toImport) {
+    const key = line.siteName || '(vide)'
+    let entry = bySite.get(key)
+    if (!entry) {
+      const resolved = line.siteName ? resolveJournalSiteId(line.siteName, sites) : null
+      const siteId = resolved ?? fallbackSiteId ?? null
+      entry = {
+        journalName: key,
+        siteId,
+        siteName: siteId ? (sites.find((s) => s.id === siteId)?.name ?? null) : null,
+        lines: 0,
+        fcfa: 0,
+      }
+      bySite.set(key, entry)
+    }
+    entry.lines += 1
+    entry.fcfa += line.amountFcfa
+    if (!entry.siteId) {
+      unassignedLines += 1
+      unassignedFcfa += line.amountFcfa
+    }
+  }
+
+  return {
+    /** Lignes exploitables lues dans le fichier. */
+    parsedLines: parsed.lines.length,
+    /** Lignes illisibles — jamais importées avec une valeur inventée. */
+    rejected: parsed.rejected,
+    totalFcfa: recon.totalFcfa,
+    /** Lignes portant un n° de BC : **déjà dans TraceO**, exclues (I100). */
+    excluded: { lines: recon.excluded.length, fcfa: recon.excludedFcfa },
+    /** Lignes hors BC : le rejeu réel. */
+    toImport: { lines: recon.toImport.length, fcfa: recon.toImportFcfa },
+    unmappedBcReferences: recon.unmappedBcReferences,
+    matchRatePct: recon.matchRatePct,
+    sites: [...bySite.values()].sort((a, b) => b.fcfa - a.fcfa),
+    /**
+     * Lignes qu'**aucun** chantier n'absorbe. Sans désignation, elles seraient
+     * importées mais ne compteraient dans le réalisé d'aucun chantier : le CdG
+     * doit le voir **avant** d'importer.
+     */
+    unassigned: { lines: unassignedLines, fcfa: unassignedFcfa },
+    byNature: summarizeJournalByNature(recon.toImport),
+  }
+}
+
+/**
+ * Aperçu du rapprochement journal ↔ TraceO — **n'écrit rien** (I106).
+ *
+ * Le CdG voit avant d'importer : la part du fichier **déjà connue** (lignes
+ * portant un n° de BC, exclues par I100), la part à rejouer, les lignes
+ * illisibles, le sort de chaque libellé de chantier et la répartition par
+ * nature. Un miroir, pas une promesse : seul `/import` écrit.
+ */
+procurementRouter.post(
+  '/historical-expenses/preview',
+  requireExactProcurementRole('controle_gestion'),
+  async (req, res) => {
+    const body = parseBody(cdgJournalRowsSchema, req.body, res)
+    if (!body) return
+    const { manager } = req as unknown as ManagerRequest
+    try {
+      const [sites, knownRefs] = await Promise.all([
+        listSites(manager.companyId),
+        listKnownPurchaseOrderReferences(manager.companyId),
+      ])
+      res.json(buildJournalPreview(body.rows, sites, knownRefs, body.siteId))
+    } catch (err) {
+      console.error('[procurement] historical expenses preview error', err)
+      res.status(500).json({ message: 'Erreur lecture du journal' })
+    }
+  },
+)
+
+/**
+ * Rejeu effectif du journal — **seules les lignes hors BC** sont écrites (I100).
+ *
+ * Idempotent (I99) : l'unicité `(company, source, source_ref)` est appliquée par
+ * la base, rejouer deux fois le même fichier n'ajoute rien. Le lot est
+ * identifiable (`batchId`) et **annulable** (`DELETE`).
+ *
+ * Un fichier dont **toutes** les lignes portent un n° de BC est refusé : il n'y
+ * a rien à rejouer, et l'accepter créerait un doublon silencieux.
+ */
+procurementRouter.post(
+  '/historical-expenses/import',
+  requireExactProcurementRole('controle_gestion'),
+  async (req, res) => {
+    const body = parseBody(cdgJournalRowsSchema, req.body, res)
+    if (!body) return
+    const { manager } = req as unknown as ManagerRequest
+    try {
+      const [sites, knownRefs] = await Promise.all([
+        listSites(manager.companyId),
+        listKnownPurchaseOrderReferences(manager.companyId),
+      ])
+      const parsed = parseCdgJournalRows(body.rows)
+      const recon = reconcileCdgJournal(parsed.lines, knownRefs)
+      const preview = buildJournalPreview(body.rows, sites, knownRefs, body.siteId)
+
+      if (recon.toImport.length === 0) {
+        res.status(400).json({
+          message: 'Aucune ligne hors BC dans ce fichier — rien à rejouer (I100).',
+          preview,
+        })
+        return
+      }
+
+      // Le journal réel nomme `DG CI ENERGIE`, qui correspond déjà au chantier
+      // `site-xlsx-dg-ci-energie` — mais 5 lignes portent `CI ENERGIE DG` (ordre
+      // inversé) et ne sont reconnues par personne. Importer sans désignation
+      // créerait des lignes qui ne comptent dans le réalisé d'**aucun** chantier :
+      // on refuse plutôt que de produire du vide.
+      if (preview.unassigned.lines === recon.toImport.length && !body.siteId) {
+        res.status(400).json({
+          message:
+            'Aucun chantier reconnu dans ce fichier : désignez le chantier à imputer avant de rejouer.',
+          preview,
+        })
+        return
+      }
+
+      const result = await importHistoricalExpenseLines({
+        companyId: manager.companyId,
+        managerId: manager.sub,
+        fallbackSiteId: body.siteId ?? null,
+        sites: sites.map((s) => ({ id: s.id, name: s.name })),
+        lines: recon.toImport.map((line) => ({
+          occurredOn: line.occurredOn,
+          label: line.label,
+          nature: line.nature,
+          natureLabel: line.natureLabel,
+          supplierName: line.supplierName,
+          amountFcfa: line.amountFcfa,
+          siteName: line.siteName,
+          sourceRef: line.sourceRef,
+        })),
+      })
+
+      res.json({
+        ...result,
+        totalFcfa: recon.totalFcfa,
+        excluded: { lines: recon.excluded.length, fcfa: recon.excludedFcfa },
+        rejected: parsed.rejected,
+        matchRatePct: recon.matchRatePct,
+      })
+    } catch (err) {
+      console.error('[procurement] historical expenses import error', err)
+      res.status(500).json({ message: 'Erreur import du journal' })
+    }
+  },
+)
+
+/**
+ * Lots déjà rejoués et dernières lignes historiques (T08) — **lecture seule**.
+ * Ouvert à tous les rôles achats : l'historique fait partie du réalisé, donc de
+ * l'écran que chacun consulte déjà.
+ */
+procurementRouter.get('/historical-expenses', async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  const [batches, lines] = await Promise.all([
+    listHistoricalImportBatches(manager.companyId),
+    listHistoricalExpenseLines(manager.companyId, { limit: 200 }),
+  ])
+  res.json({ batches, lines })
+})
+
+/** Annule un lot de rejeu (T08) — le rejeu est **réversible** (rôle CdG). */
+procurementRouter.delete(
+  '/historical-expenses/:batchId',
+  requireExactProcurementRole('controle_gestion'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    const deleted = await deleteHistoricalImportBatch({
+      companyId: manager.companyId,
+      batchId: String(req.params.batchId),
+    })
+    res.json({ deleted })
+  },
+)
 
 procurementRouter.get('/sites/:id/indicators', async (req, res) => {
   const { manager } = req as unknown as ManagerRequest
@@ -1914,4 +2246,239 @@ procurementRouter.get('/documents/:poId/html', async (req, res) => {
     return
   }
   res.json(wrapPoDocument(po))
+})
+
+// ─── F02 lot B — poste Trésorerie (circuit hors SA) ──────────────────────────
+
+/**
+ * File du poste Trésorerie : BT émis restant à débourser, avec leur EB.
+ * Le CdG / DAF / PDG la consultent en lecture ; seul `treasury` agit.
+ */
+procurementRouter.get(
+  '/treasury',
+  requireProcurementRole('treasury', 'controle_gestion', 'daf', 'pdg'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    try {
+      const rows = await listTreasuryOrdersToDisburse(manager.companyId)
+      const items = []
+      for (const row of rows) {
+        const disbursement = await getDisbursementByTreasuryOrder(manager.companyId, row.treasury.id)
+        items.push({
+          treasuryId: row.treasury.id,
+          reference: row.treasury.reference,
+          amountFcfa: Number(row.treasury.amountFcfa ?? 0),
+          status: row.treasury.status,
+          lineId: row.treasury.purchaseRequestLineId,
+          requestId: row.request.id,
+          requestReference: row.request.reference,
+          requestStatus: row.request.status,
+          siteId: row.request.siteId,
+          disbursement,
+        })
+      }
+      res.json({ items })
+    } catch (err) {
+      console.error('[procurement] treasury list error', err)
+      res.status(500).json({ message: 'Erreur chargement trésorerie' })
+    }
+  },
+)
+
+/**
+ * Enregistre le déboursé d'un BT : montant, mode, n° de transaction et
+ * **facture obligatoire** (invariant **I103**).
+ *
+ * L'EB passe en `deboursed`, puis `paid` quand **tous** ses BT sont déboursés.
+ * Si l'enregistrement échoue, la pièce qui vient d'être stockée est supprimée
+ * pour ne pas laisser de blob orphelin.
+ */
+procurementRouter.post(
+  '/treasury/:treasuryId/disburse',
+  requireProcurementRole('treasury'),
+  async (req, res) => {
+    const body = parseBody(disburseSchema, req.body, res)
+    if (!body) return
+    const { manager } = req as unknown as ManagerRequest
+    const treasuryId = String(req.params.treasuryId)
+
+    // I103 — la pièce justificative est exigée AVANT tout enregistrement.
+    const file = parseJsonAttachment({
+      data: body.data,
+      fileName: body.fileName,
+      contentType: body.contentType,
+    })
+    if ('error' in file) {
+      res.status(400).json({ message: `${file.error} — facture ou reçu exigé au déboursé` })
+      return
+    }
+    if (file.buffer.length === 0 || file.buffer.length > LINE_ATTACHMENT_MAX_BYTES) {
+      res.status(400).json({ message: 'Fichier trop volumineux (max. 5 Mo)' })
+      return
+    }
+
+    const key = `treasury-disbursement/${treasuryId}/${randomUUID()}`
+    try {
+      await putLineAttachment(key, file.buffer, {
+        contentType: file.mimetype,
+        fileName: file.originalname,
+      })
+    } catch (err) {
+      console.error('[procurement] disbursement invoice store', err)
+      res.status(503).json({ message: 'Stockage des pièces jointes indisponible' })
+      return
+    }
+
+    const paidAt =
+      body.paidAt && /^\d{4}-\d{2}-\d{2}/.test(body.paidAt) ? new Date(body.paidAt) : new Date()
+    try {
+      const result = await disburseTreasuryOrder({
+        companyId: manager.companyId,
+        treasuryOrderId: treasuryId,
+        managerId: manager.sub,
+        amountFcfa: body.amountFcfa,
+        method: body.method,
+        transactionReference: body.transactionReference ?? null,
+        paidAt,
+        invoice: { blobKey: key, fileName: file.originalname, contentType: file.mimetype },
+      })
+      res.status(201).json(result)
+    } catch (err) {
+      await deleteLineAttachment(key).catch(() => undefined)
+      if (handleWorkflowError(err, res)) return
+      console.error('[procurement] disburse error', err)
+      res.status(500).json({ message: 'Erreur enregistrement du déboursé' })
+    }
+  },
+)
+
+/**
+ * Facture / reçu du déboursé — **consultable depuis l'EB** (décision CdG :
+ * *« il faut juste rattacher la facture du paiement à l'EB »*).
+ */
+procurementRouter.get('/treasury/:treasuryId/invoice', async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  const treasuryId = String(req.params.treasuryId)
+  const disbursement = await getDisbursementByTreasuryOrder(manager.companyId, treasuryId)
+  const blobKey = disbursement?.invoiceBlobKey?.trim() || null
+  if (!disbursement || !blobKey) {
+    res.status(404).json({ message: 'Facture introuvable' })
+    return
+  }
+  let stored: { data: Buffer } | null
+  try {
+    stored = await getLineAttachment(blobKey)
+  } catch (err) {
+    console.error('[procurement] disbursement invoice read', err)
+    res.status(503).json({ message: 'Stockage des pièces jointes indisponible' })
+    return
+  }
+  if (!stored?.data?.length) {
+    res.status(404).json({ message: 'Fichier introuvable' })
+    return
+  }
+  res.setHeader('Content-Type', disbursement.invoiceContentType || 'application/octet-stream')
+  if (disbursement.invoiceFileName) {
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${disbursement.invoiceFileName.replace(/"/g, '')}"`,
+    )
+  }
+  res.send(stored.data)
+})
+
+/** Remplace la facture d'un déboursé (mauvaise pièce jointe). */
+procurementRouter.post(
+  '/treasury/:treasuryId/invoice',
+  requireProcurementRole('treasury'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    const treasuryId = String(req.params.treasuryId)
+    const existing = await getDisbursementByTreasuryOrder(manager.companyId, treasuryId)
+    if (!existing) {
+      res.status(404).json({ message: 'Déboursé introuvable' })
+      return
+    }
+    const file = parseJsonAttachment(req.body)
+    if ('error' in file) {
+      res.status(400).json({ message: file.error })
+      return
+    }
+    if (file.buffer.length === 0 || file.buffer.length > LINE_ATTACHMENT_MAX_BYTES) {
+      res.status(400).json({ message: 'Fichier trop volumineux (max. 5 Mo)' })
+      return
+    }
+    const previousKey = existing.invoiceBlobKey?.trim() || ''
+    const key = `treasury-disbursement/${treasuryId}/${randomUUID()}`
+    try {
+      await putLineAttachment(key, file.buffer, {
+        contentType: file.mimetype,
+        fileName: file.originalname,
+      })
+    } catch (err) {
+      console.error('[procurement] disbursement invoice store', err)
+      res.status(503).json({ message: 'Stockage des pièces jointes indisponible' })
+      return
+    }
+    const row = await setDisbursementInvoice(manager.companyId, treasuryId, {
+      blobKey: key,
+      fileName: file.originalname,
+      contentType: file.mimetype,
+    })
+    if (!row) {
+      await deleteLineAttachment(key).catch(() => undefined)
+      res.status(404).json({ message: 'Déboursé introuvable' })
+      return
+    }
+    if (previousKey && previousKey !== key) {
+      await deleteLineAttachment(previousKey).catch(() => undefined)
+    }
+    res.json(row)
+  },
+)
+
+/** Trace l'impression physique de la facture (Q56 — un seul justificatif). */
+procurementRouter.post(
+  '/treasury/:treasuryId/invoice-printed',
+  requireProcurementRole('treasury'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    const row = await markDisbursementInvoicePrinted(
+      manager.companyId,
+      String(req.params.treasuryId),
+      new Date(),
+    )
+    if (!row) {
+      res.status(404).json({ message: 'Déboursé introuvable' })
+      return
+    }
+    res.json(row)
+  },
+)
+
+/**
+ * Déboursés d'une EB — chaîne `EB → BT → déboursé → facture`.
+ * Permet au CdG de vérifier le paiement et la pièce depuis l'EB elle-même.
+ */
+procurementRouter.get('/requests/:id/disbursements', async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  try {
+    const rows = await listDisbursementsForRequest(manager.companyId, String(req.params.id))
+    res.json({
+      items: rows.map((r) => ({
+        treasuryId: r.treasury.id,
+        treasuryReference: r.treasury.reference,
+        amountFcfa: Number(r.disbursement.amountFcfa ?? 0),
+        method: r.disbursement.method,
+        transactionReference: r.disbursement.transactionReference,
+        paidAt: r.disbursement.paidAt,
+        invoiceFileName: r.disbursement.invoiceFileName,
+        invoicePrintedAt: r.disbursement.invoicePrintedAt,
+        hasInvoice: Boolean(r.disbursement.invoiceBlobKey),
+      })),
+    })
+  } catch (err) {
+    console.error('[procurement] disbursements list error', err)
+    res.status(500).json({ message: 'Erreur chargement des déboursés' })
+  }
 })

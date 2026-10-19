@@ -57,7 +57,7 @@ managersRoutes.post(
     const procurementRoleRaw = typeof (req.body as { procurementRole?: string })?.procurementRole === 'string'
       ? (req.body as { procurementRole: string }).procurementRole.trim()
       : ''
-    const validRoles = ['site_controller', 'technical_director', 'daf', 'purchasing', 'pdg', 'controle_gestion', 'site_manager', 'accountant']
+    const validRoles = ['site_controller', 'technical_director', 'daf', 'purchasing', 'pdg', 'controle_gestion', 'site_manager', 'accountant', 'treasury']
     const procurementRole = validRoles.includes(procurementRoleRaw) ? procurementRoleRaw : null
     if (!name?.trim() || !email?.trim()) {
       res.status(400).json({ message: 'Nom et e-mail sont requis' })
@@ -382,6 +382,7 @@ managersRoutes.patch('/dashboard/managers/:id', requireAdmin, async (req, res) =
         'controle_gestion',
         'site_manager',
         'accountant',
+        'treasury',
       ]
       const pr = (req.body as { procurementRole?: unknown }).procurementRole
       update.procurementRole =

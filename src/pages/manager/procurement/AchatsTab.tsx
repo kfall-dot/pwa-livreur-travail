@@ -44,7 +44,8 @@ import type {
   ProcurementTourPrefill,
 } from './procurementTypes'
 import { catalogUnitFromEb } from '../../../../shared/ebCatalog'
-import { EB_SPEND_CATEGORIES, ebSpendCategoryLabel, inferEbSpendCategory, normalizeEbSpendCategory } from '../../../../shared/ebSpendCategory'
+import { ebSpendCategoryLabel, inferEbSpendCategory, normalizeEbSpendCategory } from '../../../../shared/ebSpendCategory'
+import { CHARGE_FAMILIES, chargeNaturesByFamily } from '../../../../shared/chargeNatures'
 import { hasComptantLines } from '../../../../shared/saFinanceGate'
 import { versionBadge, versionSuffix } from '../../../../shared/requestVersion'
 import {
@@ -1874,7 +1875,7 @@ function DraftReviewPanel({
               <tr>
                 <th style={css.lineTh}>Réf</th>
                 <th style={css.lineTh}>Désignations</th>
-                <th style={css.lineTh}>Catégorie</th>
+                <th style={css.lineTh}>Nature de charge</th>
                 <th style={css.lineTh}>Unité</th>
                 <th style={css.lineTh}>Quantité</th>
                 <th style={css.lineTh}>Prix Unitaire</th>
@@ -1916,9 +1917,14 @@ function DraftReviewPanel({
                       onChange={(e) => onLineChange(i, { spendCategory: e.target.value })}
                       style={css.input}
                       data-testid={`mgr-achats-line-category-${i}`}
+                      aria-label="Nature de charge"
                     >
-                      {EB_SPEND_CATEGORIES.map((c) => (
-                        <option key={c.value} value={c.value}>{c.label}</option>
+                      {CHARGE_FAMILIES.map((f) => (
+                        <optgroup key={f.value} label={f.label}>
+                          {chargeNaturesByFamily(f.value).map((n) => (
+                            <option key={n.value} value={n.value}>{n.label}</option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </td>

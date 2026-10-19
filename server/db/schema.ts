@@ -35,6 +35,8 @@ export const procurementRoleEnum = pgEnum('procurement_role', [
   'controle_gestion',
   'site_manager',
   'accountant',
+  /** Rôle « Trésorerie » — déboursé et paiement hors SA (F02 lot B). */
+  'treasury',
 ])
 
 export const siteBudgetAmendmentStatusEnum = pgEnum('site_budget_amendment_status', [
@@ -52,6 +54,12 @@ export const purchaseRequestStatusEnum = pgEnum('purchase_request_status', [
   'daf_review',
   'sa_review',
   'bt_pending',
+  /** BT émis — en attente du déboursé (circuit hors SA, F02 lot B). */
+  'bt_ready',
+  /** Déboursé constaté par la trésorerie. */
+  'deboursed',
+  /** Payé — facture archivée. */
+  'paid',
   'daf_bt_review',
   'pdg_review',
   'po_ready',
@@ -72,6 +80,23 @@ export const whatsappMessageTypeEnum = pgEnum('whatsapp_message_type', [
 export const approvalDecisionEnum = pgEnum('approval_decision', ['approved', 'rejected', 'revised'])
 
 export const purchaseDocTypeEnum = pgEnum('purchase_doc_type', ['bc', 'bt'])
+
+/** Statut d'un bon de trésorerie (F02 lot B). */
+export const treasuryOrderStatusEnum = pgEnum('treasury_order_status', [
+  'pending',
+  'issued',
+  'deboursed',
+  'paid',
+  'cancelled',
+])
+
+/** Mode de déboursé — « Reçu OM ou autre reçu » (décision CdG 16/10/2026). */
+export const disbursementMethodEnum = pgEnum('disbursement_method', [
+  'orange_money',
+  'cash',
+  'bank',
+  'cheque',
+])
 
 /** Entreprise démo (seed / E2E) — toutes les données historiques y sont rattachées. */
 export const DEMO_COMPANY_ID = 'co-demo'
@@ -515,6 +540,83 @@ export const siteBudgetAmendments = pgTable(
 export type SiteBudgetAmendment = typeof siteBudgetAmendments.$inferSelect
 export type NewSiteBudgetAmendment = typeof siteBudgetAmendments.$inferInsert
 
+/**
+ * Ventilation de l'enveloppe d'un chantier par **famille de charge** (F03).
+ *
+ * `family` est du **texte** : le référentiel des familles vit en code
+ * (`shared/chargeNatures.ts`, décision F02-A). Une ligne par (chantier, famille).
+ */
+export const siteBudgetFamilyAllocations = pgTable('site_budget_family_allocations', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id')
+    .notNull()
+    .references(() => companies.id),
+  siteId: text('site_id')
+    .notNull()
+    .references(() => sites.id),
+  family: text('family').notNull(),
+  amountFcfa: numeric('amount_fcfa', { precision: 14, scale: 0 }).notNull().default('0'),
+  updatedByManagerId: text('updated_by_manager_id').references(() => managers.id),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export type SiteBudgetFamilyAllocation = typeof siteBudgetFamilyAllocations.$inferSelect
+
+/**
+ * Dépense **historique** rejouée depuis le journal du CdG — **T08**.
+ *
+ * Ce n'est **pas** un document du circuit : c'est un **fait daté**. Fabriquer de
+ * vraies EB pour l'historique produirait une chaîne d'approbations que personne
+ * n'a signée — un mensonge dans la piste d'audit. Ces lignes sont donc en
+ * **lecture seule** et alimentent le **réalisé** (F01/F02/F03) au même titre
+ * qu'un déboursé (invariant I108 : un seul réalisé).
+ *
+ * Deux invariants les gouvernent :
+ * - **I100** — une ligne dont le `No BC` du journal est non vide n'est **jamais
+ *   importée** : le CdG a confirmé en séance que ces achats sont **déjà** des BC
+ *   de TraceO. Les rejouer doublerait 11 476 531 F.
+ * - **I99** — `(company_id, source, source_ref)` est **unique** : rejouer le
+ *   même fichier ne crée aucun doublon.
+ *
+ * `site_id` peut être **NULL** : un libellé de chantier non reconnu n'est
+ * **jamais deviné** (la ligne reste visible, non imputée).
+ */
+export const historicalExpenseLines = pgTable(
+  'historical_expense_lines',
+  {
+    id: text('id').primaryKey(),
+    companyId: text('company_id')
+      .notNull()
+      .references(() => companies.id),
+    siteId: text('site_id').references(() => sites.id),
+    /** Libellé de chantier tel qu'écrit dans le journal (traçabilité). */
+    siteName: text('site_name'),
+    occurredOn: date('occurred_on').notNull(),
+    label: text('label').notNull(),
+    /** Code du référentiel F02 (`shared/chargeNatures.ts`) — jamais vide. */
+    nature: text('nature').notNull(),
+    /** Libellé de nature d'origine du journal. */
+    natureLabel: text('nature_label'),
+    supplierName: text('supplier_name'),
+    amountFcfa: numeric('amount_fcfa', { precision: 14, scale: 0 }).notNull(),
+    /** Origine de la ligne — `journal_cdg` aujourd'hui. */
+    source: text('source').notNull().default('journal_cdg'),
+    /** Empreinte stable de la ligne source — idempotence (I99). */
+    sourceRef: text('source_ref').notNull(),
+    /** Lot d'import : permet d'annuler un rejeu entier. */
+    batchId: text('batch_id').notNull(),
+    importedByManagerId: text('imported_by_manager_id').references(() => managers.id),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('historical_expense_lines_source_uidx').on(t.companyId, t.source, t.sourceRef),
+    index('historical_expense_lines_site_idx').on(t.companyId, t.siteId, t.occurredOn),
+  ],
+)
+
+export type HistoricalExpenseLine = typeof historicalExpenseLines.$inferSelect
+export type NewHistoricalExpenseLine = typeof historicalExpenseLines.$inferInsert
+
 export const suppliers = pgTable('suppliers', {
   id: text('id').primaryKey(),
   companyId: text('company_id')
@@ -680,11 +782,47 @@ export const treasuryOrders = pgTable('treasury_orders', {
   amountFcfa: numeric('amount_fcfa', { precision: 14, scale: 0 }).notNull(),
   quotationUrls: jsonb('quotation_urls'),
   pdfHtml: text('pdf_html'),
+  /** Statut du BT : pending → issued → deboursed → paid (F02 lot B). */
+  status: treasuryOrderStatusEnum('status').notNull().default('pending'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
 export type TreasuryOrder = typeof treasuryOrders.$inferSelect
 export type NewTreasuryOrder = typeof treasuryOrders.$inferInsert
+
+/**
+ * Déboursé d'un bon de trésorerie — un seul par BT (F02 lot B).
+ *
+ * La **facture du paiement est rattachée à l'EB** via ce déboursé, et elle est
+ * **exigée au moment du déboursé** (invariant I103). Le modèle de pièce jointe
+ * reprend celui de `purchase_orders.sa_invoice_*`.
+ */
+export const treasuryDisbursements = pgTable('treasury_disbursements', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id')
+    .notNull()
+    .references(() => companies.id),
+  treasuryOrderId: text('treasury_order_id')
+    .notNull()
+    .references(() => treasuryOrders.id),
+  amountFcfa: numeric('amount_fcfa', { precision: 14, scale: 0 }).notNull(),
+  method: disbursementMethodEnum('method').notNull().default('orange_money'),
+  /** N° de transaction — attendu pour Orange Money, libre sinon. */
+  transactionReference: text('transaction_reference'),
+  paidAt: timestamp('paid_at').notNull(),
+  recordedByManagerId: text('recorded_by_manager_id').references(() => managers.id),
+  invoiceBlobKey: text('invoice_blob_key'),
+  invoiceFileName: text('invoice_file_name'),
+  invoiceContentType: text('invoice_content_type'),
+  /** Trace de l'impression physique de la facture (Q56). */
+  invoicePrintedAt: timestamp('invoice_printed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export type TreasuryDisbursement = typeof treasuryDisbursements.$inferSelect
+export type NewTreasuryDisbursement = typeof treasuryDisbursements.$inferInsert
+export type TreasuryOrderStatus = (typeof treasuryOrderStatusEnum.enumValues)[number]
+export type DisbursementMethod = (typeof disbursementMethodEnum.enumValues)[number]
 
 export const documentTemplates = pgTable('document_templates', {
   id: text('id').primaryKey(),

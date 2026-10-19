@@ -18,13 +18,17 @@ import {
   purchaseRequestVersions,
   sites,
   siteBudgetAmendments,
+  siteBudgetFamilyAllocations,
   suppliers,
   tours,
   treasuryOrders,
+  treasuryDisbursements,
   whatsappMessages,
   type ParsedEbLine,
   type ProcurementRole,
   type PurchaseRequestStatus,
+  type TreasuryOrderStatus,
+  type DisbursementMethod,
 } from './schema.js'
 import { lineAmountFcfa } from '../services/ebPricing.js'
 import { ENGAGED_BC_STATUSES, amendmentWouldUndercutEngaged, computeBudgetKpis, computeBudgetTotals, firstOverrunAt, toFcfaInt } from '../services/siteBudget.js'
@@ -32,10 +36,14 @@ import {
   buildSiteIndicators,
   eventFromDeliveredBc,
   todayIsoLocal,
+  type DeliveryExpenseEvent,
   type SiteIndicatorsSnapshot,
 } from '../services/siteIndicators.js'
 import { linesForSupplier } from '../lib/procurementLines.js'
 import { normalizeEbSpendCategory } from '../../shared/ebSpendCategory.js'
+import { CHARGE_FAMILIES } from '../../shared/chargeNatures.js'
+import { resolveJournalSiteId } from '../../shared/cdgJournal.js'
+import type { FamilyAllocation } from '../../shared/budgetAllocation.js'
 import { versionSuffix } from '../../shared/requestVersion.js'
 import {
   bcRegisterAttachments,
@@ -509,9 +517,387 @@ export async function getSiteIndicators(companyId: string, siteId: string): Prom
       asOf: todayIsoLocal(),
       budgetInitialFcfa: budget.budgetInitialFcfa,
       budgetTotalFcfa: budget.budgetTotalFcfa,
-      events,
+      events: [...deliveryEvents, ...directEvents],
+      familyAllocations,
     }),
   }
+}
+
+/**
+ * Ventilation de l'enveloppe d'un chantier par **famille de charge** (F03).
+ *
+ * Les familles retirées du référentiel (impossible aujourd'hui, mais le
+ * référentiel vit en code) sont **ignorées** : elles ne sont jamais comptées
+ * dans un total.
+ */
+export async function getFamilyAllocations(
+  companyId: string,
+  siteId: string,
+): Promise<FamilyAllocation[]> {
+  const rows = await db
+    .select({
+      family: siteBudgetFamilyAllocations.family,
+      amountFcfa: siteBudgetFamilyAllocations.amountFcfa,
+    })
+    .from(siteBudgetFamilyAllocations)
+    .where(
+      and(
+        eq(siteBudgetFamilyAllocations.companyId, companyId),
+        eq(siteBudgetFamilyAllocations.siteId, siteId),
+      ),
+    )
+  const out: FamilyAllocation[] = []
+  for (const row of rows) {
+    const family = CHARGE_FAMILIES.find((f) => f.value === row.family)?.value
+    if (!family) continue
+    out.push({ family, amountFcfa: Number(row.amountFcfa ?? 0) })
+  }
+  return out
+}
+
+/**
+ * Remplace la ventilation d'un chantier (F03).
+ *
+ * Écriture **complète** et non patch : les familles absentes de `allocations`
+ * sont supprimées, sinon une famille retirée de l'écran resterait allouée en
+ * base et fausserait les totaux. Les allocations à 0 ne sont pas stockées.
+ */
+export async function setFamilyAllocations(input: {
+  companyId: string
+  siteId: string
+  allocations: FamilyAllocation[]
+  managerId: string
+}): Promise<FamilyAllocation[]> {
+  const site = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, input.siteId), eq(sites.companyId, input.companyId)))
+    .limit(1)
+  if (site.length === 0) throw new SiteBudgetError('Chantier introuvable', 404)
+
+  await db
+    .delete(siteBudgetFamilyAllocations)
+    .where(
+      and(
+        eq(siteBudgetFamilyAllocations.companyId, input.companyId),
+        eq(siteBudgetFamilyAllocations.siteId, input.siteId),
+      ),
+    )
+
+  for (const allocation of input.allocations) {
+    if (allocation.amountFcfa <= 0) continue
+    await db.insert(siteBudgetFamilyAllocations).values({
+      id: `sbfa-${randomUUID()}`,
+      companyId: input.companyId,
+      siteId: input.siteId,
+      family: allocation.family,
+      amountFcfa: String(Math.trunc(allocation.amountFcfa)),
+      updatedByManagerId: input.managerId,
+    })
+  }
+
+  return getFamilyAllocations(input.companyId, input.siteId)
+}
+
+/**
+ * Dépenses **directes** d'un chantier — circuit hors SA (F02 lot B).
+ *
+ * Pendant de `listSiteDeliveryExpenseEvents` : chaque **déboursé** d'un BT du
+ * chantier produit un événement daté du paiement, ventilé sur les lignes de
+ * l'EB au prorata du montant déboursé (un paiement peut être partiel).
+ *
+ * C'est ce qui rend le réalisé vrai : sans cette source, un chantier dont la
+ * main-d'œuvre est payée hors SA n'afficherait que ses achats matériaux.
+ */
+export async function listSiteDirectExpenseEvents(
+  companyId: string,
+  siteId: string,
+): Promise<DeliveryExpenseEvent[]> {
+  const rows = await db
+    .select({
+      requestId: treasuryOrders.purchaseRequestId,
+      paidAt: treasuryDisbursements.paidAt,
+      amountFcfa: treasuryDisbursements.amountFcfa,
+    })
+    .from(treasuryDisbursements)
+    .innerJoin(treasuryOrders, eq(treasuryDisbursements.treasuryOrderId, treasuryOrders.id))
+    .innerJoin(purchaseRequests, eq(treasuryOrders.purchaseRequestId, purchaseRequests.id))
+    .where(and(eq(treasuryDisbursements.companyId, companyId), eq(purchaseRequests.siteId, siteId)))
+    .orderBy(treasuryDisbursements.paidAt)
+
+  // T08 — les dépenses **historiques** rejouées depuis le journal du CdG
+  // alimentent le **même** réalisé (invariant I108 : un seul réalisé). Ce sont
+  // des faits datés, pas des documents du circuit : ni EB, ni BT, ni déboursé.
+  const historicalRows = await db
+    .select({
+      occurredOn: historicalExpenseLines.occurredOn,
+      label: historicalExpenseLines.label,
+      nature: historicalExpenseLines.nature,
+      amountFcfa: historicalExpenseLines.amountFcfa,
+    })
+    .from(historicalExpenseLines)
+    .where(
+      and(
+        eq(historicalExpenseLines.companyId, companyId),
+        eq(historicalExpenseLines.siteId, siteId),
+      ),
+    )
+    .orderBy(asc(historicalExpenseLines.occurredOn))
+
+  const historicalEvents: DeliveryExpenseEvent[] = historicalRows.map((row) => {
+    const amount = Number(row.amountFcfa ?? 0)
+    return {
+      date: isoDateValue(row.occurredOn),
+      amountFcfa: amount,
+      products: [{ label: row.label, amountFcfa: amount, category: row.nature }],
+    }
+  })
+
+  if (rows.length === 0) return historicalEvents
+
+  const requestIds = [...new Set(rows.map((r) => r.requestId))]
+  const allLines = await db
+    .select()
+    .from(purchaseRequestLines)
+    .where(inArray(purchaseRequestLines.purchaseRequestId, requestIds))
+  const linesByRequest = new Map<string, typeof allLines>()
+  for (const line of allLines) {
+    const list = linesByRequest.get(line.purchaseRequestId) ?? []
+    list.push(line)
+    linesByRequest.set(line.purchaseRequestId, list)
+  }
+
+  const disbursementEvents: DeliveryExpenseEvent[] = rows.map((row) => {
+    const lines = linesByRequest.get(row.requestId) ?? []
+    const amountFcfa = Number(row.amountFcfa ?? 0)
+    const total = lines.reduce((sum, l) => sum + Number(l.amountFcfa ?? 0), 0)
+    const paidAt = row.paidAt instanceof Date ? row.paidAt : new Date(String(row.paidAt))
+    return {
+      date: todayIsoLocal(paidAt),
+      amountFcfa,
+      products: lines.map((l) => ({
+        label: l.label,
+        amountFcfa:
+          total > 0 ? Math.round((Number(l.amountFcfa ?? 0) / total) * amountFcfa) : 0,
+        category: l.spendCategory,
+      })),
+    }
+  })
+
+  return [...disbursementEvents, ...historicalEvents]
+}
+
+// ─── T08 — Rejeu de l'historique du CdG ─────────────────────────────────────
+
+/** Ligne du journal, déjà normalisée par `shared/cdgJournal.ts`. */
+export type HistoricalExpenseInput = {
+  occurredOn: string
+  label: string
+  nature: string
+  natureLabel: string | null
+  supplierName: string | null
+  amountFcfa: number
+  siteName: string | null
+  sourceRef: string
+}
+
+export type HistoricalImportResult = {
+  batchId: string
+  /** Lignes réellement créées. */
+  imported: number
+  /** Lignes déjà rejouées par un import précédent — ignorées (I99). */
+  skipped: number
+  importedFcfa: number
+  /** Libellés de chantier non reconnus : lignes laissées **non imputées**. */
+  unassignedSites: string[]
+}
+
+/**
+ * Enregistre un **lot** de lignes historiques (T08).
+ *
+ * **Idempotent** (I99) : l'unicité `(company, source, source_ref)` est appliquée
+ * par la base. Une ligne déjà rejouée est **ignorée**, jamais mise à jour — un
+ * fait ne se réécrit pas ; seul un nouveau lot peut la remplacer.
+ *
+ * Le chantier est résolu par `resolveJournalSiteId` (rapprochement de libellés).
+ * Un libellé inconnu laisse `site_id` à NULL et est **remonté** à l'appelant :
+ * la ligne est conservée, visible, **non imputée** — jamais rattachée au hasard.
+ */
+export async function importHistoricalExpenseLines(input: {
+  companyId: string
+  managerId: string | null
+  lines: HistoricalExpenseInput[]
+  /** Chantiers de l'entreprise, pour résoudre les libellés du journal. */
+  sites: Array<{ id: string; name: string }>
+  /**
+   * Chantier désigné par le CdG, appliqué aux lignes dont le libellé du journal
+   * n'est pas reconnu.
+   *
+   * Le journal réel nomme `DG CI ENERGIE` sur 503 de ses 508 lignes — libellé qui
+   * correspond **déjà** au chantier `site-xlsx-dg-ci-energie`. Ce repli sert aux
+   * lignes orphelines (ex. `CI ENERGIE DG`, ordre inversé) : sans lui, elles
+   * seraient importées **non imputées** et n'alimenteraient le réalisé d'**aucun**
+   * chantier. Le libellé d'origine reste stocké (`site_name`) pour la traçabilité.
+   */
+  fallbackSiteId?: string | null
+  source?: string
+  batchId?: string
+}): Promise<HistoricalImportResult> {
+  const source = input.source ?? 'journal_cdg'
+  const batchId =
+    input.batchId ?? `hist-${new Date().toISOString().slice(0, 10)}-${randomUUID().slice(0, 8)}`
+
+  const unassigned = new Set<string>()
+  const values = input.lines.map((line) => {
+    const siteId =
+      (line.siteName ? resolveJournalSiteId(line.siteName, input.sites) : null) ??
+      input.fallbackSiteId ??
+      null
+    if (!siteId && line.siteName) unassigned.add(line.siteName)
+    return {
+      id: `hel-${randomUUID()}`,
+      companyId: input.companyId,
+      siteId,
+      siteName: line.siteName,
+      occurredOn: line.occurredOn,
+      label: line.label,
+      nature: line.nature,
+      natureLabel: line.natureLabel,
+      supplierName: line.supplierName,
+      amountFcfa: String(Math.trunc(line.amountFcfa)),
+      source,
+      sourceRef: line.sourceRef,
+      batchId,
+      importedByManagerId: input.managerId,
+    }
+  })
+
+  let imported = 0
+  let importedFcfa = 0
+  // Insertion par paquets : un rejeu réel fait ~315 lignes, une seule requête
+  // monolithique dépasserait la limite de paramètres du pilote.
+  const chunkSize = 100
+  for (let i = 0; i < values.length; i += chunkSize) {
+    const inserted = await db
+      .insert(historicalExpenseLines)
+      .values(values.slice(i, i + chunkSize))
+      .onConflictDoNothing()
+      .returning({ amountFcfa: historicalExpenseLines.amountFcfa })
+    imported += inserted.length
+    importedFcfa += inserted.reduce((sum, row) => sum + Number(row.amountFcfa ?? 0), 0)
+  }
+
+  return {
+    batchId,
+    imported,
+    skipped: values.length - imported,
+    importedFcfa,
+    unassignedSites: [...unassigned].sort(),
+  }
+}
+
+/** Lignes historiques rejouées (T08) — **lecture seule**. */
+export async function listHistoricalExpenseLines(
+  companyId: string,
+  options: { siteId?: string; limit?: number } = {},
+): Promise<
+  Array<{
+    id: string
+    siteId: string | null
+    siteName: string | null
+    occurredOn: string
+    label: string
+    nature: string
+    natureLabel: string | null
+    supplierName: string | null
+    amountFcfa: number
+    batchId: string
+  }>
+> {
+  const conditions = [eq(historicalExpenseLines.companyId, companyId)]
+  if (options.siteId) conditions.push(eq(historicalExpenseLines.siteId, options.siteId))
+  const rows = await db
+    .select({
+      id: historicalExpenseLines.id,
+      siteId: historicalExpenseLines.siteId,
+      siteName: historicalExpenseLines.siteName,
+      occurredOn: historicalExpenseLines.occurredOn,
+      label: historicalExpenseLines.label,
+      nature: historicalExpenseLines.nature,
+      natureLabel: historicalExpenseLines.natureLabel,
+      supplierName: historicalExpenseLines.supplierName,
+      amountFcfa: historicalExpenseLines.amountFcfa,
+      batchId: historicalExpenseLines.batchId,
+    })
+    .from(historicalExpenseLines)
+    .where(and(...conditions))
+    .orderBy(desc(historicalExpenseLines.occurredOn))
+    .limit(Math.min(options.limit ?? 500, 2000))
+
+  return rows.map((row) => ({
+    ...row,
+    occurredOn: isoDateValue(row.occurredOn),
+    amountFcfa: Number(row.amountFcfa ?? 0),
+  }))
+}
+
+/** Lots d'import déjà rejoués (T08) — un rejeu se constate et s'annule. */
+export async function listHistoricalImportBatches(companyId: string): Promise<
+  Array<{ batchId: string; source: string; lines: number; amountFcfa: number; importedAt: string }>
+> {
+  const rows = await db
+    .select({
+      batchId: historicalExpenseLines.batchId,
+      source: historicalExpenseLines.source,
+      lines: sql<number>`count(*)::int`,
+      amountFcfa: sql<string>`coalesce(sum(${historicalExpenseLines.amountFcfa}), 0)`,
+      importedAt: sql<string>`max(${historicalExpenseLines.createdAt})`,
+    })
+    .from(historicalExpenseLines)
+    .where(eq(historicalExpenseLines.companyId, companyId))
+    .groupBy(historicalExpenseLines.batchId, historicalExpenseLines.source)
+    .orderBy(sql`max(${historicalExpenseLines.createdAt}) desc`)
+
+  return rows.map((row) => ({
+    batchId: row.batchId,
+    source: row.source,
+    lines: Number(row.lines ?? 0),
+    amountFcfa: Number(row.amountFcfa ?? 0),
+    importedAt: String(row.importedAt ?? ''),
+  }))
+}
+
+/** Annule un lot d'import (T08) — le rejeu est **réversible**. */
+export async function deleteHistoricalImportBatch(input: {
+  companyId: string
+  batchId: string
+}): Promise<number> {
+  const deleted = await db
+    .delete(historicalExpenseLines)
+    .where(
+      and(
+        eq(historicalExpenseLines.companyId, input.companyId),
+        eq(historicalExpenseLines.batchId, input.batchId),
+      ),
+    )
+    .returning({ id: historicalExpenseLines.id })
+  return deleted.length
+}
+
+/**
+ * Références de BC connues de TraceO (T08).
+ *
+ * Alimente le **rapprochement** affiché avant tout import (I106) : une ligne du
+ * journal qui cite un BC inconnu est signalée. Elle n'est pas pour autant
+ * importée — le CdG a tranché que **toute** ligne avec n° de BC est déjà un
+ * achat de TraceO (I100).
+ */
+export async function listKnownPurchaseOrderReferences(companyId: string): Promise<string[]> {
+  const rows = await db
+    .select({ reference: purchaseOrders.reference })
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.companyId, companyId))
+  return rows.map((row) => row.reference).filter((ref): ref is string => Boolean(ref))
 }
 
 /** Ids des chantiers actifs supervisés par un manager (DT) — restriction « mes chantiers »,
@@ -1754,6 +2140,137 @@ export async function getTreasuryOrderById(companyId: string, treasuryId: string
     .where(and(eq(treasuryOrders.id, treasuryId), eq(treasuryOrders.companyId, companyId)))
     .limit(1)
   return row ?? null
+}
+
+/** Statut du BT : pending → issued → deboursed → paid (F02 lot B). */
+export async function updateTreasuryOrderStatus(id: string, status: TreasuryOrderStatus) {
+  await db.update(treasuryOrders).set({ status }).where(eq(treasuryOrders.id, id))
+}
+
+/**
+ * Enregistre le déboursé d'un BT — **un seul par BT** (index unique en base).
+ * La facture est **exigée au déboursé** (invariant I103) : l'appelant doit
+ * fournir une pièce jointe, ou la rattacher dans la foulée.
+ */
+export async function createTreasuryDisbursement(input: {
+  companyId: string
+  treasuryOrderId: string
+  amountFcfa: number
+  method: DisbursementMethod
+  transactionReference?: string | null
+  paidAt: Date
+  recordedByManagerId?: string | null
+  invoiceBlobKey?: string | null
+  invoiceFileName?: string | null
+  invoiceContentType?: string | null
+}) {
+  const id = `td-${randomUUID()}`
+  const [row] = await db
+    .insert(treasuryDisbursements)
+    .values({
+      id,
+      companyId: input.companyId,
+      treasuryOrderId: input.treasuryOrderId,
+      amountFcfa: String(input.amountFcfa),
+      method: input.method,
+      transactionReference: input.transactionReference ?? null,
+      paidAt: input.paidAt,
+      recordedByManagerId: input.recordedByManagerId ?? null,
+      invoiceBlobKey: input.invoiceBlobKey ?? null,
+      invoiceFileName: input.invoiceFileName ?? null,
+      invoiceContentType: input.invoiceContentType ?? null,
+    })
+    .returning()
+  return row!
+}
+
+export async function getDisbursementByTreasuryOrder(companyId: string, treasuryOrderId: string) {
+  const [row] = await db
+    .select()
+    .from(treasuryDisbursements)
+    .where(
+      and(
+        eq(treasuryDisbursements.treasuryOrderId, treasuryOrderId),
+        eq(treasuryDisbursements.companyId, companyId),
+      ),
+    )
+    .limit(1)
+  return row ?? null
+}
+
+/** Tous les déboursés d'une EB — la facture reste consultable depuis l'EB. */
+export async function listDisbursementsForRequest(companyId: string, requestId: string) {
+  return db
+    .select({ disbursement: treasuryDisbursements, treasury: treasuryOrders })
+    .from(treasuryDisbursements)
+    .innerJoin(treasuryOrders, eq(treasuryDisbursements.treasuryOrderId, treasuryOrders.id))
+    .where(
+      and(
+        eq(treasuryDisbursements.companyId, companyId),
+        eq(treasuryOrders.purchaseRequestId, requestId),
+      ),
+    )
+    .orderBy(treasuryDisbursements.createdAt)
+}
+
+/**
+ * Rattache (ou détache) la facture du paiement au déboursé.
+ * Renvoie `null` si aucun déboursé n'existe pour ce BT.
+ */
+export async function setDisbursementInvoice(
+  companyId: string,
+  treasuryOrderId: string,
+  invoice: { blobKey: string; fileName: string; contentType: string } | null,
+) {
+  const existing = await getDisbursementByTreasuryOrder(companyId, treasuryOrderId)
+  if (!existing) return null
+  const [row] = await db
+    .update(treasuryDisbursements)
+    .set({
+      invoiceBlobKey: invoice?.blobKey ?? null,
+      invoiceFileName: invoice?.fileName ?? null,
+      invoiceContentType: invoice?.contentType ?? null,
+    })
+    .where(eq(treasuryDisbursements.id, existing.id))
+    .returning()
+  return row ?? null
+}
+
+/** Trace l'impression physique de la facture (Q56 — pas de double archivage). */
+export async function markDisbursementInvoicePrinted(
+  companyId: string,
+  treasuryOrderId: string,
+  printedAt: Date,
+) {
+  const existing = await getDisbursementByTreasuryOrder(companyId, treasuryOrderId)
+  if (!existing) return null
+  const [row] = await db
+    .update(treasuryDisbursements)
+    .set({ invoicePrintedAt: printedAt })
+    .where(eq(treasuryDisbursements.id, existing.id))
+    .returning()
+  return row ?? null
+}
+
+/**
+ * File du **poste Trésorerie** : BT émis (ou en préparation) restant à débourser,
+ * avec leur EB. C'est la seule vue où le rôle `treasury` a besoin d'agir.
+ */
+export async function listTreasuryOrdersToDisburse(companyId: string) {
+  return db
+    .select({ treasury: treasuryOrders, request: purchaseRequests })
+    .from(treasuryOrders)
+    .innerJoin(purchaseRequests, eq(treasuryOrders.purchaseRequestId, purchaseRequests.id))
+    .where(
+      and(
+        eq(treasuryOrders.companyId, companyId),
+        inArray(treasuryOrders.status, ['pending', 'issued']),
+        // Seuls les BT du circuit hors SA sont à débourser : les BT agrégés
+        // historiques du circuit matériaux restent pilotés par le BC.
+        inArray(purchaseRequests.status, ['bt_pending', 'bt_ready', 'deboursed']),
+      ),
+    )
+    .orderBy(treasuryOrders.createdAt)
 }
 
 export async function listPurchaseOrdersForRequest(companyId: string, requestId: string) {

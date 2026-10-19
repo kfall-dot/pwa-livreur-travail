@@ -13,8 +13,9 @@ import {
 import type { BudgetTrafficLight, SuiviChantierBlock } from './procurementUi'
 import type { CdgIndicatorId, ProcurementRole, SiteBudget, SiteIndicators } from './procurementTypes'
 import { CdgIndicateurPage, CdgSyntheseTable } from './CdgIndicateurs'
-import { CdgCategoriesCard, CdgOverviewHeader, catEmoji } from './CdgOverview'
-import { EB_SPEND_CATEGORIES } from '../../../../shared/ebSpendCategory'
+import { CdgCategoriesCard, CdgFamilyVarianceCard, CdgOverviewHeader, catEmoji } from './CdgOverview'
+import { CdgHistoricalCard } from './CdgHistoricalCard'
+import { CHARGE_FAMILIES, chargeNatureFamily, chargeNaturesByFamily } from '../../../../shared/chargeNatures'
 
 /** Revalidation douce des tuiles du suivi (voir l'effet focus/intervalle) : 60 s. */
 const SUIVI_SOFT_REFRESH_MS = 60_000
@@ -684,15 +685,31 @@ export function SuiviChantierTab({
             </button>
           ))}
           <select
+            value={famFilter}
+            onChange={(e) => setFamFilter(e.target.value)}
+            style={{ ...css.input, width: 'auto' }}
+            data-testid="mgr-cdg-filter-family"
+            aria-label="Filtrer par famille de charge"
+          >
+            <option value="">Toutes familles</option>
+            {CHARGE_FAMILIES.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+          <select
             value={catFilter}
             onChange={(e) => setCatFilter(e.target.value)}
             style={{ ...css.input, width: 'auto' }}
             data-testid="mgr-cdg-filter-category"
-            aria-label="Filtrer par catégorie de matériaux"
+            aria-label="Filtrer par nature de charge"
           >
-            <option value="">Toutes catégories</option>
-            {EB_SPEND_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
+            <option value="">Toutes natures</option>
+            {CHARGE_FAMILIES.map((f) => (
+              <optgroup key={f.value} label={f.label}>
+                {chargeNaturesByFamily(f.value).map((n) => (
+                  <option key={n.value} value={n.value}>{n.label}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <input
@@ -727,6 +744,13 @@ export function SuiviChantierTab({
             if (search.trim()) {
               const q = search.trim().toLowerCase()
               filtered = filtered.filter((b) => b.siteName.toLowerCase().includes(q))
+            }
+            if (famFilter) {
+              filtered = filtered.filter((b) =>
+                (indicatorsBySite[b.siteId]?.byCategory ?? []).some(
+                  (c) => chargeNatureFamily(c.category) === famFilter,
+                ),
+              )
             }
             if (catFilter) {
               filtered = filtered.filter((b) =>

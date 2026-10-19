@@ -14,6 +14,7 @@ const ROLE_LABELS: Record<ProcurementRole, string> = {
   controle_gestion: 'Contrôle de gestion',
   site_manager: 'Chef de chantier',
   accountant: 'Comptabilité',
+  treasury: 'Trésorerie',
 }
 
 /**

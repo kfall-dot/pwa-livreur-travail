@@ -19,6 +19,13 @@ import type {
   BcRegisterRow,
   SiteBudget,
   SiteIndicators,
+  TreasuryQueueItem,
+  RequestDisbursement,
+  BudgetFamilyAllocation,
+  FamilyVariance,
+  HistoricalExpensesResponse,
+  HistoricalImportResult,
+  HistoricalJournalPreview,
 } from './procurementTypes'
 
 const BASE = '/procurement'
@@ -560,6 +567,158 @@ export function documentHtmlUrl(poId: string): string {
 export function treasuryHtmlUrl(treasuryId: string): string {
   const apiBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '') || '/api/v1'
   return `${apiBase}${BASE}/documents/treasury/${encodeURIComponent(treasuryId)}/html`
+}
+
+// ─── F02 lot B — poste Trésorerie (circuit hors SA) ──────────────────────────
+
+/** File du poste Trésorerie : BT du circuit hors SA restant à débourser. */
+export async function fetchTreasuryQueue(): Promise<{ items: TreasuryQueueItem[]; status: number }> {
+  const res = await authFetch(`${BASE}/treasury`)
+  if (!res.ok) {
+    // `status` est porté par l'erreur : l'appelant peut déclencher la
+    // déconnexion sur 401 comme les autres onglets (`handleAuth`).
+    throw Object.assign(await apiErrorMessage(res, 'File trésorerie indisponible'), {
+      status: res.status,
+    })
+  }
+  const data = (await res.json()) as { items?: TreasuryQueueItem[] }
+  return { items: data.items ?? [], status: res.status }
+}
+
+/**
+ * Enregistre le déboursé d'un BT. La **facture est exigée** (invariant I103) :
+ * le fichier part dans le même appel que le paiement — pas de déboursé sans
+ * justificatif, même côté client.
+ */
+export async function disburseTreasury(
+  treasuryId: string,
+  file: File,
+  input: {
+    amountFcfa?: number
+    method: 'orange_money' | 'cash' | 'bank' | 'cheque'
+    transactionReference?: string
+    paidAt?: string
+  },
+): Promise<void> {
+  const payload = await fileToBase64Payload(file)
+  const res = await authFetch(`${BASE}/treasury/${encodeURIComponent(treasuryId)}/disburse`, {
+    method: 'POST',
+    body: JSON.stringify({
+      amountFcfa: input.amountFcfa,
+      method: input.method,
+      transactionReference: input.transactionReference,
+      paidAt: input.paidAt,
+      ...payload,
+    }),
+  })
+  if (!res.ok) throw await apiErrorMessage(res, 'Enregistrement du déboursé impossible')
+}
+
+/** Déboursés d'une EB — la facture reste consultable depuis l'EB. */
+export async function fetchRequestDisbursements(requestId: string): Promise<RequestDisbursement[]> {
+  const res = await authFetch(`${BASE}/requests/${encodeURIComponent(requestId)}/disbursements`)
+  if (!res.ok) throw await apiErrorMessage(res, 'Déboursés indisponibles')
+  const data = (await res.json()) as { items?: RequestDisbursement[] }
+  return data.items ?? []
+}
+
+/** Facture / reçu d'un déboursé (PDF, image…). */
+export function treasuryInvoiceUrl(treasuryId: string): string {
+  const apiBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '') || '/api/v1'
+  return `${apiBase}${BASE}/treasury/${encodeURIComponent(treasuryId)}/invoice`
+}
+
+// ─── F03 — budget vs réalisé par famille ─────────────────────────────────────
+
+/**
+ * Remplace la ventilation de l'enveloppe d'un chantier (action **CdG**).
+ * Écriture complète : les familles absentes sont remises à zéro.
+ */
+export async function saveBudgetAllocations(
+  siteId: string,
+  allocations: BudgetFamilyAllocation[],
+): Promise<{ allocations: BudgetFamilyAllocation[]; familyVariance: FamilyVariance | null }> {
+  const res = await authFetch(`${BASE}/sites/${encodeURIComponent(siteId)}/budget/allocations`, {
+    method: 'PUT',
+    body: JSON.stringify({ allocations }),
+  })
+  if (!res.ok) {
+    throw await apiErrorMessage(res, 'Enregistrement de la ventilation impossible')
+  }
+  return (await res.json()) as {
+    allocations: BudgetFamilyAllocation[]
+    familyVariance: FamilyVariance | null
+  }
+}
+
+// ─── T08 — rejeu de l'historique du CdG ──────────────────────────────────────
+
+/**
+ * Aperçu du rapprochement journal ↔ TraceO (I106) — **n'écrit rien**.
+ *
+ * Le CdG voit, avant d'importer : la part du fichier **déjà connue** de TraceO
+ * (lignes portant un n° de BC — exclues par I100), la part à rejouer, les lignes
+ * illisibles et le sort de chaque libellé de chantier. Un miroir, pas une
+ * promesse : seul `importHistoricalJournal` écrit.
+ */
+export async function previewHistoricalJournal(
+  rows: unknown[][],
+  siteId?: string,
+): Promise<HistoricalJournalPreview> {
+  const res = await authFetch(`${BASE}/historical-expenses/preview`, {
+    method: 'POST',
+    body: JSON.stringify({ rows, siteId }),
+  })
+  if (!res.ok) throw await apiErrorMessage(res, 'Lecture du journal impossible')
+  return (await res.json()) as HistoricalJournalPreview
+}
+
+/**
+ * Rejeu effectif du journal (action **CdG**) — **seules** les lignes hors BC sont
+ * écrites (I100). Idempotent (I99) : rejouer deux fois le même fichier n'ajoute
+ * rien. Le lot est identifiable et annulable.
+ */
+export async function importHistoricalJournal(
+  rows: unknown[][],
+  siteId?: string,
+): Promise<HistoricalImportResult> {
+  const res = await authFetch(`${BASE}/historical-expenses/import`, {
+    method: 'POST',
+    body: JSON.stringify({ rows, siteId }),
+  })
+  if (!res.ok) throw await apiErrorMessage(res, 'Import du journal impossible')
+  return (await res.json()) as HistoricalImportResult
+}
+
+/** Lots déjà rejoués et dernières lignes historiques — **lecture seule**. */
+export async function fetchHistoricalExpenses(): Promise<HistoricalExpensesResponse> {
+  const res = await authFetch(`${BASE}/historical-expenses`)
+  if (!res.ok) throw await apiErrorMessage(res, 'Historique indisponible')
+  return (await res.json()) as HistoricalExpensesResponse
+}
+
+/** Annule un lot de rejeu (action **CdG**) — le rejeu est **réversible**. */
+export async function deleteHistoricalBatch(batchId: string): Promise<number> {
+  const res = await authFetch(`${BASE}/historical-expenses/${encodeURIComponent(batchId)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw await apiErrorMessage(res, 'Annulation impossible')
+  const body = (await res.json()) as { deleted: number }
+  return body.deleted
+}
+
+/**
+ * Chantiers de l'entreprise — pour **désigner la cible** d'un rejeu d'historique.
+ *
+ * Le journal réel du CdG ne porte pas de chantier (il nomme la société) : sans
+ * désignation, les lignes importées ne compteraient dans le réalisé d'aucun
+ * chantier. Le choix reste **explicite** — jamais deviné.
+ */
+export async function fetchProcurementSites(): Promise<Array<{ id: string; name: string }>> {
+  const res = await authFetch(`${BASE}/sites`)
+  if (!res.ok) throw await apiErrorMessage(res, 'Liste des chantiers indisponible')
+  const body = (await res.json()) as { sites?: Array<{ id: string; name: string }> }
+  return body.sites ?? []
 }
 
 export async function createTreasuryAdvance(id: string): Promise<RequestDetailResponse> {

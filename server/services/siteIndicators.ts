@@ -9,6 +9,12 @@ import {
   normalizeEbSpendCategory,
   type EbSpendCategory,
 } from '../../shared/ebSpendCategory.js'
+import { chargeFamilyLabel, chargeNatureFamily, type ChargeFamily } from '../../shared/chargeNatures.js'
+import {
+  computeFamilyVariance,
+  type FamilyAllocation,
+  type FamilyVariance,
+} from '../../shared/budgetAllocation.js'
 
 export type IndicatorProduct = {
   label: string
@@ -53,6 +59,9 @@ export type SiteIndicatorsSnapshot = {
   materialsSharePct: number | null
   top3: IndicatorProduct[]
   byCategory: IndicatorCategory[]
+  byFamily: IndicatorFamily[]
+  /** F03 — tableau à double entrée : enveloppe ventilée vs réalisé, par famille. */
+  familyVariance: FamilyVariance
   daily: IndicatorDay[]
 }
 
@@ -206,11 +215,39 @@ export function rankTopProducts(
   return rankTopMaterialPosts(byPost, budgetInitialFcfa, topN)
 }
 
+/**
+ * Ventile les postes par **famille** et calcule la part de chacune dans le
+ * réalisé. C'est le pendant agrégé de `rankTopMaterialPosts` : depuis F02-A,
+ * une dépense de main-d'œuvre ne se fond plus dans « matériaux ».
+ */
+export function rankFamilies(
+  categories: IndicatorCategory[],
+  realizedFcfa: number,
+): IndicatorFamily[] {
+  const totals = new Map<ChargeFamily, number>()
+  for (const c of categories) {
+    const family = chargeNatureFamily(c.category)
+    if (!family) continue
+    totals.set(family, (totals.get(family) ?? 0) + c.amountFcfa)
+  }
+  return [...totals.entries()]
+    .filter(([, amount]) => amount > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([family, amountFcfa]) => ({
+      family,
+      label: chargeFamilyLabel(family),
+      amountFcfa: Math.round(amountFcfa),
+      shareOfRealizedPct: realizedFcfa > 0 ? roundPct((amountFcfa / realizedFcfa) * 100) : null,
+    }))
+}
+
 export function buildSiteIndicators(input: {
   asOf: string
   budgetInitialFcfa: number | null
   budgetTotalFcfa: number | null
   events: DeliveryExpenseEvent[]
+  /** F03 — ventilation de l'enveloppe par famille, saisie par le CdG. */
+  familyAllocations?: FamilyAllocation[]
 }): SiteIndicatorsSnapshot {
   const events = [...input.events]
     .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.date <= input.asOf)
@@ -266,6 +303,8 @@ export function buildSiteIndicators(input: {
       ? roundPct((varianceFcfa / input.budgetTotalFcfa) * 100)
       : null
 
+  const byFamily = rankFamilies(last?.byCategory ?? [], realizedFcfa)
+
   return {
     asOf: input.asOf,
     firstExpenseOn,
@@ -279,6 +318,15 @@ export function buildSiteIndicators(input: {
     materialsSharePct: last?.materialsSharePct ?? null,
     top3: last?.top3 ?? [],
     byCategory: last?.byCategory ?? [],
+    byFamily,
+    // F03 — l'écart par famille exige les DEUX axes : l'enveloppe ventilée
+    // (saisie CdG) et le réalisé. Sans ventilation, toutes les lignes sortent
+    // à 0 d'alloué — l'écran invite alors à ventiler, il n'invente rien.
+    familyVariance: computeFamilyVariance({
+      allocations: input.familyAllocations ?? [],
+      realized: byFamily.map((f) => ({ family: f.family, amountFcfa: f.amountFcfa })),
+      budgetTotalFcfa: input.budgetTotalFcfa,
+    }),
     daily,
   }
 }

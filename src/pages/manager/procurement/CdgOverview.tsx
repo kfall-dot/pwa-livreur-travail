@@ -1,12 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ebSpendCategoryLabel } from '../../../../shared/ebSpendCategory'
-import { fetchRequests } from './procurementApi'
+import { CHARGE_FAMILIES } from '../../../../shared/chargeNatures'
+import { fetchRequests, saveBudgetAllocations } from './procurementApi'
 import { css, formatFcfa, formatPct } from './procurementUi'
-import type { PurchaseRequestRow, SiteBudget, SiteIndicators } from './procurementTypes'
+import type {
+  BudgetFamilyAllocation,
+  FamilyTrafficLight,
+  PurchaseRequestRow,
+  SiteBudget,
+  SiteIndicators,
+} from './procurementTypes'
 
-/** Émoji par poste matériaux (tableau Koestrem 5.1) — tooltip = libellé au survol. */
+const LIGHT_STYLE: Record<FamilyTrafficLight, { color: string; bg: string; dot: string }> = {
+  ok: { color: '#166534', bg: '#dcfce7', dot: '🟢' },
+  watch: { color: '#b45309', bg: '#fef3c7', dot: '🟡' },
+  alert: { color: '#b91c1c', bg: '#fee2e2', dot: '🔴' },
+  none: { color: '#64748b', bg: '#f1f5f9', dot: '⚪' },
+}
+
+/** Émoji par nature de charge — tooltip = libellé au survol. */
 const CATEGORY_EMOJI: Record<string, string> = {
+  // Matériaux (Koestrem 5.1 + rapport CdG)
   menuiserie: '🪚',
   peinture: '🎨',
   electricite: '🔌',
@@ -24,10 +39,50 @@ const CATEGORY_EMOJI: Record<string, string> = {
   nettoyage: '🧹',
   carocol: '🏺',
   autres_materiaux: '📦',
+  marbre_plinthes: '🪨',
+  materiels_cuisine: '🍽️',
+  menuiserie_aluminium: '🪟',
+  accessoires_menuiserie: '🔩',
+  equipement_travail: '🦺',
+  sac_vide: '🛍️',
+  // Main d'œuvre
+  salaire_technicien: '💼',
+  confection_volet: '🪟',
+  mo_menuiserie: '🪚',
+  mo_poncage: '🧽',
+  mo_carrelage: '🧱',
+  pose_marbre_plinthes: '🪨',
+  mo_aides: '👷',
+  mo_peinture: '🎨',
+  mo_ferraille: '⛓️',
+  mo_alucobond: '🪟',
+  depose_granite: '🪨',
+  mo_maconnerie: '🧱',
+  mo_etancheite: '💧',
+  mo_divers: '👷',
+  // Engins & transport
+  ramassage_demolition: '🚜',
+  chargement_dechargement: '📦',
+  livraison_materiels: '🚚',
+  // Frais
+  frais_depot: '🧾',
+  frais_divers: '🧾',
+}
+
+const FAMILY_EMOJI: Record<string, string> = {
+  materiaux: '📦',
+  main_oeuvre: '👷',
+  engins: '🚚',
+  frais: '🧾',
 }
 
 export function catEmoji(value?: string | null): string {
   return CATEGORY_EMOJI[value ?? ''] ?? '📦'
+}
+
+/** Émoji de famille — utilisé par la ventilation par famille (F02 lot A). */
+export function familyEmoji(family?: string | null): string {
+  return FAMILY_EMOJI[family ?? ''] ?? '📦'
 }
 
 function catLabel(value?: string | null): string {
@@ -95,11 +150,37 @@ export function CdgCategoriesCard({ indicators }: { indicators: SiteIndicators |
       .slice(0, 6)
   }, [indicators])
   const maxCategory = byCategory[0]?.amountFcfa ?? 0
+  const byFamily = indicators?.byFamily ?? []
   return (
     <div style={css.card} data-testid="mgr-cdg-categories">
       <h4 style={{ margin: '0 0 10px', fontSize: 13 }}>
-        Ventilation par catégorie{indicators ? '' : ' — indisponible (choisissez un chantier)'}
+        Ventilation par famille et par nature{indicators ? '' : ' — indisponible (choisissez un chantier)'}
       </h4>
+      {byFamily.length > 0 && (
+        <div
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}
+          data-testid="mgr-cdg-families"
+        >
+          {byFamily.map((f) => (
+            <span
+              key={f.family}
+              title={`${f.label} — ${formatPct(f.shareOfRealizedPct)} du réalisé`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                background: '#f3f4f6',
+                borderRadius: 999,
+                padding: '2px 9px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {familyEmoji(f.family)} {f.label} · {formatFcfa(f.amountFcfa)}
+            </span>
+          ))}
+        </div>
+      )}
       {byCategory.length === 0 ? (
         <p style={{ ...css.meta, margin: 0 }}>Aucune donnée de catégorie pour le chantier sélectionné.</p>
       ) : (

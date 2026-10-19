@@ -12,6 +12,7 @@ import { SuiviBcTab } from './manager/procurement/SuiviBcTab'
 import { ComptabiliteTab } from './manager/procurement/ComptabiliteTab'
 import { SuiviChantierTab } from './manager/procurement/SuiviChantierTab'
 import { MaJourneeTab } from './manager/procurement/MaJourneeTab'
+import { TresorerieTab } from './manager/procurement/TresorerieTab'
 import { fetchDraftInboxCount } from './manager/procurement/procurementApi'
 import { NotificationBell } from '../components/NotificationBell'
 import type { ProcurementRole, ProcurementTourPrefill } from './manager/procurement/procurementTypes'
@@ -22,12 +23,13 @@ import { PlanifierTab } from './manager/tabs/PlanifierTab'
 import { PointsTab } from './manager/tabs/PointsTab'
 import { TachesTab } from './manager/tabs/TachesTab'
 
-type Tab = 'suivi' | 'suiviBc' | 'suiviChantier' | 'planifier' | 'livreurs' | 'gestionnaires' | 'points' | 'produits' | 'unites' | 'fournisseurs' | 'taches' | 'achats' | 'maJournee' | 'comptabilite'
+type Tab = 'suivi' | 'suiviBc' | 'suiviChantier' | 'planifier' | 'livreurs' | 'gestionnaires' | 'points' | 'produits' | 'unites' | 'fournisseurs' | 'taches' | 'achats' | 'maJournee' | 'comptabilite' | 'tresorerie'
 /* Icônes et sections de la sidebar — reproduit la maquette docs/mockups/sidebar-manager-v1.html */
 const SIDEBAR_ICONS: Partial<Record<string, string>> = {
   maJournee: '🗓️',
   achats: '🛒',
   comptabilite: '🧾',
+  tresorerie: '💳',
   suiviChantier: '🏗️',
   suiviBc: '📋',
   suivi: '🚚',
@@ -60,6 +62,7 @@ const TAB_FROM_QUERY = new Set<Tab>([
   'achats',
   'maJournee',
   'comptabilite',
+  'tresorerie',
 ])
 
 function tabFromSearchParam(value: string | null): Tab | null {
@@ -207,6 +210,8 @@ export function ManagerDashboardPage() {
     }
     if (procurementRole === 'accountant') {
       setTab('comptabilite')
+    } else if (procurementRole === 'treasury') {
+      setTab('tresorerie')
     } else if (isProcurementWorkspaceRole(procurementRole)) {
       setTab('achats')
     }
@@ -219,6 +224,10 @@ export function ManagerDashboardPage() {
     }
     if (procurementRole === 'accountant') {
       if (tab !== 'comptabilite') setTab('comptabilite')
+      return
+    }
+    if (procurementRole === 'treasury') {
+      if (tab !== 'tresorerie') setTab('tresorerie')
       return
     }
     if (!isProcurementWorkspaceRole(procurementRole)) return
@@ -267,6 +276,8 @@ export function ManagerDashboardPage() {
       ]
     : procurementRole === 'accountant'
     ? [{ id: 'comptabilite' as const, label: 'Comptabilité', tab: 'comptabilite' as Tab }]
+    : procurementRole === 'treasury'
+    ? [{ id: 'tresorerie' as const, label: 'Trésorerie', tab: 'tresorerie' as Tab }]
     : procurementWorkspace
     ? [
         { id: 'achats', label: 'Achats chantier', tab: 'achats', badge: procurementInboxCount },
@@ -646,6 +657,9 @@ export function ManagerDashboardPage() {
           <SuiviChantierTab key={`suiviChantier-${suiviRefreshKey}`} handleAuth={handleAuth} procurementRole={procurementRole} refreshKey={suiviRefreshKey} />
         )}
         {tab === 'maJournee' && <MaJourneeTab key={`maJournee-${suiviRefreshKey}`} handleAuth={handleAuth} />}
+        {tab === 'tresorerie' && (
+          <TresorerieTab key={`tresorerie-${suiviRefreshKey}`} handleAuth={handleAuth} />
+        )}
         </div>
       </div>
     </div>

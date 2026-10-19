@@ -323,6 +323,7 @@ export default function EquipeTab({
                 <option value="pdg">PDG</option>
                 <option value="site_manager">Chef de chantier (CdC)</option>
                 <option value="accountant">Comptabilité</option>
+                <option value="treasury">Trésorerie</option>
               </select>
             </label>
             <button type="submit" className="btn btn-primary" disabled={savingI} data-testid="mgr-invite-send">{savingI ? 'Envoi…' : 'Envoyer l\u2019invitation'}</button>
@@ -417,6 +418,7 @@ export default function EquipeTab({
                 <option value="pdg">PDG</option>
                 <option value="site_manager">Chef de chantier (CdC)</option>
                 <option value="accountant">Comptabilité</option>
+                <option value="treasury">Trésorerie</option>
               </select>
             </label>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
