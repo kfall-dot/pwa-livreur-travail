@@ -5,6 +5,7 @@
  * le CLI Netlify n'est plus requis depuis que les e2e tournent sur Express seul.
  * Usage : node scripts/e2e-sql.mjs "UPDATE …"
  */
+import { readFileSync } from 'node:fs'
 import { Pool, neonConfig } from '@neondatabase/serverless'
 import ws from 'ws'
 
@@ -12,7 +13,21 @@ if (typeof globalThis.WebSocket === 'undefined') {
   neonConfig.webSocketConstructor = ws
 }
 
-const url = process.env.E2E_DATABASE_URL?.trim() || process.env.NETLIFY_DB_URL?.trim()
+/** Repli : lit E2E_DATABASE_URL dans .env.e2e.local si la variable n'est pas exportée. */
+function urlFromEnvFile() {
+  try {
+    const raw = readFileSync(new URL('../.env.e2e.local', import.meta.url), 'utf8')
+    const line = raw.split(/\r?\n/).find((l) => l.startsWith('E2E_DATABASE_URL='))
+    return line ? line.slice('E2E_DATABASE_URL='.length).trim() : ''
+  } catch {
+    return ''
+  }
+}
+
+const url =
+  process.env.E2E_DATABASE_URL?.trim() ||
+  process.env.NETLIFY_DB_URL?.trim() ||
+  urlFromEnvFile()
 if (!url) {
   console.error('E2E_DATABASE_URL (ou NETLIFY_DB_URL) requis')
   process.exit(1)

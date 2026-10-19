@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import {
   API_BASE,
   DEMO_MANAGER,
@@ -7,17 +8,30 @@ import {
 import {
   BTP_PILOT,
   BTP_PINS,
+  CDG_JOURNAL_HEADER,
   binaryPdfFixture,
+  cdgJournalRow,
   completePoAfterCdg,
   confirmScheduledBtpDelivery,
+  createHorsSaEbViaApi,
+  deleteHistoricalBatchApi,
+  disburseTreasuryApi,
   dtSubmitDraft,
+  fetchHistoricalExpensesApi,
+  fetchRequestDisbursementsApi,
+  fetchTreasuryQueueApi,
   freezeBtpBudget,
   getBtpSiteBudget,
+  getBtpSiteIndicatorsApi,
+  getBudgetAllocationsApi,
+  importCdgJournalApi,
   localTodayIso,
   loginBtpApi,
   approveBtpRequest,
   loginBtpManager,
   openAchatsTab,
+  previewCdgJournalApi,
+  putBudgetAllocationsApi,
   resetAndSeedBtp,
   saPriceAndSubmitFinance,
   saPriceSubmitCdgApprove,
@@ -2155,5 +2169,399 @@ test('DT : le sélecteur Chantier inclut les chantiers avec EB émise par le DT 
     // …et les tuiles ne s'ajustent pas sur les chips.
     await expect(page.getByTestId('mgr-suivi-kpi-delivered')).toHaveText(String(kpiDelivered))
     await expect(page.getByTestId('mgr-suivi-kpi-failed')).toHaveText(String(kpiFailed))
+  })
+})
+
+/**
+ * F02 lot B — circuit **hors SA** (I102 · I103 · I105).
+ *
+ * Décisions CdG du 16/10/2026 : une EB de main-d'œuvre **saute le SA**, son BT
+ * est émis **automatiquement après** l'approbation DAF/PDG, et la **facture est
+ * exigée au déboursé**.
+ */
+test.describe('F02-B — circuit hors SA (EB main-d’œuvre)', () => {
+  test('BT émis après le DAF, déboursé refusé sans facture puis accepté', async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000)
+    await resetAndSeedBtp(request)
+
+    // ── DT : EB 100 % main-d'œuvre (famille hors SA) puis soumission
+    const submitted = await createHorsSaEbViaApi(request)
+    expect(submitted.status).toBe('submitted')
+
+    // ── SA : chiffrage 10 jours × 25 000 F = 250 000 F (< seuil PDG 500 000 F)
+    const quoted = await saPriceSubmitCdgApprove(request, submitted.id, 25_000)
+    expect(quoted.request.status).toBe('daf_review')
+    expect(quoted.finance.totalAmountFcfa).toBe(250_000)
+    expect(quoted.finance.needsPdg).toBe(false)
+
+    // ── I102 : le DAF approuve → l'EB NE passe PAS par le SA (pas de BC) :
+    //    le BT est émis automatiquement et l'EB attend le déboursé.
+    const daf = await approveBtpRequest(request, submitted.id, 'daf')
+    expect(daf.request.status, 'EB hors SA → BT émis, jamais sa_review').toBe('bt_ready')
+
+    // ── La file Trésorerie contient le BT, au montant de l'EB
+    const queue = await fetchTreasuryQueueApi(request)
+    const item = queue.find((i) => i.requestId === submitted.id)
+    expect(item, 'BT absent de la file trésorerie').toBeTruthy()
+    expect(item!.amountFcfa).toBe(250_000)
+    expect(item!.requestStatus).toBe('bt_ready')
+
+    // ── I103 : sans facture, le déboursé est REFUSÉ
+    const refused = await disburseTreasuryApi(request, item!.treasuryId, { withInvoice: false })
+    expect(refused.status, 'déboursé sans facture → 400').toBe(400)
+
+    // ── Avec la facture (reçu Orange Money) : le déboursé passe
+    const ok = await disburseTreasuryApi(request, item!.treasuryId)
+    expect(ok.status, 'déboursé avec facture → 201').toBe(201)
+
+    // ── La facture est rattachée à l'EB, le paiement est tracé
+    const disbursements = await fetchRequestDisbursementsApi(request, submitted.id)
+    expect(disbursements.length).toBe(1)
+    expect(disbursements[0]?.hasInvoice).toBe(true)
+    expect(disbursements[0]?.method).toBe('orange_money')
+    expect(disbursements[0]?.amountFcfa).toBe(250_000)
+
+    // ── Tous les BT de l'EB sont déboursés → le BT quitte la file
+    const after = await fetchTreasuryQueueApi(request)
+    expect(after.find((i) => i.treasuryId === item!.treasuryId)).toBeFalsy()
+
+    // ── UI : le rôle Trésorerie n'a que son onglet, et il s'ouvre
+    await loginBtpManager(page, 'tresorerie')
+    await expect(page.getByTestId('mgr-tab-tresorerie')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await page.getByTestId('mgr-tab-tresorerie').click()
+    await expect(page.getByTestId('mgr-tresorerie-tab')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    // La file est vide : le seul BT de la société vient d'être payé.
+    await expect(page.getByTestId('mgr-tresorerie-tab')).toContainText('Aucun bon de trésorerie')
+  })
+})
+
+/**
+ * F03 — budget vs réalisé : le **tableau à double entrée** (I107 · I108 · I109).
+ *
+ * F01 fournit l'enveloppe, F02 le réalisé par famille ; F03 ajoute la
+ * **ventilation** décidée par le CdG et l'écart qui en découle.
+ */
+test.describe('F03 — budget vs réalisé par famille', () => {
+  test('le CdG ventile l’enveloppe, l’écart est recalculé et affiché', async ({ page, request }) => {
+    test.setTimeout(120_000)
+    await resetAndSeedBtp(request)
+
+    // ── Enveloppe gelée : sans elle, « non ventilé » reste indéterminé
+    const frozen = await freezeBtpBudget(request, 10_000_000)
+    expect(frozen.status, 'gel de l’enveloppe').toBe(200)
+
+    // ── CdG : ventilation volontairement supérieure à l'enveloppe (13 M > 10 M)
+    const put = await putBudgetAllocationsApi(request, BTP_PILOT.SITE_ID, [
+      { family: 'materiaux', amountFcfa: 8_000_000 },
+      { family: 'main_oeuvre', amountFcfa: 5_000_000 },
+    ])
+    expect(put.status, 'ventilation CdG').toBe(200)
+    expect(put.body?.allocations.length).toBe(2)
+
+    // ── I109 : les 4 familles sont présentes, même sans dépense
+    const variance = put.body?.familyVariance
+    expect(variance?.rows.length).toBe(4)
+    expect(variance?.rows.map((r) => r.family).sort()).toEqual([
+      'engins',
+      'frais',
+      'main_oeuvre',
+      'materiaux',
+    ])
+    expect(variance?.allocatedFcfa).toBe(13_000_000)
+
+    // ── I107 : ventilation hors enveloppe SIGNALÉE, jamais bloquée
+    expect(variance?.unallocatedFcfa, '13 M alloués pour 10 M d’enveloppe').toBe(-3_000_000)
+    expect(variance?.allocationOverBudget).toBe(true)
+
+    // ── Persistance : la ventilation se relit
+    const read = await getBudgetAllocationsApi(request, BTP_PILOT.SITE_ID)
+    expect(read.allocations.length).toBe(2)
+    expect(read.allocations.find((a) => a.family === 'materiaux')?.amountFcfa).toBe(8_000_000)
+
+    // ── I108 : l'écart est aussi exposé par les indicateurs (une seule source)
+    const indicators = await getBtpSiteIndicatorsApi(request, BTP_PILOT.SITE_ID)
+    expect(indicators.familyVariance?.rows.length).toBe(4)
+    expect(indicators.familyVariance?.allocatedFcfa).toBe(13_000_000)
+    expect(indicators.familyVariance?.realizedFcfa).toBe(indicators.realizedFcfa)
+
+    // ── La ventilation est réservée au CdG
+    const forbidden = await putBudgetAllocationsApi(request, BTP_PILOT.SITE_ID, [], 'daf')
+    expect(forbidden.status, 'ventilation réservée au CdG').toBe(403)
+
+    // ── UI (CdG) : le tableau à double entrée s'affiche et reste modifiable
+    await loginBtpManager(page, 'cdg')
+    await page.getByTestId('mgr-tab-suivi-chantier').click()
+    await expect(page.getByTestId('mgr-suivi-chantier')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await page.getByTestId(`mgr-cdg-row-details-${BTP_PILOT.SITE_ID}`).click()
+    await expect(page.getByTestId('mgr-cdg-synthese')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+
+    await expect(page.getByTestId('mgr-cdg-family-variance')).toBeVisible({
+      timeout: UI_READY_TIMEOUT,
+    })
+    for (const family of ['materiaux', 'main_oeuvre', 'engins', 'frais']) {
+      await expect(page.getByTestId(`mgr-cdg-variance-row-${family}`)).toBeVisible()
+    }
+    // Ventilation > enveloppe (scénario volontaire, I107) : l'UI signale le dépassement
+    await expect(page.getByTestId('mgr-cdg-variance-unallocated')).toContainText(
+      /supérieure à l.enveloppe de 3 000 000/,
+    )
+    await expect(page.getByTestId('mgr-cdg-variance-edit')).toBeVisible()
+
+    // ── La ventilation est réservée au CdG : vérifié au niveau API plus haut
+    // (PUT allocations en rôle DAF → 403). L'UI DAF n'expose pas les
+    // mgr-cdg-row-details-* (vue synthèse sans détail par chantier),
+    // donc pas de navigation DAF ici.
+  })
+})
+
+/**
+ * T08 — **rejeu de l'historique du CdG** (journal `DG CI ENERGIE`).
+ *
+ * Le fichier du CdG est une **compilation** : il recompile des données qui
+ * existent déjà ailleurs. Trois invariants en découlent, et ils sont vérifiés
+ * ici de bout en bout :
+ * - **I100** — toute ligne portant un n° de BC est **exclue** : elle est déjà un
+ *   achat de TraceO. La rejouer doublerait le réalisé.
+ * - **I99** — rejouer deux fois le même fichier n'ajoute **rien**.
+ * - **I106** — le rapprochement est **affiché avant** l'écriture, et l'aperçu
+ *   n'écrit **rien**.
+ */
+test.describe('T08 — rejeu de l’historique du CdG', () => {
+  /**
+   * Trace écrite **au fil de l'eau** (`node:fs`), pas dans le reporter Playwright.
+   *
+   * Le teardown du serveur e2e peut accrocher et faire perdre le rapport entier :
+   * cette trace survit au kill et donne l'assertion fautive. On la réinitialise à
+   * chaque exécution du test.
+   */
+  const TRACE = 't08-trace.txt'
+  const trace = (msg: string) => {
+    try {
+      appendFileSync(TRACE, `${new Date().toISOString().slice(11, 23)}  ${msg}\n`)
+    } catch {
+      /* la trace est un confort de diagnostic, jamais une obligation */
+    }
+  }
+
+  test('seules les lignes hors BC entrent, et le rejeu est idempotent', async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000)
+    try {
+      writeFileSync(TRACE, '')
+    } catch {
+      /* idem */
+    }
+    trace('reset + seed…')
+    await resetAndSeedBtp(request)
+    trace('reset + seed OK')
+
+    // Réalisé de départ : le rejeu doit s'y **ajouter**, sans le remplacer.
+    trace(`indicateurs avant rejeu (site ${BTP_PILOT.SITE_ID})…`)
+    const realizedBefore = (await getBtpSiteIndicatorsApi(request, BTP_PILOT.SITE_ID)).realizedFcfa
+    trace(`realizedBefore = ${realizedBefore}`)
+
+    const rows: unknown[][] = [
+      CDG_JOURNAL_HEADER,
+      // 2 lignes hors BC → le rejeu réel
+      cdgJournalRow({
+        site: BTP_PILOT.SITE_NAME,
+        nature: 'SALAIRES',
+        date: '15/01/2026',
+        label: 'Salaires janvier',
+        amountFcfa: 150_000,
+      }),
+      cdgJournalRow({
+        site: BTP_PILOT.SITE_NAME,
+        nature: 'RAMASSAGE/DEMOLITION ET DECAPAGE',
+        date: '16/01/2026',
+        label: 'Évacuation gravats',
+        amountFcfa: 60_000,
+      }),
+      // 1 ligne avec n° de BC → DÉJÀ dans TraceO, exclue (I100)
+      cdgJournalRow({
+        site: BTP_PILOT.SITE_NAME,
+        nature: 'MATERIELS DE PEINTURE',
+        noBc: '1144',
+        date: '17/01/2026',
+        label: 'Peinture blanche',
+        amountFcfa: 25_000,
+      }),
+      // 1 ligne illisible → rejetée, jamais importée avec une valeur inventée
+      cdgJournalRow({
+        site: BTP_PILOT.SITE_NAME,
+        nature: 'CIMENT',
+        date: 'date illisible',
+        label: 'Ciment',
+        amountFcfa: 5_000,
+      }),
+    ]
+
+    // ── Aperçu (I106) : le CdG voit avant d'écrire
+    trace('preview du journal…')
+    const preview = await previewCdgJournalApi(request, rows, { skipLogin: true })
+    trace(
+      `preview status=${preview.status} parsed=${preview.body?.parsedLines}` +
+        ` excluded=${preview.body?.excluded?.lines}/${preview.body?.excluded?.fcfa}` +
+        ` toImport=${preview.body?.toImport?.lines}/${preview.body?.toImport?.fcfa}` +
+        ` unassigned=${preview.body?.unassigned?.lines}/${preview.body?.unassigned?.fcfa}` +
+        ` rejected=${JSON.stringify(preview.body?.rejected)}`,
+    )
+    expect(preview.status).toBe(200)
+    expect(preview.body?.parsedLines).toBe(3)
+    expect(preview.body?.excluded.lines, 'ligne portant un n° de BC exclue (I100)').toBe(1)
+    expect(preview.body?.excluded.fcfa).toBe(25_000)
+    expect(preview.body?.toImport.lines).toBe(2)
+    expect(preview.body?.toImport.fcfa).toBe(210_000)
+    expect(preview.body?.totalFcfa).toBe(235_000)
+    expect(preview.body?.matchRatePct).toBe(10.6)
+    expect(preview.body?.rejected).toEqual([{ row: 4, reason: 'Date illisible' }])
+
+    // Le libellé de chantier du journal est rapproché du chantier TraceO
+    expect(preview.body?.sites[0]?.siteId).toBe(BTP_PILOT.SITE_ID)
+    // La répartition par famille annonce où l'argent va atterrir (F03)
+    expect(preview.body?.byNature.map((n) => n.family).sort()).toEqual(['engins', 'main_oeuvre'])
+
+    // ── L'aperçu n'a RIEN écrit
+    const afterPreview = await fetchHistoricalExpensesApi(request)
+    expect(afterPreview.batches.length, 'l’aperçu n’écrit rien').toBe(0)
+
+    // ── Rejeu : 2 lignes hors BC, la ligne à BC reste dehors
+    trace('import 1er passage…')
+    const imported = await importCdgJournalApi(request, rows, { skipLogin: true })
+    trace(
+      `import status=${imported.status} imported=${imported.body?.imported}/${imported.body?.importedFcfa}` +
+        ` skipped=${imported.body?.skipped} unassignedSites=${JSON.stringify(imported.body?.unassignedSites)}` +
+        ` batch=${imported.body?.batchId}`,
+    )
+    expect(imported.status).toBe(200)
+    expect(imported.body?.imported).toBe(2)
+    expect(imported.body?.importedFcfa).toBe(210_000)
+    expect(imported.body?.excluded.lines).toBe(1)
+    expect(imported.body?.unassignedSites).toEqual([])
+
+    // ── I99 : rejouer le MÊME fichier n'ajoute rien
+    trace('import 2ᵉ passage (idempotence)…')
+    const again = await importCdgJournalApi(request, rows, { skipLogin: true })
+    trace(`re-import status=${again.status} imported=${again.body?.imported} skipped=${again.body?.skipped}`)
+    expect(again.status).toBe(200)
+    expect(again.body?.imported, 'idempotence (I99)').toBe(0)
+    expect(again.body?.skipped).toBe(2)
+
+    // ── I108 : un seul réalisé — l'historique s'y ajoute exactement
+    trace('indicateurs après rejeu…')
+    const realizedAfter = (
+      await getBtpSiteIndicatorsApi(request, BTP_PILOT.SITE_ID, 'cdg', true)
+    ).realizedFcfa
+    trace(`realizedAfter = ${realizedAfter} (delta attendu 210000)`)
+    expect(realizedAfter - realizedBefore, 'le réalisé intègre l’historique hors BC').toBe(210_000)
+
+    // ── Le rejeu est réservé au CdG
+    trace('403 — import par le DAF…')
+    const dafImport = await importCdgJournalApi(request, rows, { role: 'daf' })
+    trace(`import daf status=${dafImport.status}`)
+    expect(dafImport.status).toBe(403)
+    trace('403 — preview par le DAF…')
+    const dafPreview = await previewCdgJournalApi(request, rows, { role: 'daf', skipLogin: true })
+    trace(`preview daf status=${dafPreview.status}`)
+    expect(dafPreview.status).toBe(403)
+
+    // ── UI (CdG) : la carte de rejeu et le lot sont visibles
+    trace('UI — login CdG…')
+    await loginBtpManager(page, 'cdg')
+    await page.getByTestId('mgr-tab-suivi-chantier').click()
+    trace('UI — suivi chantier…')
+    await expect(page.getByTestId('mgr-suivi-chantier')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await page.getByTestId(`mgr-cdg-row-details-${BTP_PILOT.SITE_ID}`).click()
+    trace('UI — attente de la carte de rejeu…')
+    await expect(page.getByTestId('mgr-cdg-historique-rejeu')).toBeVisible({
+      timeout: UI_READY_TIMEOUT,
+    })
+    trace('UI — carte visible, attente du lot…')
+    await expect(page.getByTestId('mgr-cdg-historique-batches')).toContainText(
+      imported.body!.batchId,
+    )
+    trace('UI OK')
+
+    // ── Réversibilité : annuler le lot retire l'historique du réalisé
+    trace(`annulation du lot ${imported.body!.batchId}…`)
+    const deleted = await deleteHistoricalBatchApi(request, imported.body!.batchId)
+    trace(`delete status=${deleted.status} deleted=${deleted.deleted}`)
+    expect(deleted.status).toBe(200)
+    expect(deleted.deleted).toBe(2)
+    const realizedEnd = (
+      await getBtpSiteIndicatorsApi(request, BTP_PILOT.SITE_ID, 'cdg', true)
+    ).realizedFcfa
+    expect(realizedEnd, 'le rejeu est réversible').toBe(realizedBefore)
+
+    // ── Le journal du CdG nomme « DG CI ENERGIE » — qui EST un chantier de
+    //    TraceO (`site-xlsx-dg-ci-energie`, venu du catalogue Excel) : le
+    //    rapprochement de libellés le retrouve **sans rien désigner**.
+    const named: unknown[][] = [
+      CDG_JOURNAL_HEADER,
+      cdgJournalRow({
+        site: 'DG CI ENERGIE',
+        nature: 'SALAIRES',
+        date: '20/01/2026',
+        label: 'Salaires technicien',
+        amountFcfa: 90_000,
+      }),
+    ]
+    trace('preview journal nommant « DG CI ENERGIE »…')
+    const namedPreview = await previewCdgJournalApi(request, named, { skipLogin: true })
+    trace(
+      `named preview status=${namedPreview.status} unassigned=${namedPreview.body?.unassigned?.lines}` +
+        ` sites=${JSON.stringify(namedPreview.body?.sites)}`,
+    )
+    expect(namedPreview.status).toBe(200)
+    expect(namedPreview.body?.unassigned.lines, 'chantier reconnu → rien à désigner').toBe(0)
+    expect(namedPreview.body?.sites[0]?.siteId, 'rapproché du chantier réel').toBe(
+      'site-xlsx-dg-ci-energie',
+    )
+
+    // ── Un libellé qu'AUCUN chantier ne porte : on refuse plutôt que d'écrire
+    //    des lignes qui ne compteraient dans le réalisé d'aucun chantier.
+    const orphan: unknown[][] = [
+      CDG_JOURNAL_HEADER,
+      cdgJournalRow({
+        site: 'CHANTIER QU AUCUN SITE NE PORTE',
+        nature: 'SALAIRES',
+        date: '20/01/2026',
+        label: 'Salaires technicien',
+        amountFcfa: 90_000,
+      }),
+    ]
+    trace('preview journal orphelin…')
+    const orphanPreview = await previewCdgJournalApi(request, orphan, { skipLogin: true })
+    trace(
+      `orphan preview status=${orphanPreview.status} unassigned=${orphanPreview.body?.unassigned?.lines}` +
+        ` sites=${JSON.stringify(orphanPreview.body?.sites)}`,
+    )
+    expect(orphanPreview.status).toBe(200)
+    expect(orphanPreview.body?.unassigned.lines).toBe(1)
+    expect(orphanPreview.body?.sites[0]?.siteId, 'libellé inconnu → non imputé').toBeNull()
+    expect(
+      (await importCdgJournalApi(request, orphan, { skipLogin: true })).status,
+      'aucun chantier reconnu → refus',
+    ).toBe(400)
+
+    // ── Chantier désigné par le CdG : le rejeu trouve enfin sa cible
+    trace('import avec chantier désigné…')
+    const targeted = await importCdgJournalApi(request, orphan, {
+      skipLogin: true,
+      siteId: BTP_PILOT.SITE_ID,
+    })
+    trace(`targeted status=${targeted.status} imported=${targeted.body?.imported} body=${JSON.stringify(targeted.body)}`)
+    expect(targeted.status).toBe(200)
+    expect(targeted.body?.imported).toBe(1)
+    expect(targeted.body?.unassignedSites).toEqual([])
+    const realizedTargeted = (
+      await getBtpSiteIndicatorsApi(request, BTP_PILOT.SITE_ID, 'cdg', true)
+    ).realizedFcfa
+    expect(realizedTargeted - realizedBefore, 'la ligne désignée compte dans le réalisé').toBe(90_000)
   })
 })

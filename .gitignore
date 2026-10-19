@@ -13,6 +13,7 @@ dist-server
 dist-ssr
 playwright-report
 test-results
+t08-trace.txt
 .env
 .env.local
 .env.development
@@ -41,3 +42,8 @@ dev-dist
 
 # Stockage local des photos de livraison
 data/
+e2e_full.txt 
+e2e_f03.txt 
+f03_done.txt 
+docs/originaux/*.xlsx 
+docs/originaux/~$*.xlsx

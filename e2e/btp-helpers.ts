@@ -10,6 +10,8 @@ import {
 export const BTP_PILOT = {
   COMPANY_ID: 'co-btp-pilote',
   SITE_ID: 'site-btp-pilote-1',
+  /** Nom du chantier tel qu'il apparaît dans les journaux / exports (T08). */
+  SITE_NAME: 'Résidence Cocody — Tour A',
   SUPPLIER_ACCOUNT_ID: 'sup-btp-ciment',
   SUPPLIER_FER_ID: 'sup-btp-fer',
   DRIVER_ID: 'drv-btp-1',
@@ -21,6 +23,7 @@ export const BTP_PILOT = {
   SA_EMAIL: 'sa@btp-pilote.ci',
   CDG_EMAIL: 'cdg@btp-pilote.ci',
   CMPT_EMAIL: 'cmpt@btp-pilote.ci',
+  TREASURY_EMAIL: 'tresorerie@btp-pilote.ci',
   PASSWORD: 'admin1234',
   WHATSAPP_PHONE: '+2250701888001',
   EB_MESSAGE: '50 sacs ciment, 20 barres fer pour chantier',
@@ -79,8 +82,8 @@ export async function simulateWhatsappEb(
   return body
 }
 
-/** Rôles BTP du seed pilote (`cmpt` = comptable — voir seedBtpPilot CMPT_EMAIL). */
-export type BtpRole = 'dt' | 'daf' | 'sa' | 'pdg' | 'cdg' | 'cmpt'
+/** Rôles BTP du seed pilote (`cmpt` = comptable, `tresorerie` = poste Trésorerie). */
+export type BtpRole = 'dt' | 'daf' | 'sa' | 'pdg' | 'cdg' | 'cmpt' | 'tresorerie'
 
 export async function loginBtpApi(
   request: APIRequestContext,
@@ -97,7 +100,9 @@ export async function loginBtpApi(
             ? BTP_PILOT.CDG_EMAIL
             : role === 'cmpt'
               ? BTP_PILOT.CMPT_EMAIL
-              : BTP_PILOT.SA_EMAIL
+              : role === 'tresorerie'
+                ? BTP_PILOT.TREASURY_EMAIL
+                : BTP_PILOT.SA_EMAIL
   const login = await request.post(`${API_BASE}/api/v1/auth/login-dashboard`, {
     data: { email, password: BTP_PILOT.PASSWORD },
   })
@@ -306,7 +311,9 @@ export async function loginBtpManager(page: Page, role: BtpRole): Promise<void> 
             ? BTP_PILOT.CDG_EMAIL
             : role === 'cmpt'
               ? BTP_PILOT.CMPT_EMAIL
-              : BTP_PILOT.SA_EMAIL
+              : role === 'tresorerie'
+                ? BTP_PILOT.TREASURY_EMAIL
+                : BTP_PILOT.SA_EMAIL
 
   await page.context().clearCookies()
   await page.goto('/manager/login', { waitUntil: 'domcontentloaded' })
@@ -508,4 +515,349 @@ export async function simulateDeliveredBcViaApi(
   expect(rows.length, 'registre BC vide après livraison confirmée').toBeGreaterThanOrEqual(1)
   const row = rows[0]!
   return { purchaseOrderId: row.purchaseOrderId, bon: row.bon, amountFcfa: row.amountFcfa }
+}
+
+// ─── F02 lot B — circuit hors SA (EB main-d'œuvre → BT → déboursé) ───────────
+
+/**
+ * Crée une EB **hors SA** (lignes de main-d'œuvre uniquement) et la soumet.
+ *
+ * Le DT part d'une fiche vierge, saisit une ligne en famille `main_oeuvre`
+ * (donc hors SA — cf. `shared/chargeFlow.ts`) puis soumet. L'EB suit le circuit
+ * habituel jusqu'au DAF ; c'est **après** l'approbation finance qu'elle
+ * bifurque vers le BT, sans passer par le SA (décision CdG 16/10/2026).
+ */
+export async function createHorsSaEbViaApi(
+  request: APIRequestContext,
+  options: { label?: string; quantity?: number; spendCategory?: string } = {},
+): Promise<{ id: string; status: string; reference: string }> {
+  await loginBtpApi(request, 'dt')
+  const blank = await request.post(`${API_BASE}/api/v1/procurement/drafts/blank`, {
+    data: { siteId: BTP_PILOT.SITE_ID },
+  })
+  expect(blank.ok(), await blank.text()).toBeTruthy()
+  const { draftId } = (await blank.json()) as { draftId: string }
+
+  const patch = await request.patch(`${API_BASE}/api/v1/procurement/drafts/${draftId}`, {
+    data: {
+      siteId: BTP_PILOT.SITE_ID,
+      parsedLines: [
+        {
+          label: options.label ?? "Main d'œuvre carrelage",
+          quantity: options.quantity ?? 10,
+          unit: 'jour',
+          spendCategory: options.spendCategory ?? 'mo_carrelage',
+        },
+      ],
+    },
+  })
+  expect(patch.ok(), await patch.text()).toBeTruthy()
+
+  return dtSubmitDraft(request, draftId)
+}
+
+export type TreasuryQueueItemApi = {
+  treasuryId: string
+  reference: string
+  amountFcfa: number
+  requestId: string
+  requestReference: string
+  requestStatus: string
+}
+
+/** File du poste Trésorerie (`GET /procurement/treasury`). */
+export async function fetchTreasuryQueueApi(
+  request: APIRequestContext,
+  role: BtpRole = 'tresorerie',
+): Promise<TreasuryQueueItemApi[]> {
+  await loginBtpApi(request, role)
+  const res = await request.get(`${API_BASE}/api/v1/procurement/treasury`)
+  expect(res.ok(), await res.text()).toBeTruthy()
+  const body = (await res.json()) as { items?: TreasuryQueueItemApi[] }
+  return body.items ?? []
+}
+
+/**
+ * Débourse un BT. `withInvoice: false` sert à prouver l'invariant **I103** :
+ * le serveur doit **refuser** (400) un déboursé sans facture.
+ */
+export async function disburseTreasuryApi(
+  request: APIRequestContext,
+  treasuryId: string,
+  options: { withInvoice?: boolean; amountFcfa?: number; method?: string } = {},
+): Promise<{ status: number }> {
+  await loginBtpApi(request, 'tresorerie')
+  const data: Record<string, unknown> = {
+    method: options.method ?? 'orange_money',
+    transactionReference: 'OM-E2E-0001',
+  }
+  if (options.amountFcfa != null) data.amountFcfa = options.amountFcfa
+  if (options.withInvoice !== false) {
+    data.fileName = 'recu-om.pdf'
+    data.contentType = 'application/pdf'
+    data.data = binaryPdfFixture().toString('base64')
+  }
+  const res = await request.post(`${API_BASE}/api/v1/procurement/treasury/${treasuryId}/disburse`, {
+    data,
+  })
+  return { status: res.status() }
+}
+
+export type RequestDisbursementApi = {
+  treasuryId: string
+  treasuryReference: string
+  amountFcfa: number
+  method: string
+  transactionReference: string | null
+  hasInvoice: boolean
+}
+
+/** Déboursés d'une EB — la facture reste consultable depuis l'EB. */
+export async function fetchRequestDisbursementsApi(
+  request: APIRequestContext,
+  requestId: string,
+  role: BtpRole = 'cdg',
+): Promise<RequestDisbursementApi[]> {
+  await loginBtpApi(request, role)
+  const res = await request.get(`${API_BASE}/api/v1/procurement/requests/${requestId}/disbursements`)
+  expect(res.ok(), await res.text()).toBeTruthy()
+  const body = (await res.json()) as { items?: RequestDisbursementApi[] }
+  return body.items ?? []
+}
+
+// ─── F03 — budget vs réalisé par famille ─────────────────────────────────────
+
+export type BudgetAllocationApi = { family: string; amountFcfa: number }
+
+export type FamilyVarianceApi = {
+  rows: Array<{
+    family: string
+    label: string
+    allocatedFcfa: number
+    realizedFcfa: number
+    varianceFcfa: number
+    consumedPct: number | null
+    overrun: boolean
+    trafficLight: string
+  }>
+  allocatedFcfa: number
+  realizedFcfa: number
+  varianceFcfa: number
+  unallocatedFcfa: number | null
+  allocationOverBudget: boolean
+  overrunFamilies: string[]
+}
+
+/**
+ * Ventile l'enveloppe d'un chantier (F03). Réservé au **CdG** : passer un autre
+ * rôle sert à vérifier le refus (403).
+ */
+export async function putBudgetAllocationsApi(
+  request: APIRequestContext,
+  siteId: string,
+  allocations: BudgetAllocationApi[],
+  role: BtpRole = 'cdg',
+): Promise<{
+  status: number
+  body: { allocations: BudgetAllocationApi[]; familyVariance: FamilyVarianceApi | null } | null
+}> {
+  await loginBtpApi(request, role)
+  const res = await request.put(
+    `${API_BASE}/api/v1/procurement/sites/${siteId}/budget/allocations`,
+    { data: { allocations } },
+  )
+  if (!res.ok()) return { status: res.status(), body: null }
+  return {
+    status: res.status(),
+    body: (await res.json()) as {
+      allocations: BudgetAllocationApi[]
+      familyVariance: FamilyVarianceApi | null
+    },
+  }
+}
+
+/** Ventilation enregistrée pour un chantier. */
+export async function getBudgetAllocationsApi(
+  request: APIRequestContext,
+  siteId: string,
+  role: BtpRole = 'cdg',
+): Promise<{ allocations: BudgetAllocationApi[] }> {
+  await loginBtpApi(request, role)
+  const res = await request.get(`${API_BASE}/api/v1/procurement/sites/${siteId}/budget/allocations`)
+  expect(res.ok(), await res.text()).toBeTruthy()
+  return (await res.json()) as { allocations: BudgetAllocationApi[] }
+}
+
+/** Indicateurs d'un chantier — porte le réalisé et l'écart par famille (F03). */
+export async function getBtpSiteIndicatorsApi(
+  request: APIRequestContext,
+  siteId: string,
+  role: BtpRole = 'cdg',
+  skipLogin = false,
+): Promise<{ realizedFcfa: number; familyVariance?: FamilyVarianceApi }> {
+  if (!skipLogin) await loginBtpApi(request, role)
+  const res = await request.get(`${API_BASE}/api/v1/procurement/sites/${siteId}/indicators`)
+  expect(res.ok(), await res.text()).toBeTruthy()
+  return (await res.json()) as { realizedFcfa: number; familyVariance?: FamilyVarianceApi }
+}
+
+// ─── T08 — rejeu de l'historique du CdG ──────────────────────────────────────
+
+/** En-tête réel du journal `DG CI ENERGIE` (v1 du 16/10/2026). */
+export const CDG_JOURNAL_HEADER = [
+  'Nom Chantier',
+  'Nom fournisseur',
+  'Nature de dépense',
+  'No BC',
+  'No Facture ou BL',
+  'Date',
+  'Designation',
+  'Qte',
+  'PU',
+  'Montant',
+]
+
+/**
+ * Une ligne du journal du CdG (colonnes A → J).
+ * `noBc` non vide ⇒ la ligne est **exclue** du rejeu (invariant I100).
+ */
+export function cdgJournalRow(input: {
+  site: string
+  nature: string
+  date: string
+  label: string
+  amountFcfa: number
+  noBc?: string
+  supplier?: string
+}): unknown[] {
+  return [
+    input.site,
+    input.supplier ?? 'FOURNISSEUR TEST',
+    input.nature,
+    input.noBc ?? '',
+    'F-000',
+    input.date,
+    input.label,
+    1,
+    1,
+    input.amountFcfa,
+  ]
+}
+
+export type JournalPreviewApi = {
+  parsedLines: number
+  rejected: Array<{ row: number; reason: string }>
+  totalFcfa: number
+  excluded: { lines: number; fcfa: number }
+  toImport: { lines: number; fcfa: number }
+  unmappedBcReferences: string[]
+  matchRatePct: number
+  sites: Array<{
+    journalName: string
+    siteId: string | null
+    siteName: string | null
+    lines: number
+    fcfa: number
+  }>
+  /** Lignes qu'aucun chantier n'absorbe — le CdG doit désigner la cible. */
+  unassigned: { lines: number; fcfa: number }
+  byNature: Array<{ nature: string; label: string; family: string; lines: number; fcfa: number }>
+}
+
+/**
+ * Aperçu du rapprochement journal ↔ TraceO (I106) — **n'écrit rien**.
+ * Réservé au **CdG** : passer un autre rôle sert à vérifier le refus (403).
+ *
+ * `skipLogin` réutilise la session déjà établie sur ce contexte : les helpers
+ * T08 s'enchaînent en moins d'une seconde, et re-logger à chacun déclenche
+ * le garde anti-brute-force de `/auth/login-dashboard` (~15 min de blocage).
+ */
+export async function previewCdgJournalApi(
+  request: APIRequestContext,
+  rows: unknown[][],
+  options: { role?: BtpRole; siteId?: string; skipLogin?: boolean } = {},
+): Promise<{ status: number; body: JournalPreviewApi | null }> {
+  if (!options.skipLogin) await loginBtpApi(request, options.role ?? 'cdg')
+  const res = await request.post(`${API_BASE}/api/v1/procurement/historical-expenses/preview`, {
+    data: { rows, siteId: options.siteId },
+  })
+  if (!res.ok()) return { status: res.status(), body: null }
+  return { status: res.status(), body: (await res.json()) as JournalPreviewApi }
+}
+
+export type HistoricalImportApi = {
+  batchId: string
+  imported: number
+  skipped: number
+  importedFcfa: number
+  unassignedSites: string[]
+  totalFcfa: number
+  excluded: { lines: number; fcfa: number }
+  rejected: Array<{ row: number; reason: string }>
+  matchRatePct: number
+}
+
+/**
+ * Rejeu effectif du journal — **seules** les lignes hors BC sont écrites (I100).
+ * Idempotent (I99). Réservé au **CdG** (403 pour les autres rôles).
+ *
+ * `skipLogin` : voir `previewCdgJournalApi` — re-logger à chaque appel déclenche
+ * le rate limit de `/auth/login-dashboard`.
+ */
+export async function importCdgJournalApi(
+  request: APIRequestContext,
+  rows: unknown[][],
+  options: { role?: BtpRole; siteId?: string; skipLogin?: boolean } = {},
+): Promise<{ status: number; body: HistoricalImportApi | null }> {
+  if (!options.skipLogin) await loginBtpApi(request, options.role ?? 'cdg')
+  const res = await request.post(`${API_BASE}/api/v1/procurement/historical-expenses/import`, {
+    data: { rows, siteId: options.siteId },
+  })
+  if (!res.ok()) return { status: res.status(), body: null }
+  return { status: res.status(), body: (await res.json()) as HistoricalImportApi }
+}
+
+export type HistoricalExpensesApi = {
+  batches: Array<{
+    batchId: string
+    source: string
+    lines: number
+    amountFcfa: number
+    importedAt: string
+  }>
+  lines: Array<{
+    id: string
+    siteId: string | null
+    occurredOn: string
+    label: string
+    nature: string
+    amountFcfa: number
+    batchId: string
+  }>
+}
+
+/** Lots déjà rejoués + dernières lignes historiques (lecture seule). */
+export async function fetchHistoricalExpensesApi(
+  request: APIRequestContext,
+  role: BtpRole = 'cdg',
+): Promise<HistoricalExpensesApi> {
+  await loginBtpApi(request, role)
+  const res = await request.get(`${API_BASE}/api/v1/procurement/historical-expenses`)
+  expect(res.ok(), await res.text()).toBeTruthy()
+  return (await res.json()) as HistoricalExpensesApi
+}
+
+/** Annule un lot de rejeu (action **CdG**) — le rejeu est **réversible**. */
+export async function deleteHistoricalBatchApi(
+  request: APIRequestContext,
+  batchId: string,
+  options: { role?: BtpRole; skipLogin?: boolean } = {},
+): Promise<{ status: number; deleted: number }> {
+  if (!options.skipLogin) await loginBtpApi(request, options.role ?? 'cdg')
+  const res = await request.delete(
+    `${API_BASE}/api/v1/procurement/historical-expenses/${encodeURIComponent(batchId)}`,
+  )
+  if (!res.ok()) return { status: res.status(), deleted: 0 }
+  const body = (await res.json()) as { deleted: number }
+  return { status: res.status(), deleted: body.deleted }
 }
