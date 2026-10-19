@@ -139,4 +139,73 @@ describe('siteIndicators Koestrem', () => {
     assert.match(snap.top3[1]?.label ?? '', /menuiserie/i)
     assert.match(snap.top3[2]?.label ?? '', /peinture/i)
   })
+
+  it('F02-A : une dépense de main-d’œuvre n’est plus comptée en matériaux', () => {
+    const snap = buildSiteIndicators({
+      asOf: '2026-08-10',
+      budgetInitialFcfa: 10_000_000,
+      budgetTotalFcfa: 10_000_000,
+      events: [
+        {
+          date: '2026-08-10',
+          amountFcfa: 3_000_000,
+          products: [
+            { label: 'Ciment', amountFcfa: 1_000_000, category: 'ciments' },
+            { label: "Main d'œuvre carrelage", amountFcfa: 1_200_000, category: 'mo_carrelage' },
+            { label: 'Livraison de matériels', amountFcfa: 800_000, category: 'livraison_materiels' },
+          ],
+        },
+      ],
+    })
+    // Le réalisé intègre les trois lignes ; les « matériaux » une seule.
+    assert.equal(snap.realizedFcfa, 3_000_000)
+    assert.equal(snap.materialsFcfa, 1_000_000)
+    assert.equal(snap.materialsSharePct, 10)
+    assert.deepEqual(
+      snap.byFamily.map((f) => [f.family, f.amountFcfa]),
+      [
+        ['main_oeuvre', 1_200_000],
+        ['materiaux', 1_000_000],
+        ['engins', 800_000],
+      ],
+    )
+    assert.equal(snap.byFamily[0]?.label, "Main d'œuvre")
+    assert.equal(snap.byFamily[0]?.shareOfRealizedPct, 40)
+  })
+
+  it('F02-A : les anciennes familles aplaties ne sont plus des matériaux', () => {
+    const snap = buildSiteIndicators({
+      asOf: '2026-08-10',
+      budgetInitialFcfa: null,
+      budgetTotalFcfa: null,
+      events: [
+        {
+          date: '2026-08-10',
+          amountFcfa: 500_000,
+          products: [
+            { label: 'Ancienne main d’œuvre', amountFcfa: 300_000, category: 'main_oeuvre' },
+            { label: 'Ancienne sous-traitance', amountFcfa: 200_000, category: 'sous_traitance' },
+          ],
+        },
+      ],
+    })
+    // Avant F02-A, `main_oeuvre` était aplatie en `autres_materiaux` : les
+    // 500 000 F auraient été comptés comme matériaux.
+    assert.equal(snap.materialsFcfa, 0)
+    assert.equal(snap.realizedFcfa, 500_000)
+    assert.deepEqual(
+      snap.byFamily.map((f) => f.family).sort(),
+      ['frais', 'main_oeuvre'],
+    )
+  })
+
+  it('F02-A : byFamily vide sans dépense', () => {
+    const snap = buildSiteIndicators({
+      asOf: '2026-08-10',
+      budgetInitialFcfa: 1_000_000,
+      budgetTotalFcfa: 1_000_000,
+      events: [],
+    })
+    assert.deepEqual(snap.byFamily, [])
+  })
 })

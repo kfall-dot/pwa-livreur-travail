@@ -24,6 +24,7 @@
     "presentation:btp-options-eb-pdf": "node scripts/render-presentation-pdfs.mjs btp-options-eb",
     "icons:generate": "node scripts/generate-pwa-icons.mjs",
     "sentry:test": "tsx scripts/sentry-test.ts",
+    "journal:replay": "tsx scripts/replay-cdg-journal.ts",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

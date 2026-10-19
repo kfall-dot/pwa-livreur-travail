@@ -30,6 +30,14 @@ export type IndicatorCategory = {
   shareOfBudgetPct: number | null
 }
 
+/** Ventilation par famille (matériaux / main d'œuvre / engins / frais) — F02 lot A. */
+export type IndicatorFamily = {
+  family: ChargeFamily
+  label: string
+  amountFcfa: number
+  shareOfRealizedPct: number | null
+}
+
 export type DeliveryExpenseEvent = {
   date: string
   amountFcfa: number

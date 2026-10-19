@@ -10,6 +10,7 @@ import {
   deliveryPoints,
   declarations,
   ebParseRuns,
+  historicalExpenseLines,
   managers,
   purchaseOrders,
   purchaseRequestDrafts,
@@ -56,6 +57,16 @@ import {
 } from '../services/bcRegister.js'
 
 type DbExecutor = Pick<typeof db, 'insert' | 'update' | 'delete' | 'select'>
+
+/**
+ * Normalise une valeur de colonne `date` en `YYYY-MM-DD`.
+ * Le pilote peut renvoyer une chaîne (`mode: 'string'`) ou un `Date` (minuit
+ * local) selon le contexte : les deux doivent produire la **même** journée.
+ */
+function isoDateValue(value: unknown): string {
+  if (value instanceof Date) return todayIsoLocal(value)
+  return String(value ?? '').slice(0, 10)
+}
 
 // ─── Sites ───────────────────────────────────────────────────────────────────
 
@@ -509,7 +520,13 @@ async function listSiteDeliveryExpenseEvents(companyId: string, siteId: string) 
 export async function getSiteIndicators(companyId: string, siteId: string): Promise<SiteIndicatorsDto | null> {
   const budget = await getSiteBudget(companyId, siteId)
   if (!budget) return null
-  const events = await listSiteDeliveryExpenseEvents(companyId, siteId)
+  // Réalisé = BC **livrés** + EB **hors SA payées** (F02 lot B, invariant I100).
+  // Les deux sources ne se recouvrent jamais : une EB hors SA n'a pas de BC.
+  const [deliveryEvents, directEvents, familyAllocations] = await Promise.all([
+    listSiteDeliveryExpenseEvents(companyId, siteId),
+    listSiteDirectExpenseEvents(companyId, siteId),
+    getFamilyAllocations(companyId, siteId),
+  ])
   return {
     siteId: budget.siteId,
     siteName: budget.siteName,

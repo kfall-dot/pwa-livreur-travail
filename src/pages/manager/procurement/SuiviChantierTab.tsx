@@ -97,6 +97,7 @@ export function SuiviChantierTab({
   const [cdgTab, setCdgTab] = useState<CdgTab>('all')
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
+  const [famFilter, setFamFilter] = useState('')
   const top3LoadedRef = useRef<Set<string>>(new Set())
 
   /**
@@ -487,6 +488,18 @@ export function SuiviChantierTab({
           />
         )}
         {showIndicateurs && <CdgCategoriesCard indicators={syntheseSnapshot} />}
+        {showIndicateurs && (
+          <CdgFamilyVarianceCard
+            siteId={openSynthese}
+            indicators={syntheseSnapshot}
+            canEdit={procurementRole === 'controle_gestion'}
+            onSaved={() => setManualRefresh((k) => k + 1)}
+          />
+        )}
+        {/* T08 — rejeu de l'historique : aperçu avant écriture (I106), réversible (I99). */}
+        {showIndicateurs && (
+          <CdgHistoricalCard canEdit={procurementRole === 'controle_gestion'} />
+        )}
         {canSee('historique') && (
           <div style={css.card} data-testid="mgr-suivi-historique">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

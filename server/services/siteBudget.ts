@@ -1,5 +1,17 @@
 /** Formules F01 — une seule source pour budget total / engagé / reste. */
 
+import {
+  BUDGET_ALERT_PCT,
+  BUDGET_TOLERANCE_PCT,
+  roundPct,
+  type BudgetTrafficLight,
+} from '../../shared/budgetTrafficLight.js'
+
+// Ré-export : les primitives vivent dans `shared/` (F03 les réutilise côté
+// client), mais les imports historiques depuis ce module restent valides.
+export { BUDGET_ALERT_PCT, BUDGET_TOLERANCE_PCT, roundPct }
+export type { BudgetTrafficLight }
+
 export const ENGAGED_BC_STATUSES = ['po_ready', 'delivery_scheduled', 'delivered'] as const
 
 export function toFcfaInt(value: string | number | null | undefined): number {
@@ -8,11 +20,6 @@ export function toFcfaInt(value: string | number | null | undefined): number {
   if (!Number.isFinite(n)) return 0
   return Math.trunc(n)
 }
-
-export const BUDGET_TOLERANCE_PCT = 2
-export const BUDGET_ALERT_PCT = 5
-
-export type BudgetTrafficLight = 'none' | 'ok' | 'watch' | 'alert'
 
 export type SiteBudgetTotals = {
   budgetInitialFcfa: number | null
@@ -31,10 +38,6 @@ export type SiteBudgetKpis = {
   missingAmendment: boolean
   overrunSinceAt: string | null
   overrunDays: number | null
-}
-
-export function roundPct(value: number): number {
-  return Math.round(value * 100) / 100
 }
 
 export function computeBudgetTotals(input: {

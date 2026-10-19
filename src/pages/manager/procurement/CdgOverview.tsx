@@ -316,3 +316,221 @@ export function CdgOverviewHeader({ budgets, refreshKey }: { budgets: SiteBudget
     </div>
   )
 }
+
+/**
+ * F03 — **Budget vs réalisé par famille** : le tableau à double entrée.
+ *
+ * F01 fournit l'enveloppe, F02 le réalisé par famille ; il manquait la
+ * **ventilation** décidée par le CdG. Sans elle, l'écart global existe mais on
+ * ne sait pas *où* l'argent a débordé.
+ *
+ * Le CdG saisit la répartition ; l'écart est recalculé **côté serveur** (source
+ * unique du réalisé : BC livrés + EB hors SA payées — invariant I100).
+ */
+export function CdgFamilyVarianceCard({
+  siteId,
+  indicators,
+  canEdit,
+  onSaved,
+}: {
+  siteId: string | null
+  indicators: SiteIndicators | null
+  /** CdG uniquement — même acteur que le gel de l'enveloppe (D-F01-1). */
+  canEdit: boolean
+  onSaved?: () => void
+}) {
+  const variance = indicators?.familyVariance ?? null
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [draft, setDraft] = useState<Record<string, string>>({})
+
+  const startEdit = () => {
+    const next: Record<string, string> = {}
+    for (const f of CHARGE_FAMILIES) {
+      const row = variance?.rows.find((r) => r.family === f.value)
+      next[f.value] = row && row.allocatedFcfa > 0 ? String(row.allocatedFcfa) : ''
+    }
+    setDraft(next)
+    setError(null)
+    setEditing(true)
+  }
+
+  const draftTotal = CHARGE_FAMILIES.reduce((sum, f) => {
+    const n = Number.parseInt((draft[f.value] ?? '').trim(), 10)
+    return sum + (Number.isFinite(n) && n > 0 ? n : 0)
+  }, 0)
+
+  const save = async () => {
+    if (!siteId) return
+    const allocations: BudgetFamilyAllocation[] = []
+    for (const f of CHARGE_FAMILIES) {
+      const raw = (draft[f.value] ?? '').trim()
+      if (!raw) continue
+      const amount = Number.parseInt(raw, 10)
+      if (Number.isFinite(amount) && amount > 0) {
+        allocations.push({ family: f.value, amountFcfa: amount })
+      }
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await saveBudgetAllocations(siteId, allocations)
+      setEditing(false)
+      onSaved?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Enregistrement de la ventilation impossible')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!indicators || !variance) {
+    return (
+      <div style={css.card} data-testid="mgr-cdg-family-variance">
+        <h4 style={{ margin: '0 0 10px', fontSize: 13 }}>Budget vs réalisé par famille</h4>
+        <p style={{ ...css.meta, margin: 0 }}>Indisponible — choisissez un chantier.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={css.card} data-testid="mgr-cdg-family-variance">
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
+      >
+        <h4 style={{ margin: '0 0 10px', fontSize: 13 }}>Budget vs réalisé par famille</h4>
+        {canEdit && !editing && (
+          <button
+            type="button"
+            onClick={startEdit}
+            style={css.input}
+            data-testid="mgr-cdg-variance-edit"
+          >
+            Ventiler l’enveloppe
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <p style={{ ...css.meta, color: '#b91c1c' }} data-testid="mgr-cdg-variance-error">
+          {error}
+        </p>
+      )}
+
+      {variance.unallocatedFcfa != null && variance.unallocatedFcfa !== 0 && (
+        <p
+          style={{ ...css.meta, color: variance.unallocatedFcfa > 0 ? '#b45309' : '#b91c1c' }}
+          data-testid="mgr-cdg-variance-unallocated"
+        >
+          {variance.unallocatedFcfa > 0
+            ? `${formatFcfa(variance.unallocatedFcfa)} FCFA d’enveloppe non ventilés`
+            : `Ventilation supérieure à l’enveloppe de ${formatFcfa(Math.abs(variance.unallocatedFcfa))} FCFA`}
+        </p>
+      )}
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={css.lineTable}>
+          <thead>
+            <tr>
+              <th style={css.lineTh}>Famille</th>
+              <th style={css.lineTh}>Enveloppe</th>
+              <th style={css.lineTh}>Réalisé</th>
+              <th style={css.lineTh}>Écart</th>
+              <th style={css.lineTh}>Consommé</th>
+            </tr>
+          </thead>
+          <tbody>
+            {variance.rows.map((row) => {
+              const light = LIGHT_STYLE[row.trafficLight]
+              return (
+                <tr key={row.family} data-testid={`mgr-cdg-variance-row-${row.family}`}>
+                  <td style={css.lineTd}>
+                    {familyEmoji(row.family)} {row.label}
+                  </td>
+                  <td style={css.lineTd}>
+                    {editing ? (
+                      <input
+                        type="number"
+                        min={0}
+                        value={draft[row.family] ?? ''}
+                        onChange={(e) => setDraft((p) => ({ ...p, [row.family]: e.target.value }))}
+                        style={{ ...css.input, width: 130 }}
+                        data-testid={`mgr-cdg-variance-input-${row.family}`}
+                      />
+                    ) : (
+                      formatFcfa(row.allocatedFcfa)
+                    )}
+                  </td>
+                  <td style={css.lineTd}>{formatFcfa(row.realizedFcfa)}</td>
+                  <td style={{ ...css.lineTd, fontWeight: 600, color: light.color }}>
+                    {formatFcfa(row.varianceFcfa)}
+                  </td>
+                  <td style={css.lineTd}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        background: light.bg,
+                        color: light.color,
+                        borderRadius: 999,
+                        padding: '2px 8px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {light.dot} {row.consumedPct == null ? '—' : formatPct(row.consumedPct)}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+            <tr style={{ fontWeight: 700 }}>
+              <td style={css.lineTd}>Total</td>
+              <td style={css.lineTd}>
+                {formatFcfa(editing ? draftTotal : variance.allocatedFcfa)}
+              </td>
+              <td style={css.lineTd}>{formatFcfa(variance.realizedFcfa)}</td>
+              <td style={css.lineTd}>
+                {formatFcfa(editing ? draftTotal - variance.realizedFcfa : variance.varianceFcfa)}
+              </td>
+              <td style={css.lineTd}>
+                {indicators.budgetTotalFcfa != null
+                  ? `${formatFcfa(indicators.budgetTotalFcfa)} d’enveloppe`
+                  : '—'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {editing && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void save()}
+            style={css.input}
+            data-testid="mgr-cdg-variance-save"
+          >
+            {saving ? 'Enregistrement…' : 'Enregistrer la ventilation'}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => setEditing(false)}
+            style={css.input}
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
+      <p style={{ ...css.meta, marginTop: 8 }}>
+        Réalisé = BC livrés + EB hors SA payées. Un dépassement est une <strong>alerte</strong>,
+        jamais un blocage.
+      </p>
+    </div>
+  )
+}
