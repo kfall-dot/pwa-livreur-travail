@@ -187,13 +187,32 @@ export async function seedBtpPilotData(): Promise<{
   ]
 
   for (const m of managerRows) {
-    // Vérifie si le manager existe déjà pour préserver son procurementRole
+    // Vérifie si le manager existe déjà — **par email**, pas par ID : un compte
+    // invité hors seed (invitation admin, ID UUID) porte peut-être déjà cet
+    // email dans une autre entreprise (ex. `co-demo`). L'email est UNIQUE en
+    // base : sans ce rattachement, l'insertion par ID stable échoue sur la
+    // contrainte email et le compte reste orphelin dans l'entreprise de démo —
+    // le rôle ne voit alors jamais les données de l'EB pilote (bug trésorerie).
     const existing = await db
-      .select({ procurementRole: managers.procurementRole })
+      .select({ id: managers.id, procurementRole: managers.procurementRole })
       .from(managers)
-      .where(eq(managers.id, m.id))
+      .where(eq(managers.email, m.email))
       .limit(1)
       .then((rows) => rows[0])
+
+    if (existing && existing.id !== m.id) {
+      // Compte préexistant sous un autre ID : on le rattache à l'entreprise
+      // pilote sans toucher son mot de passe (préserve le compte invité).
+      await db
+        .update(managers)
+        .set({
+          companyId: BTP_DEMO.COMPANY_ID,
+          role: m.role,
+          ...(existing.procurementRole ? {} : { procurementRole: m.procurementRole }),
+        })
+        .where(eq(managers.id, existing.id))
+      continue
+    }
 
     await db
       .insert(managers)

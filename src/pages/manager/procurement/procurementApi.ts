@@ -21,6 +21,7 @@ import type {
   SiteIndicators,
   TreasuryQueueItem,
   RequestDisbursement,
+  TreasuryHistoryItem,
   BudgetFamilyAllocation,
   FamilyVariance,
   HistoricalExpensesResponse,
@@ -620,6 +621,21 @@ export async function fetchRequestDisbursements(requestId: string): Promise<Requ
   if (!res.ok) throw await apiErrorMessage(res, 'Déboursés indisponibles')
   const data = (await res.json()) as { items?: RequestDisbursement[] }
   return data.items ?? []
+}
+
+/**
+ * Historique des paiements (déboursés) de l'entreprise, groupé par chantier
+ * côté UI — onglet Trésorerie (« Historique des paiements par chantier »).
+ */
+export async function fetchTreasuryHistory(): Promise<{ items: TreasuryHistoryItem[]; status: number }> {
+  const res = await authFetch(`${BASE}/treasury/history`)
+  if (!res.ok) {
+    throw Object.assign(await apiErrorMessage(res, 'Historique trésorerie indisponible'), {
+      status: res.status,
+    })
+  }
+  const data = (await res.json()) as { items?: TreasuryHistoryItem[] }
+  return { items: data.items ?? [], status: res.status }
 }
 
 /** Facture / reçu d'un déboursé (PDF, image…). */

@@ -42,7 +42,7 @@ import {
 } from '../services/siteIndicators.js'
 import { linesForSupplier } from '../lib/procurementLines.js'
 import { normalizeEbSpendCategory } from '../../shared/ebSpendCategory.js'
-import { CHARGE_FAMILIES } from '../../shared/chargeNatures.js'
+import { CHARGE_FAMILIES, chargeNatureFamily } from '../../shared/chargeNatures.js'
 import { resolveJournalSiteId } from '../../shared/cdgJournal.js'
 import type { FamilyAllocation } from '../../shared/budgetAllocation.js'
 import { versionSuffix } from '../../shared/requestVersion.js'
@@ -329,28 +329,60 @@ export async function listSiteMonthlyExpenses(
   if (Number.isNaN(startDate.getTime())) return []
   const endDate = new Date(startDate)
   endDate.setMonth(endDate.getMonth() + 1)
-  const rows = await db
-    .select({
-      siteId: purchaseRequests.siteId,
-      total: sql<string>`coalesce(sum(${purchaseOrders.amountFcfa}), 0)`,
-    })
-    .from(purchaseOrders)
-    .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
-    .where(
-      and(
-        eq(purchaseRequests.companyId, companyId),
-        eq(purchaseOrders.docType, 'bc'),
-        inArray(purchaseRequests.status, [...ENGAGED_BC_STATUSES]),
-        gte(purchaseOrders.createdAt, startDate),
-        lt(purchaseOrders.createdAt, endDate),
-      ),
-    )
-    .groupBy(purchaseRequests.siteId)
+
+  // Deux sources de dépense par chantier :
+  //  1. BC matériaux (purchase_orders docType='bc' créés dans le mois) ;
+  //  2. déboursés de trésorerie — main d'œuvre / charges payées via un BT
+  //     (treasury_disbursements, datés par paidAt). Sans la source 2, un
+  //     chantier 100 % main d'œuvre (Anader plateau) apparaissait « sans
+  //     dépense » alors que le déboursé avait été enregistré.
+  const [bcRows, disbRows] = await Promise.all([
+    db
+      .select({
+        siteId: purchaseRequests.siteId,
+        total: sql<string>`coalesce(sum(${purchaseOrders.amountFcfa}), 0)`,
+      })
+      .from(purchaseOrders)
+      .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
+      .where(
+        and(
+          eq(purchaseRequests.companyId, companyId),
+          eq(purchaseOrders.docType, 'bc'),
+          inArray(purchaseRequests.status, [...ENGAGED_BC_STATUSES]),
+          gte(purchaseOrders.createdAt, startDate),
+          lt(purchaseOrders.createdAt, endDate),
+        ),
+      )
+      .groupBy(purchaseRequests.siteId),
+    db
+      .select({
+        siteId: purchaseRequests.siteId,
+        total: sql<string>`coalesce(sum(${treasuryDisbursements.amountFcfa}), 0)`,
+      })
+      .from(treasuryDisbursements)
+      .innerJoin(treasuryOrders, eq(treasuryDisbursements.treasuryOrderId, treasuryOrders.id))
+      .innerJoin(purchaseRequests, eq(treasuryOrders.purchaseRequestId, purchaseRequests.id))
+      .where(
+        and(
+          eq(treasuryDisbursements.companyId, companyId),
+          gte(treasuryDisbursements.paidAt, startDate),
+          lt(treasuryDisbursements.paidAt, endDate),
+        ),
+      )
+      .groupBy(purchaseRequests.siteId),
+  ])
+
+  // Fusion des deux sources par chantier (somme BC + déboursés).
+  const totals = new Map<string, number>()
+  for (const r of [...bcRows, ...disbRows]) {
+    if (typeof r.siteId !== 'string') continue
+    totals.set(r.siteId, (totals.get(r.siteId) ?? 0) + toFcfaInt(r.total))
+  }
   // DT : ne compter que les dépenses de ses chantiers assignés.
   const scoped = opts?.supervisedSiteIds
-    ? rows.filter((r) => typeof r.siteId === 'string' && opts.supervisedSiteIds!.includes(r.siteId))
-    : rows.filter((r) => typeof r.siteId === 'string')
-  return scoped.map((r) => ({ siteId: (r as { siteId: string }).siteId, amountFcfa: toFcfaInt(r.total) }))
+    ? [...totals.entries()].filter(([siteId]) => opts.supervisedSiteIds!.includes(siteId))
+    : [...totals.entries()]
+  return scoped.map(([siteId, amountFcfa]) => ({ siteId, amountFcfa }))
 }
 
 export async function getSiteBudget(companyId: string, siteId: string): Promise<SiteBudgetDto | null> {
@@ -1848,6 +1880,8 @@ export async function createPurchaseRequestFromDraft(input: {
   totalAmountFcfa?: number | null
   notes?: string | null
   createdByManagerId: string
+  /** Statut initial — `cdg_review` pour une EB 100 % hors SA (décision CdG, I110). */
+  initialStatus?: PurchaseRequestStatus
 }) {
   const id = `pr-${randomUUID()}`
   const reference = await nextReference(input.companyId, 'EB')
@@ -1860,7 +1894,7 @@ export async function createPurchaseRequestFromDraft(input: {
         companyId: input.companyId,
         siteId: input.siteId,
         reference,
-        status: 'submitted',
+        status: input.initialStatus ?? 'submitted',
         urgency: input.urgency ?? null,
         requestedByPhone: input.requestedByPhone ?? null,
         requestedByName: input.requestedByName ?? null,
@@ -1890,7 +1924,12 @@ export async function createPurchaseRequestFromDraft(input: {
               : null,
         observation: line.observation ?? null,
         supplierName: line.supplierName ?? null,
-        paymentMode: line.paymentMode ?? null,
+        // Concept : la main d'œuvre se paie toujours comptant — normalisé côté
+        // serveur pour garantir l'invariant quel que soit le client.
+        paymentMode:
+          chargeNatureFamily(normalizeEbSpendCategory(line.spendCategory)) === 'main_oeuvre'
+            ? 'COMPTANT'
+            : line.paymentMode ?? null,
         spendCategory: normalizeEbSpendCategory(line.spendCategory),
         displayOrder: i,
       })
@@ -2288,6 +2327,43 @@ export async function listTreasuryOrdersToDisburse(companyId: string) {
       ),
     )
     .orderBy(treasuryOrders.createdAt)
+}
+
+/**
+ * Historique des paiements (déboursés) de l'entreprise — vu **par chantier**.
+ *
+ * Pendant entreprise-wide de `listDisbursementsForRequest` (par EB) : chaque
+ * ligne = un déboursé enregistré avec sa pièce jointe (I103), son mode, son
+ * n° de transaction et sa date. C'est la source de l'onglet Trésorerie
+ * « Historique des paiements par chantier » — le rôle `treasury` relit ce qui
+ * a été payé sans repasser EB par EB (à la manière du tableau de bord
+ * Comptabilité pour les BC).
+ */
+export async function listTreasuryPaymentHistory(companyId: string) {
+  return db
+    .select({
+      treasuryId: treasuryOrders.id,
+      treasuryReference: treasuryOrders.reference,
+      treasuryStatus: treasuryOrders.status,
+      requestId: purchaseRequests.id,
+      requestReference: purchaseRequests.reference,
+      requestStatus: purchaseRequests.status,
+      siteId: purchaseRequests.siteId,
+      siteName: sites.name,
+      amountFcfa: treasuryDisbursements.amountFcfa,
+      method: treasuryDisbursements.method,
+      transactionReference: treasuryDisbursements.transactionReference,
+      paidAt: treasuryDisbursements.paidAt,
+      invoiceFileName: treasuryDisbursements.invoiceFileName,
+      invoiceBlobKey: treasuryDisbursements.invoiceBlobKey,
+      invoicePrintedAt: treasuryDisbursements.invoicePrintedAt,
+    })
+    .from(treasuryDisbursements)
+    .innerJoin(treasuryOrders, eq(treasuryDisbursements.treasuryOrderId, treasuryOrders.id))
+    .innerJoin(purchaseRequests, eq(treasuryOrders.purchaseRequestId, purchaseRequests.id))
+    .leftJoin(sites, eq(purchaseRequests.siteId, sites.id))
+    .where(eq(treasuryDisbursements.companyId, companyId))
+    .orderBy(desc(treasuryDisbursements.paidAt), desc(treasuryDisbursements.createdAt))
 }
 
 export async function listPurchaseOrdersForRequest(companyId: string, requestId: string) {

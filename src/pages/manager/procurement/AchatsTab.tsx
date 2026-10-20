@@ -45,7 +45,7 @@ import type {
 } from './procurementTypes'
 import { catalogUnitFromEb } from '../../../../shared/ebCatalog'
 import { ebSpendCategoryLabel, inferEbSpendCategory, normalizeEbSpendCategory } from '../../../../shared/ebSpendCategory'
-import { CHARGE_FAMILIES, chargeNaturesByFamily } from '../../../../shared/chargeNatures'
+import { CHARGE_FAMILIES, chargeNatureFamily, chargeNaturesByFamily } from '../../../../shared/chargeNatures'
 import { hasComptantLines } from '../../../../shared/saFinanceGate'
 import { versionBadge, versionSuffix } from '../../../../shared/requestVersion'
 import {
@@ -102,7 +102,14 @@ const PRE_BC_STATUSES = new Set([
 ])
 type DriverOption = { id: string; name: string }
 
-function emptyLine(): ParsedEbLine {
+/** Nature par défaut d'une ligne main d'œuvre — fourre-tout de la famille (miroir d'`autres_materiaux`). */
+const DEFAULT_LABOR_NATURE = 'mo_divers'
+
+function emptyLine(kind: 'material' | 'labor' = 'material'): ParsedEbLine {
+  if (kind === 'labor') {
+    // Un salaire ne démarre JAMAIS en matériaux : nature MO et paiement comptant d'office.
+    return { label: '', quantity: 1, unit: 'jour', supplierName: '', paymentMode: 'COMPTANT', spendCategory: DEFAULT_LABOR_NATURE }
+  }
   return { label: '', quantity: 1, unit: 'unité', supplierName: '', paymentMode: '', spendCategory: 'autres_materiaux' }
 }
 
@@ -196,10 +203,46 @@ function linesForDraftPatch(lines: ParsedEbLine[]): ParsedEbLine[] {
     ...l,
     quantity: Number(l.quantity),
     spendCategory: normalizeEbSpendCategory(l.spendCategory),
+    // Concept : la main d'œuvre ne passe pas par le circuit SA et se paie
+    // toujours comptant — normalisé avant envoi au serveur.
+    ...(chargeNatureFamily(l.spendCategory) === 'main_oeuvre' ? { paymentMode: 'COMPTANT' } : {}),
   }))
 }
 
 const PAYMENT_MODES = ['CREDIT', 'COMPTANT', 'CHEQUE', 'VIREMENT'] as const
+
+/** Libellés lisibles pour les modes de paiement — les codes bruts (CREDIT…) étaient illisibles dans les listes. */
+const PAYMENT_MODE_LABELS: Record<(typeof PAYMENT_MODES)[number], string> = {
+  CREDIT: 'Crédit',
+  COMPTANT: 'Comptant',
+  CHEQUE: 'Chèque',
+  VIREMENT: 'Virement',
+}
+
+/** Une ligne est de main d'œuvre quand sa nature de charge appartient à la famille main_oeuvre. */
+function isLaborLine(spendCategory?: string | null): boolean {
+  return chargeNatureFamily(spendCategory) === 'main_oeuvre'
+}
+
+// ── Largeurs de colonnes des tables de lignes EB (table-layout fixe) ────────
+// Un <select>/<input> a une largeur minimale quasi nulle : dans un calcul de
+// largeurs automatique, ce sont ces colonnes que la compression tronque en
+// premier (« Désignations », « Nature », « Fournisseur »). Avec un layout fixe
+// les largeurs sont garanties ; sous la largeur minimale la table défile
+// horizontalement (overflow-x) au lieu de comprimer les champs.
+const EB_LINE_TABLE_MIN_WIDTH = 1026
+const lineTableFixed = {
+  ...css.lineTable,
+  tableLayout: 'fixed' as const,
+  minWidth: EB_LINE_TABLE_MIN_WIDTH,
+}
+const EB_SA_TABLE_MIN_WIDTH = 1254
+const saTableFixed = {
+  ...css.lineTable,
+  tableLayout: 'fixed' as const,
+  minWidth: EB_SA_TABLE_MIN_WIDTH,
+}
+const lineColWidth = (w: number) => ({ ...css.lineTh, width: w }) as React.CSSProperties
 
 function SupplierSelect({
   value,
@@ -579,7 +622,11 @@ export function AchatsTab({
         objet: editObjet.trim() || undefined,
         neededBy: editNeededBy.trim() || undefined,
       })
-      toast.success(`EB ${request.reference} transmise au Service achats.`)
+      toast.success(
+        request.status === 'cdg_review'
+          ? `EB ${request.reference} transmise directement au Contrôle de gestion.`
+          : `EB ${request.reference} transmise au Service achats.`,
+      )
       setSelectedDraftId(null)
       setSelectedRequestId(null)
       setView('requests')
@@ -1219,7 +1266,7 @@ export function AchatsTab({
           actionLoading={actionLoading}
           onBack={() => setSelectedDraftId(null)}
           onLineChange={updateLine}
-          onAddLine={() => setEditLines((prev) => [...prev, emptyLine()])}
+          onAddLine={(kind) => setEditLines((prev) => [...prev, emptyLine(kind)])}
           onRemoveLine={removeLine}
           onUrgencyChange={setEditUrgency}
           onSiteChange={setEditSiteId}
@@ -1685,7 +1732,7 @@ function DraftReviewPanel({
   actionLoading: boolean
   onBack: () => void
   onLineChange: (index: number, patch: Partial<ParsedEbLine>) => void
-  onAddLine: () => void
+  onAddLine: (kind?: 'material' | 'labor') => void
   onRemoveLine: (index: number) => void
   onUrgencyChange: (v: string) => void
   onSiteChange: (v: string) => void
@@ -1698,6 +1745,32 @@ function DraftReviewPanel({
 }) {
   const { draft, messages, parseHints } = detail
   const isBlankFiche = parseHints?.source === 'blank_fiche'
+
+  // Catalogue produits pour la liste déroulante de désignation.
+  // Charge une fois au montage — suggestions seulement, la saisie libre reste possible.
+  const [designations, setDesignations] = useState<string[]>([])
+  useEffect(() => {
+    let cancelled = false
+    authFetch('/dashboard/products')
+      .then(async (res) => {
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          products?: Array<{ label: string; active?: boolean }>
+        }
+        if (cancelled) return
+        setDesignations(
+          (data.products ?? [])
+            .filter((p) => p.active !== false)
+            .map((p) => p.label)
+            .filter(Boolean),
+        )
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const showParseHints = Boolean(
     !isBlankFiche &&
       parseHints &&
@@ -1705,6 +1778,240 @@ function DraftReviewPanel({
         (parseHints.neededBy && parseHints.neededBy !== 'À préciser') ||
         (parseHints.missingInfo && parseHints.missingInfo.length > 0) ||
         (parseHints.dtActions && parseHints.dtActions.length > 0)),
+  )
+
+  // ── Option D — sections séparées (maquette eb2) ────────────────────────────
+  // Deux tables distinctes, chacune avec ses propres en-têtes de colonnes
+  // (« Fournisseur / Mode de paiement » vs « Bénéficiaire / Paiement ») et sa
+  // nature filtrée sur la famille : un salaire ne peut plus démarrer « autres
+  // matériaux » ni être édité depuis une nature hors main d'œuvre.
+  const lineEntries = editLines.map((line, index) => ({ line, index }))
+  const materialEntries = lineEntries.filter(({ line }) => !isLaborLine(line.spendCategory))
+  const laborEntries = lineEntries.filter(({ line }) => isLaborLine(line.spendCategory))
+
+  // EB homogène obligatoire (I111) : soit 100 % matériaux (circuit SA), soit
+  // 100 % hors SA (main d'œuvre / engins / frais → CdG direct). Une EB mixte
+  // est refusée à la soumission — le DT crée des EB distinctes par famille.
+  const lineFamilies = new Set(
+    editLines
+      .filter((l) => l.label.trim() && l.quantity > 0)
+      .map((l) => chargeNatureFamily(normalizeEbSpendCategory(l.spendCategory)) ?? 'materiaux'),
+  )
+  const mixedEb = lineFamilies.has('materiaux') && lineFamilies.size > 1
+
+  const sectionTotal = (list: Array<{ line: ParsedEbLine }>): number | null => {
+    if (list.length === 0) return null
+    const amounts = list.map(({ line }) =>
+      line.amount ?? (line.unitPrice != null ? line.unitPrice * Number(line.quantity || 0) : null),
+    )
+    return amounts.every((v): v is number => v != null) ? amounts.reduce((s, v) => s + v, 0) : null
+  }
+
+  const renderSectionHead = (title: string, count: number, total: number | null, labor: boolean) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0 8px' }}>
+      <h3 style={{ margin: 0, fontSize: 15, color: 'var(--text)' }}>{title}</h3>
+      <span
+        style={{
+          background: '#eef2ee',
+          color: 'var(--brand)',
+          border: '1px solid #cfe0d4',
+          borderRadius: 20,
+          padding: '2px 10px',
+          fontSize: 11,
+          fontWeight: 700,
+        }}
+      >
+        {count === 1 ? '1 ligne' : `${count} lignes`}
+      </span>
+      {labor && (
+        <span
+          style={{
+            background: '#f0f7f1',
+            color: 'var(--brand)',
+            border: '1px solid #cfe0d4',
+            borderRadius: 20,
+            padding: '5px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          🔒 Comptant
+        </span>
+      )}
+      {total != null && (
+        <span style={{ marginLeft: 'auto', color: 'var(--brand)', fontWeight: 800, fontSize: 13 }}>
+          {total.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} F
+        </span>
+      )}
+    </div>
+  )
+
+  
+
+  const renderLineRow = (line: ParsedEbLine, i: number, labor: boolean) => (
+    <tr key={i} style={labor ? { background: '#faf6ec' } : undefined}>
+      <td style={labor ? { ...css.lineTd, borderLeft: '3px solid var(--action)' } : css.lineTd}>{i + 1}</td>
+      <td style={css.lineTd}>
+        <input
+          value={line.label}
+          disabled={!canEdit}
+          onChange={(e) => {
+            const label = e.target.value
+            const inferred = inferEbSpendCategory(label)
+            const keepManual =
+              line.spendCategory &&
+              line.spendCategory !== 'autres_materiaux' &&
+              line.spendCategory !== inferred
+            onLineChange(i, {
+              label,
+              spendCategory: keepManual ? line.spendCategory : inferred,
+            })
+          }}
+          style={css.input}
+          data-testid={`mgr-achats-line-label-${i}`}
+          list="eb-designations"
+          autoComplete="off"
+        />
+      </td>
+      <td style={css.lineTd}>
+        <select
+          value={normalizeEbSpendCategory(line.spendCategory)}
+          disabled={!canEdit}
+          onChange={(e) => {
+            const nature = e.target.value
+            // Concept : la main d'œuvre se paie toujours comptant —
+            // bascule automatique dès que la nature appartient à cette famille.
+            const family = chargeNatureFamily(nature)
+            onLineChange(i, {
+              spendCategory: nature,
+              ...(family === 'main_oeuvre' ? { paymentMode: 'COMPTANT' } : {}),
+            })
+          }}
+          style={css.input}
+          data-testid={`mgr-achats-line-category-${i}`}
+          aria-label="Nature de charge"
+        >
+          {labor ? (
+            // Section main d'œuvre : seules les natures de la famille sont proposées.
+            chargeNaturesByFamily('main_oeuvre').map((n) => (
+              <option key={n.value} value={n.value}>{n.label}</option>
+            ))
+          ) : (
+            // Sections matériaux/engins/frais : les natures hors SA restent groupées.
+            CHARGE_FAMILIES.filter((f) => f.value !== 'main_oeuvre').map((f) => (
+              <optgroup key={f.value} label={f.label}>
+                {chargeNaturesByFamily(f.value).map((n) => (
+                  <option key={n.value} value={n.value}>{n.label}</option>
+                ))}
+              </optgroup>
+            ))
+          )}
+        </select>
+      </td>
+      <td style={css.lineTd}>
+        <input
+          value={line.unit}
+          disabled={!canEdit}
+          onChange={(e) => onLineChange(i, { unit: e.target.value })}
+          style={{ ...css.input, width: 90 }}
+        />
+      </td>
+      <td style={css.lineTd}>
+        <input
+          type="number"
+          min={0}
+          step="any"
+          value={line.quantity}
+          disabled={!canEdit}
+          onChange={(e) => {
+            const quantity = Number.parseFloat(e.target.value) || 0
+            onLineChange(i, {
+              quantity,
+              // Le montant suit la quantité quand un PU est déjà saisi.
+              ...(line.unitPrice != null ? { amount: Math.round(Math.max(0, line.unitPrice) * quantity) } : {}),
+            })
+          }}
+          style={{ ...css.input, width: 80 }}
+          data-testid={`mgr-achats-line-qty-${i}`}
+        />
+      </td>
+      <td style={css.lineTd}>
+        <input
+          type="number"
+          min={0}
+          step="1"
+          value={line.unitPrice ?? ''}
+          disabled={!canEdit}
+          onChange={(e) => {
+            // Saisie DT : le PU entraîne le montant (PU × quantité).
+            const unitPrice = Number.parseFloat(e.target.value)
+            if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+              onLineChange(i, { unitPrice: undefined, amount: undefined })
+              return
+            }
+            onLineChange(i, {
+              unitPrice,
+              amount: Math.round(unitPrice * (Number(line.quantity) || 0)),
+            })
+          }}
+          style={{ ...css.input, width: 110 }}
+          data-testid={`mgr-achats-line-unit-price-${i}`}
+        />
+      </td>
+      <td style={css.lineTd}>
+        <input
+          type="number"
+          min={0}
+          step="1"
+          value={line.amount ?? ''}
+          disabled={!canEdit}
+          onChange={(e) => {
+            // Saisie directe du montant → PU recalculé (double entrée).
+            const amount = Number.parseFloat(e.target.value)
+            const qty = Number(line.quantity) || 0
+            if (!Number.isFinite(amount) || amount <= 0 || qty <= 0) {
+              onLineChange(i, { amount: undefined })
+              return
+            }
+            onLineChange(i, {
+              amount: Math.round(amount),
+              unitPrice: Math.round((amount / qty) * 100) / 100,
+            })
+          }}
+          style={{ ...css.input, width: 120 }}
+          data-testid={`mgr-achats-draft-line-amount-${i}`}
+        />
+      </td>
+      <td style={css.lineTd}>
+        {labor ? (
+          <input
+            value={line.supplierName ?? ''}
+            disabled={!canEdit}
+            onChange={(e) => onLineChange(i, { supplierName: e.target.value })}
+            style={css.input}
+            placeholder="Nom du bénéficiaire"
+            data-testid={`mgr-achats-line-supplier-${i}`}
+            aria-label="Bénéficiaire"
+            list="eb-beneficiaries"
+            autoComplete="off"
+          />
+        ) : (
+          <SupplierSelect
+            value={line.supplierName ?? ''}
+            suppliers={detail.suppliers ?? []}
+            disabled={!canEdit}
+            testId={`mgr-achats-line-supplier-${i}`}
+            onChange={(name) => onLineChange(i, { supplierName: name })}
+          />
+        )}
+      </td>
+      {canEdit && (
+        <td style={css.lineTd}>
+          <button type="button" onClick={() => onRemoveLine(i)} style={css.btnDanger}>×</button>
+        </td>
+      )}
+    </tr>
   )
 
   return (
@@ -1869,125 +2176,112 @@ function DraftReviewPanel({
           </tbody>
         </table>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={css.lineTable}>
-            <thead>
-              <tr>
-                <th style={css.lineTh}>Réf</th>
-                <th style={css.lineTh}>Désignations</th>
-                <th style={css.lineTh}>Nature de charge</th>
-                <th style={css.lineTh}>Unité</th>
-                <th style={css.lineTh}>Quantité</th>
-                <th style={css.lineTh}>Prix Unitaire</th>
-                <th style={css.lineTh}>Montant</th>
-                <th style={css.lineTh}>Fournisseur</th>
-                <th style={css.lineTh}>Mode de paiement</th>
-                {canEdit && <th style={css.lineTh} />}
-              </tr>
-            </thead>
-            <tbody>
-              {editLines.map((line, i) => (
-                <tr key={i}>
-                  <td style={css.lineTd}>{i + 1}</td>
-                  <td style={css.lineTd}>
-                    <input
-                      value={line.label}
-                      disabled={!canEdit}
-                      onChange={(e) => {
-                        const label = e.target.value
-                        const inferred = inferEbSpendCategory(label)
-                        const keepManual =
-                          line.spendCategory &&
-                          line.spendCategory !== 'autres_materiaux' &&
-                          line.spendCategory !== inferred
-                        onLineChange(i, {
-                          label,
-                          spendCategory: keepManual ? line.spendCategory : inferred,
-                        })
-                      }}
-                      style={css.input}
-                      data-testid={`mgr-achats-line-label-${i}`}
-                      autoComplete="off"
-                    />
-                  </td>
-                  <td style={css.lineTd}>
-                    <select
-                      value={normalizeEbSpendCategory(line.spendCategory)}
-                      disabled={!canEdit}
-                      onChange={(e) => onLineChange(i, { spendCategory: e.target.value })}
-                      style={css.input}
-                      data-testid={`mgr-achats-line-category-${i}`}
-                      aria-label="Nature de charge"
-                    >
-                      {CHARGE_FAMILIES.map((f) => (
-                        <optgroup key={f.value} label={f.label}>
-                          {chargeNaturesByFamily(f.value).map((n) => (
-                            <option key={n.value} value={n.value}>{n.label}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </td>
-                  <td style={css.lineTd}>
-                    <input
-                      value={line.unit}
-                      disabled={!canEdit}
-                      onChange={(e) => onLineChange(i, { unit: e.target.value })}
-                      style={{ ...css.input, width: 90 }}
-                    />
-                  </td>
-                  <td style={css.lineTd}>
-                    <input
-                      type="number"
-                      min={0}
-                      step="any"
-                      value={line.quantity}
-                      disabled={!canEdit}
-                      onChange={(e) => onLineChange(i, { quantity: Number.parseFloat(e.target.value) || 0 })}
-                      style={{ ...css.input, width: 80 }}
-                      data-testid={`mgr-achats-line-qty-${i}`}
-                    />
-                  </td>
-                  <td style={{ ...css.lineTd, color: 'var(--text-muted)' }}>—</td>
-                  <td style={{ ...css.lineTd, color: 'var(--text-muted)' }}>—</td>
-                  <td style={css.lineTd}>
-                    <SupplierSelect
-                      value={line.supplierName ?? ''}
-                      suppliers={detail.suppliers ?? []}
-                      disabled={!canEdit}
-                      testId={`mgr-achats-line-supplier-${i}`}
-                      onChange={(name) => onLineChange(i, { supplierName: name })}
-                    />
-                  </td>
-                  <td style={css.lineTd}>
-                    <select
-                      value={line.paymentMode ?? ''}
-                      disabled={!canEdit}
-                      onChange={(e) => onLineChange(i, { paymentMode: e.target.value })}
-                      style={css.input}
-                      data-testid={`mgr-achats-line-payment-${i}`}
-                    >
-                      <option value="">À préciser</option>
-                      {PAYMENT_MODES.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </td>
-                  {canEdit && (
-                    <td style={css.lineTd}>
-                      <button type="button" onClick={() => onRemoveLine(i)} style={css.btnDanger}>×</button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {mixedEb && (
+          <div
+            data-testid="mgr-achats-mixed-eb-warning"
+            style={{
+              background: '#fff7ed',
+              border: '1px solid #fdba74',
+              color: '#9a3412',
+              borderRadius: 8,
+              padding: '8px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              margin: '8px 0',
+            }}
+          >
+            EB mixte interdite : matériaux d’un côté, main d’œuvre / engins / frais de l’autre —
+            créez deux EB distinctes (la main d’œuvre part directement au CdG).
+          </div>
+        )}
+        {materialEntries.length > 0 && (
+          <>
+            {renderSectionHead('🧱 Matériaux & fournitures', materialEntries.length, sectionTotal(materialEntries), false)}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={lineTableFixed}>
+                <thead>
+                  <tr>
+                    <th style={lineColWidth(56)}>Réf</th>
+                    <th style={lineColWidth(240)}>Désignations</th>
+                    <th style={lineColWidth(190)}>Catégorie</th>
+                    <th style={lineColWidth(80)}>Unité</th>
+                    <th style={lineColWidth(80)}>Quantité</th>
+                    <th style={lineColWidth(110)}>PU</th>
+                    <th style={lineColWidth(120)}>Montant</th>
+                    <th style={lineColWidth(210)}>Fournisseur</th>
+                    {canEdit && <th style={lineColWidth(40)} />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {materialEntries.map(({ line, index: i }) => renderLineRow(line, i, false))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
         {canEdit && (
-          <button type="button" onClick={onAddLine} style={{ ...css.btnOutline, margin: 8 }}>
-            + Ligne
+          <button type="button" onClick={() => onAddLine('material')} style={{ ...css.btnOutline, margin: 8 }}>
+            + Ligne matériau
           </button>
         )}
+
+        {laborEntries.length > 0 && (
+          <>
+            {renderSectionHead('👷 Main d’œuvre', laborEntries.length, sectionTotal(laborEntries), true)}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={lineTableFixed}>
+                <thead>
+                  <tr>
+                    <th style={lineColWidth(56)}>Réf</th>
+                    <th style={lineColWidth(240)}>Désignations</th>
+                    <th style={lineColWidth(190)}>Catégorie</th>
+                    <th style={lineColWidth(80)}>Unité</th>
+                    <th style={lineColWidth(80)}>Quantité</th>
+                    <th style={lineColWidth(110)}>PU</th>
+                    <th style={lineColWidth(120)}>Montant</th>
+                    <th style={lineColWidth(210)}>Bénéficiaire</th>
+                    {canEdit && <th style={lineColWidth(40)} />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {laborEntries.map(({ line, index: i }) => renderLineRow(line, i, true))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        {canEdit && (
+          <button type="button" onClick={() => onAddLine('labor')} style={{ ...css.btnOutline, margin: 8 }}>
+            + Ligne main d’œuvre
+          </button>
+        )}
+
+
+
+
+
+
+        <datalist id="eb-designations">
+          {designations.map((label) => (
+            <option key={label} value={label} />
+          ))}
+        </datalist>
+        <datalist id="eb-beneficiaries">
+          {Array.from(
+            new Set([
+              ...editLines
+                .map((l) => (l.supplierName ?? '').trim())
+                .filter(Boolean),
+              ...(detail.suppliers ?? []).map((s) => s.name),
+            ]),
+          ).map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 8px 0' }}>
+          💡 Lignes main d’œuvre fondées + filet orange : impossibles à confondre avec un matériau.
+          Le paiement est un badge ; le bénéficiaire propose les noms déjà utilisés (anti-doublons).
+        </p>
 
         <EbFicheSignoff
           treatedByName=""
@@ -2047,7 +2341,7 @@ function DraftReviewPanel({
             type="button"
             data-testid="btp-draft-submit"
             onClick={onSubmit}
-            disabled={actionLoading}
+            disabled={actionLoading || mixedEb}
             style={{ ...css.btnGold, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
           >
             {actionLoading ? 'Transmission…' : 'Valider'}
@@ -2654,7 +2948,7 @@ function RequestDetailPanel({
                 >
                   <option value="">Choisir…</option>
                   {PAYMENT_MODES.map((m) => (
-                    <option key={m} value={m}>{m}</option>
+                    <option key={m} value={m}>{PAYMENT_MODE_LABELS[m]}</option>
                   ))}
                 </select>
               </label>
@@ -2751,11 +3045,11 @@ function RequestDetailPanel({
             </div>
           )}
           <div style={{ overflowX: 'auto' }}>
-            <table style={css.lineTable}>
+            <table style={saTableFixed}>
               <thead>
                 <tr>
                   {canPrice && (
-                    <th style={css.lineTh}>
+                    <th style={lineColWidth(40)}>
                       <input
                         type="checkbox"
                         checked={allLinesSelected}
@@ -2765,16 +3059,16 @@ function RequestDetailPanel({
                       />
                     </th>
                   )}
-                  <th style={css.lineTh}>Réf</th>
-                  <th style={css.lineTh}>Désignations</th>
-                  <th style={css.lineTh}>Catégorie</th>
-                  <th style={css.lineTh}>Unité</th>
-                  <th style={css.lineTh}>Quantité</th>
-                  <th style={css.lineTh}>Prix Unitaire</th>
-                  <th style={css.lineTh}>Montant</th>
-                  <th style={css.lineTh}>Fournisseur{canPrice ? ' *' : ''}</th>
-                  <th style={css.lineTh}>Mode de paiement{canPrice ? ' *' : ''}</th>
-                  <th style={css.lineTh}>Pièce jointe{canPrice ? ' *' : ''}</th>
+                  <th style={lineColWidth(44)}>Réf</th>
+                  <th style={lineColWidth(200)}>Désignations</th>
+                  <th style={lineColWidth(140)}>Catégorie</th>
+                  <th style={lineColWidth(70)}>Unité</th>
+                  <th style={lineColWidth(70)}>Quantité</th>
+                  <th style={lineColWidth(110)}>PU</th>
+                  <th style={lineColWidth(120)}>Montant</th>
+                  <th style={lineColWidth(180)}>Fournisseur / Bénéficiaire{canPrice ? ' *' : ''}</th>
+                  <th style={lineColWidth(140)}>Mode de paiement{canPrice ? ' *' : ''}</th>
+                  <th style={lineColWidth(140)}>Pièce jointe{canPrice ? ' *' : ''}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2842,33 +3136,57 @@ function RequestDetailPanel({
                     </td>
                     <td style={css.lineTd}>
                       {canPrice ? (
-                        <SupplierSelect
-                          value={l.supplierName ?? ''}
-                          suppliers={suppliers}
-                          required
-                          testId={`mgr-achats-line-supplier-${i}`}
-                          onChange={(name) => handleLineSupplierChange(l, name)}
-                        />
+                        isLaborLine(l.spendCategory) ? (
+                          <input
+                            value={l.supplierName ?? ''}
+                            onChange={(e) => onLineCommercial(l.id, { supplierName: e.target.value })}
+                            style={css.input}
+                            placeholder="Nom du bénéficiaire"
+                            data-testid={`mgr-achats-line-supplier-${i}`}
+                            aria-label="Bénéficiaire"
+                          />
+                        ) : (
+                          <SupplierSelect
+                            value={l.supplierName ?? ''}
+                            suppliers={suppliers}
+                            required
+                            testId={`mgr-achats-line-supplier-${i}`}
+                            onChange={(name) => handleLineSupplierChange(l, name)}
+                          />
+                        )
                       ) : (
                         l.supplierName ?? '—'
                       )}
                     </td>
                     <td style={css.lineTd}>
                       {canPrice ? (
-                        <select
-                          value={l.paymentMode ?? ''}
-                          required
-                          onChange={(e) => onLineCommercial(l.id, { paymentMode: e.target.value })}
-                          style={css.input}
-                          data-testid={`mgr-achats-line-payment-${i}`}
-                        >
-                          <option value="">À préciser</option>
-                          {PAYMENT_MODES.map((m) => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
+                        isLaborLine(l.spendCategory) ? (
+                          <select
+                            value="COMPTANT"
+                            disabled
+                            onChange={(e) => onLineCommercial(l.id, { paymentMode: e.target.value })}
+                            style={css.input}
+                            data-testid={`mgr-achats-line-payment-${i}`}
+                            title="La main d'œuvre est toujours payée comptant"
+                          >
+                            <option value="COMPTANT">Comptant (obligatoire)</option>
+                          </select>
+                        ) : (
+                          <select
+                            value={l.paymentMode ?? ''}
+                            required
+                            onChange={(e) => onLineCommercial(l.id, { paymentMode: e.target.value })}
+                            style={css.input}
+                            data-testid={`mgr-achats-line-payment-${i}`}
+                          >
+                            <option value="">À préciser</option>
+                            {PAYMENT_MODES.map((m) => (
+                              <option key={m} value={m}>{PAYMENT_MODE_LABELS[m]}</option>
+                            ))}
+                          </select>
+                        )
                       ) : (
-                        l.paymentMode ?? '—'
+                        isLaborLine(l.spendCategory) ? 'Comptant' : l.paymentMode ?? '—'
                       )}
                     </td>
                     <td style={css.lineTd}>
@@ -3103,7 +3421,7 @@ function RequestDetailPanel({
             {needsPdg
               ? '≥ 500 000 XOF : après le CdG, le DAF et le PDG valident.'
               : '< 500 000 XOF : après le CdG, le DAF valide.'}
-            {' Fournisseur, mode de paiement et PJ sont obligatoires sur chaque ligne.'}
+            {' Fournisseur (ou bénéficiaire pour la main d’œuvre, payée comptant) et pièces jointes sont obligatoires sur chaque ligne.'}
             {hasComptantLines(lines) ? ' Mode COMPTANT : générez le bon de trésorerie avant l’envoi au CdG.' : ''}
           </p>
           {hasComptantLines(lines) && (

@@ -167,8 +167,12 @@ export function SuiviChantierTab({
   // Compteurs des onglets CdG (maquette : « Tous les chantiers (5) », « En alerte (1) »…).
   const cdgTabCounts: Record<CdgTab, number> = {
     all: budgets.length,
-    with: budgets.filter((b) => b.engagedFcfa > 0).length,
-    without: budgets.filter((b) => b.engagedFcfa === 0).length,
+    // « Avec dépenses » = sites ayant des dépenses réelles enregistrées ce mois
+    // (BC matériaux **et** main d'œuvre/frais payés par déboursé trésorerie) —
+    // pas seulement l'engagement BC : un chantier avec uniquement une EB
+    // main-d'œuvre déboursée reste invisible sinon.
+    with: budgets.filter((b) => (monthExpenses[b.siteId] ?? 0) > 0).length,
+    without: budgets.filter((b) => (monthExpenses[b.siteId] ?? 0) === 0).length,
     alert: budgets.filter((b) => b.overBudget || b.trafficLight === 'alert').length,
   }
 
@@ -751,8 +755,8 @@ export function SuiviChantierTab({
         const visible = (() => {
           let filtered = base
           if (procurementRole === 'controle_gestion') {
-            if (cdgTab === 'with') filtered = filtered.filter((b) => b.engagedFcfa > 0)
-            else if (cdgTab === 'without') filtered = filtered.filter((b) => b.engagedFcfa === 0)
+            if (cdgTab === 'with') filtered = filtered.filter((b) => (monthExpenses[b.siteId] ?? 0) > 0)
+            else if (cdgTab === 'without') filtered = filtered.filter((b) => (monthExpenses[b.siteId] ?? 0) === 0)
             else if (cdgTab === 'alert') filtered = filtered.filter((b) => b.overBudget || b.trafficLight === 'alert')
             if (search.trim()) {
               const q = search.trim().toLowerCase()

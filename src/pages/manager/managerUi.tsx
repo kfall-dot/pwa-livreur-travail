@@ -20,6 +20,7 @@ export const css = {
     width: '100%',
     boxSizing: 'border-box',
     background: 'var(--bg-elevated)',
+    color: 'var(--text)',
     fontFamily: 'inherit',
   } as CSSProperties,
   inputCompact: {
@@ -29,6 +30,7 @@ export const css = {
     fontSize: 13,
     width: 'auto',
     background: 'var(--bg-elevated)',
+    color: 'var(--text)',
     fontFamily: 'inherit',
   } as CSSProperties,
   td: { padding: '10px 14px', verticalAlign: 'top' } as CSSProperties,

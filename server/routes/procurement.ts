@@ -43,6 +43,7 @@ import {
   listSiteMonthlyExpenses,
   listSupervisedSiteIds,
   listTreasuryOrdersToDisburse,
+  listTreasuryPaymentHistory,
   markDisbursementInvoicePrinted,
   setDisbursementInvoice,
   SiteBudgetError,
@@ -166,6 +167,10 @@ const parsedLineSchema = z.object({
   observation: z.string().optional(),
   supplierName: z.string().optional(),
   paymentMode: z.string().optional(),
+  // Le DT chiffre à la saisie (PU × quantité, ou montant direct) — la couche
+  // de persistance recopie déjà ces champs vers `purchase_request_lines`.
+  unitPrice: z.coerce.number().nonnegative().optional(),
+  amount: z.coerce.number().nonnegative().optional(),
   spendCategory: z.string().optional().transform((v) => (v ? normalizeEbSpendCategory(v) : undefined)),
 })
 
@@ -1361,6 +1366,38 @@ procurementRouter.post(
       return
     }
 
+    // ── Routage à la soumission ───────────────────────────────────────────────
+    // Une EB est **homogène** : soit 100 % matériaux (circuit SA), soit 100 %
+    // hors SA (main d'œuvre / engins / frais → CdG direct, décision CdG du
+    // 16/10/2026). Une EB mixte est refusée : le DT crée des EB distinctes
+    // par famille (I111 — remplace le routage « mixte → circuit SA » de I105).
+    const lineFamilies = new Set(
+      lines.map((l) => chargeNatureFamily(normalizeEbSpendCategory(l.spendCategory)) ?? 'materiaux'),
+    )
+    const hasMaterials = lineFamilies.has('materiaux')
+    const hasHorsSa = [...lineFamilies].some((f) => f !== 'materiaux')
+    if (hasMaterials && hasHorsSa) {
+      res.status(400).json({
+        message:
+          "EB mixte interdite : les lignes matériaux et les lignes de main d'œuvre/engins/frais suivent des circuits distincts — créez deux EB séparées.",
+      })
+      return
+    }
+    const horsSaOnly = !hasMaterials
+
+    // Le DT chiffre à la saisie : le total de l'EB est dérivé des lignes
+    // (PU × quantité, ou montant saisi directement) quand il n'est pas fourni.
+    const linesTotalFcfa = lines.reduce(
+      (sum, l) =>
+        sum +
+        (l.unitPrice != null
+          ? Math.round(Math.max(0, l.unitPrice) * Number(l.quantity))
+          : l.amount != null
+            ? Math.round(l.amount)
+            : 0),
+      0,
+    )
+
     const detail = await getDraftDetail(manager.companyId, draftId)
     const requesterName = (body.requesterName ?? detail?.parseHints?.requesterName ?? '').trim()
     if (procurementRole === 'technical_director' && (!requesterName || requesterName === 'À identifier')) {
@@ -1431,9 +1468,11 @@ procurementRouter.post(
       urgency: draft.parsedUrgency,
       requestedByName: requesterName || null,
       supplierId: body.supplierId ?? null,
-      totalAmountFcfa: body.totalAmountFcfa ?? null,
+      totalAmountFcfa: body.totalAmountFcfa ?? (linesTotalFcfa > 0 ? linesTotalFcfa : null),
       notes: body.notes ?? null,
       createdByManagerId: manager.sub,
+      // EB 100 % hors SA → CdG direct : le SA n'est plus un gicrot (I110).
+      initialStatus: horsSaOnly ? 'cdg_review' : 'submitted',
     })
     await ensureProductsFromEbLines(manager.companyId, lines)
     if (signature) {
@@ -1449,8 +1488,13 @@ procurementRouter.post(
       })
     }
     await linkDraftToRequest(draftId, request.id)
-    const notifiedRoles: ProcurementRole[] = ['purchasing']
-    await notifyRequestStatusChange(manager.companyId, request.reference, 'submitted', notifiedRoles)
+    const notifiedRoles: ProcurementRole[] = horsSaOnly ? ['controle_gestion'] : ['purchasing']
+    await notifyRequestStatusChange(
+      manager.companyId,
+      request.reference,
+      horsSaOnly ? 'cdg_review' : 'submitted',
+      notifiedRoles,
+    )
     res.status(201).json({ request, notifiedRoles })
   },
 )
@@ -2281,6 +2325,45 @@ procurementRouter.get(
     } catch (err) {
       console.error('[procurement] treasury list error', err)
       res.status(500).json({ message: 'Erreur chargement trésorerie' })
+    }
+  },
+)
+
+/**
+ * Historique des paiements (déboursés) **par chantier** — onglet Trésorerie
+ * (« Historique des paiements par chantier », à la manière du tableau de bord
+ * Comptabilité). Lecture : le poste `treasury` + CdG/DAF/PDG, même visibilité
+ * que la file.
+ */
+procurementRouter.get(
+  '/treasury/history',
+  requireProcurementRole('treasury', 'controle_gestion', 'daf', 'pdg'),
+  async (req, res) => {
+    const { manager } = req as unknown as ManagerRequest
+    try {
+      const rows = await listTreasuryPaymentHistory(manager.companyId)
+      res.json({
+        items: rows.map((r) => ({
+          treasuryId: r.treasuryId,
+          treasuryReference: r.treasuryReference,
+          treasuryStatus: r.treasuryStatus,
+          requestId: r.requestId,
+          requestReference: r.requestReference,
+          requestStatus: r.requestStatus,
+          siteId: r.siteId,
+          siteName: r.siteName,
+          amountFcfa: Number(r.amountFcfa ?? 0),
+          method: r.method,
+          transactionReference: r.transactionReference,
+          paidAt: r.paidAt,
+          invoiceFileName: r.invoiceFileName,
+          hasInvoice: Boolean(r.invoiceBlobKey),
+          invoicePrintedAt: r.invoicePrintedAt,
+        })),
+      })
+    } catch (err) {
+      console.error('[procurement] treasury history error', err)
+      res.status(500).json({ message: 'Erreur historique trésorerie' })
     }
   },
 )

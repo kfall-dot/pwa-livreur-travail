@@ -532,6 +532,28 @@ export interface RequestDisbursement {
   hasInvoice: boolean
 }
 
+/**
+ * Paiement (déboursé) historisé — `GET /procurement/treasury/history`
+ * (onglet Trésorerie : « Historique des paiements par chantier »).
+ */
+export interface TreasuryHistoryItem {
+  treasuryId: string
+  treasuryReference: string
+  treasuryStatus: 'pending' | 'issued' | 'deboursed' | 'paid' | 'cancelled'
+  requestId: string
+  requestReference: string
+  requestStatus: string
+  siteId: string | null
+  siteName: string | null
+  amountFcfa: number
+  method: DisbursementMethodValue
+  transactionReference: string | null
+  paidAt: string
+  invoiceFileName: string | null
+  hasInvoice: boolean
+  invoicePrintedAt: string | null
+}
+
 export const DISBURSEMENT_METHOD_LABELS: Record<DisbursementMethodValue, string> = {
   orange_money: 'Orange Money',
   cash: 'Espèces',

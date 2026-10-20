@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import {
   disburseTreasury,
+  fetchTreasuryHistory,
   fetchTreasuryQueue,
   treasuryHtmlUrl,
   treasuryInvoiceUrl,
@@ -9,6 +10,7 @@ import {
 import {
   DISBURSEMENT_METHOD_LABELS,
   type DisbursementMethodValue,
+  type TreasuryHistoryItem,
   type TreasuryQueueItem,
 } from './procurementTypes'
 import {
@@ -41,12 +43,12 @@ function todayIso(): string {
  */
 export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => boolean }) {
   const [items, setItems] = useState<TreasuryQueueItem[]>([])
+  const [history, setHistory] = useState<TreasuryHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<DisbursementMethodValue>('orange_money')
   const [reference, setReference] = useState('')
   const [paidAt, setPaidAt] = useState(todayIso())
@@ -56,9 +58,15 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
     setLoading(true)
     setError(null)
     try {
-      const { items: rows, status } = await fetchTreasuryQueue()
-      if (handleAuth(status)) return
-      setItems(rows)
+      // La file d'abord ; l'historique ne doit jamais empêcher la file de
+      // s'afficher — dégradation silencieuse si l'historique est indisponible.
+      const [queue, hist] = await Promise.all([
+        fetchTreasuryQueue(),
+        fetchTreasuryHistory().catch(() => null),
+      ])
+      if (handleAuth(queue.status)) return
+      setItems(queue.items)
+      if (hist && !handleAuth(hist.status)) setHistory(hist.items)
     } catch (err) {
       const status = (err as { status?: number }).status ?? 0
       if (handleAuth(status)) return
@@ -72,9 +80,26 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
     void load()
   }, [load])
 
+  /** Paiements regroupés par chantier (sous-totaux ; tri par montant décroissant). */
+  const historyGroups = useMemo(() => {
+    const map = new Map<
+      string,
+      { siteId: string | null; siteName: string; totalFcfa: number; rows: TreasuryHistoryItem[] }
+    >()
+    for (const h of history) {
+      const key = h.siteId ?? 'sans-chantier'
+      const siteName = h.siteName?.trim() || 'Sans chantier'
+      const group = map.get(key) ?? { siteId: h.siteId, siteName, totalFcfa: 0, rows: [] }
+      group.totalFcfa += h.amountFcfa
+      group.rows.push(h)
+      map.set(key, group)
+    }
+    for (const g of map.values()) g.rows.sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1))
+    return [...map.values()].sort((a, b) => b.totalFcfa - a.totalFcfa)
+  }, [history])
+
   const openForm = (item: TreasuryQueueItem) => {
     setOpenId(item.treasuryId)
-    setAmount(String(item.amountFcfa))
     setMethod('orange_money')
     setReference('')
     setPaidAt(todayIso())
@@ -87,16 +112,17 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
       setError('Joignez la facture ou le reçu — il est exigé au déboursé (I103).')
       return
     }
-    const parsed = Number.parseInt(amount, 10)
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError('Montant déboursé invalide.')
+    // Montant **verrouillé** sur celui du BT (champ grisé) : pas de saisie
+    // libre, pas d'écart possible entre le bon approuvé et le déboursé.
+    if (!Number.isFinite(item.amountFcfa) || item.amountFcfa <= 0) {
+      setError('Montant du BT invalide.')
       return
     }
     setSaving(true)
     setError(null)
     try {
       await disburseTreasury(item.treasuryId, file, {
-        amountFcfa: parsed,
+        amountFcfa: item.amountFcfa,
         method,
         transactionReference: reference.trim() || undefined,
         paidAt,
@@ -213,14 +239,14 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
                 Déboursé — {item.reference} · {formatFcfa(item.amountFcfa)} FCFA
               </h4>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <Field label="Montant déboursé (FCFA)">
+                <Field label="Montant déboursé (FCFA) — montant du BT, non modifiable">
                   <input
-                    type="number"
-                    min={1}
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    style={css.input}
+                    type="text"
+                    readOnly
+                    value={formatFcfa(item.amountFcfa)}
+                    style={{ ...css.input, background: '#f1f5f9', color: '#94a3b8', cursor: 'not-allowed' }}
                     data-testid="mgr-tresorerie-amount"
+                    aria-readonly="true"
                   />
                 </Field>
                 <Field label="Mode de paiement">
@@ -285,6 +311,79 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
             </div>
           )
         })()}
+
+      <div style={{ ...css.card, marginTop: 12 }} data-testid="mgr-tresorerie-history">
+        <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>Historique des paiements par chantier</h3>
+        <p style={{ ...css.meta, margin: '0 0 10px' }}>
+          {history.length === 0
+            ? 'Aucun paiement enregistré pour le moment — les déboursés apparaissent ici dès leur enregistrement.'
+            : `${history.length} paiement(s) · ${formatFcfa(history.reduce((s, h) => s + h.amountFcfa, 0))} FCFA au total`}
+        </p>
+        {historyGroups.map((g) => (
+          <div
+            key={g.siteId ?? 'sans-chantier'}
+            data-testid={`mgr-tresorerie-history-site-${g.siteId ?? 'sans-chantier'}`}
+            style={{ marginBottom: 14 }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+              <strong style={{ fontSize: 13 }}>🏗️ {g.siteName}</strong>
+              <span style={{ ...css.meta, fontWeight: 600 }}>
+                {g.rows.length} paiement(s) · {formatFcfa(g.totalFcfa)} FCFA
+              </span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={css.lineTable}>
+                <thead>
+                  <tr>
+                    <th style={css.lineTh}>Date</th>
+                    <th style={css.lineTh}>BT</th>
+                    <th style={css.lineTh}>EB</th>
+                    <th style={css.lineTh}>Mode</th>
+                    <th style={css.lineTh}>N° transaction</th>
+                    <th style={css.lineTh}>Facture</th>
+                    <th style={css.lineTh}>Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.rows.map((h) => (
+                    <tr key={h.treasuryId} data-testid={`mgr-tresorerie-history-row-${h.treasuryId}`}>
+                      <td style={css.lineTd}>{h.paidAt.slice(0, 10)}</td>
+                      <td style={css.lineTd}>
+                        <a
+                          href={treasuryHtmlUrl(h.treasuryId)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: 'var(--accent)' }}
+                        >
+                          {h.treasuryReference}
+                        </a>
+                      </td>
+                      <td style={css.lineTd}>{h.requestReference}</td>
+                      <td style={css.lineTd}>{DISBURSEMENT_METHOD_LABELS[h.method] ?? h.method}</td>
+                      <td style={css.lineTd}>{h.transactionReference || '—'}</td>
+                      <td style={css.lineTd}>
+                        {h.hasInvoice ? (
+                          <a
+                            href={treasuryInvoiceUrl(h.treasuryId)}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ color: 'var(--accent)' }}
+                          >
+                            📎 {h.invoiceFileName ?? 'facture'}
+                          </a>
+                        ) : (
+                          <span style={css.meta}>—</span>
+                        )}
+                      </td>
+                      <td style={css.lineTd}>{formatFcfa(h.amountFcfa)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

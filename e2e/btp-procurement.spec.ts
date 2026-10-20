@@ -2179,6 +2179,43 @@ test('DT : le sélecteur Chantier inclut les chantiers avec EB émise par le DT 
  * est émis **automatiquement après** l'approbation DAF/PDG, et la **facture est
  * exigée au déboursé**.
  */
+test.describe('Routage EB à la soumission', () => {
+  test('EB mixte (matériaux + main d’œuvre) refusée à la soumission (I111)', async ({ request }) => {
+    test.setTimeout(60_000)
+    await resetAndSeedBtp(request)
+
+    await loginBtpApi(request, 'dt')
+    const blank = await request.post(`${API_BASE}/api/v1/procurement/drafts/blank`, {
+      data: { siteId: BTP_PILOT.SITE_ID },
+    })
+    expect(blank.ok(), await blank.text()).toBeTruthy()
+    const { draftId } = (await blank.json()) as { draftId: string }
+
+    const patch = await request.patch(`${API_BASE}/api/v1/procurement/drafts/${draftId}`, {
+      data: {
+        siteId: BTP_PILOT.SITE_ID,
+        parsedLines: [
+          { label: 'Ciment CIMAF 50 kg', quantity: 50, unit: 'sac', unitPrice: 4200, spendCategory: 'ciments' },
+          {
+            label: "Main d'œuvre carrelage",
+            quantity: 10,
+            unit: 'jour',
+            unitPrice: 25_000,
+            spendCategory: 'mo_carrelage',
+          },
+        ],
+      },
+    })
+    expect(patch.ok(), await patch.text()).toBeTruthy()
+
+    const submit = await request.post(`${API_BASE}/api/v1/procurement/drafts/${draftId}/submit`, {
+      data: { pin: '1234', requesterName: 'Chef chantier' },
+    })
+    expect(submit.status(), 'EB mixte → 400').toBe(400)
+    expect(await submit.text()).toContain('EB mixte')
+  })
+})
+
 test.describe('F02-B — circuit hors SA (EB main-d’œuvre)', () => {
   test('BT émis après le DAF, déboursé refusé sans facture puis accepté', async ({
     page,
@@ -2187,15 +2224,16 @@ test.describe('F02-B — circuit hors SA (EB main-d’œuvre)', () => {
     test.setTimeout(120_000)
     await resetAndSeedBtp(request)
 
-    // ── DT : EB 100 % main-d'œuvre (famille hors SA) puis soumission
+    // ── DT : EB 100 % main-d'œuvre (famille hors SA), chiffrée à la saisie
+    //    (10 jours × 25 000 F = 250 000 F, < seuil PDG 500 000 F) — à la
+    //    soumission l'EB part DIRECTEMENT au CdG (I110) : le SA n'est plus un
+    //    gicrot du circuit hors SA (décision CdG).
     const submitted = await createHorsSaEbViaApi(request)
-    expect(submitted.status).toBe('submitted')
+    expect(submitted.status).toBe('cdg_review')
 
-    // ── SA : chiffrage 10 jours × 25 000 F = 250 000 F (< seuil PDG 500 000 F)
-    const quoted = await saPriceSubmitCdgApprove(request, submitted.id, 25_000)
-    expect(quoted.request.status).toBe('daf_review')
-    expect(quoted.finance.totalAmountFcfa).toBe(250_000)
-    expect(quoted.finance.needsPdg).toBe(false)
+    // ── CdG approuve → daf_review (aucun passage par le SA)
+    const cdg = await approveBtpRequest(request, submitted.id, 'cdg')
+    expect(cdg.request.status).toBe('daf_review')
 
     // ── I102 : le DAF approuve → l'EB NE passe PAS par le SA (pas de BC) :
     //    le BT est émis automatiquement et l'EB attend le déboursé.
@@ -2208,6 +2246,19 @@ test.describe('F02-B — circuit hors SA (EB main-d’œuvre)', () => {
     expect(item, 'BT absent de la file trésorerie').toBeTruthy()
     expect(item!.amountFcfa).toBe(250_000)
     expect(item!.requestStatus).toBe('bt_ready')
+
+    // ── UI : le montant déboursé est **verrouillé** sur le montant du BT
+    //    (champ grisé, non modifiable) — le poste ne peut pas écarter le
+    //    déboursé du montant approuvé.
+    await loginBtpManager(page, 'tresorerie')
+    await expect(page.getByTestId('mgr-tab-tresorerie')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await page.getByTestId('mgr-tab-tresorerie').click()
+    await expect(page.getByTestId('mgr-tresorerie-tab')).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await page.getByTestId(`mgr-tresorerie-disburse-${item!.treasuryId}`).click()
+    const amountField = page.getByTestId('mgr-tresorerie-amount')
+    await expect(amountField).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await expect(amountField).toHaveAttribute('readonly', '')
+    await expect(amountField).toHaveValue(/250\s?000/)
 
     // ── I103 : sans facture, le déboursé est REFUSÉ
     const refused = await disburseTreasuryApi(request, item!.treasuryId, { withInvoice: false })
@@ -2235,6 +2286,16 @@ test.describe('F02-B — circuit hors SA (EB main-d’œuvre)', () => {
     await expect(page.getByTestId('mgr-tresorerie-tab')).toBeVisible({ timeout: UI_READY_TIMEOUT })
     // La file est vide : le seul BT de la société vient d'être payé.
     await expect(page.getByTestId('mgr-tresorerie-tab')).toContainText('Aucun bon de trésorerie')
+
+    // ── I112 : l'historique des paiements par chantier liste le déboursé
+    //    (chantier, BT, mode, montant, facture) — lecture « à la Comptabilité ».
+    const historyCard = page.getByTestId('mgr-tresorerie-history')
+    await expect(historyCard).toBeVisible({ timeout: UI_READY_TIMEOUT })
+    await expect(historyCard).toContainText('Historique des paiements par chantier')
+    await expect(historyCard).toContainText('Résidence Cocody — Tour A')
+    await expect(historyCard).toContainText(item!.reference)
+    await expect(historyCard).toContainText(/250\s?000/)
+    await expect(historyCard).toContainText('Orange Money')
   })
 })
 

@@ -520,16 +520,18 @@ export async function simulateDeliveredBcViaApi(
 // ─── F02 lot B — circuit hors SA (EB main-d'œuvre → BT → déboursé) ───────────
 
 /**
- * Crée une EB **hors SA** (lignes de main-d'œuvre uniquement) et la soumet.
+ * Crée une EB **hors SA** (lignes de main-d'œuvre uniquement), chiffrée par le
+ * DT à la saisie, et la soumet.
  *
  * Le DT part d'une fiche vierge, saisit une ligne en famille `main_oeuvre`
- * (donc hors SA — cf. `shared/chargeFlow.ts`) puis soumet. L'EB suit le circuit
- * habituel jusqu'au DAF ; c'est **après** l'approbation finance qu'elle
- * bifurque vers le BT, sans passer par le SA (décision CdG 16/10/2026).
+ * (donc hors SA — cf. `shared/chargeFlow.ts`) avec son PU, puis soumet.
+ * Depuis I110, l'EB part **directement en `cdg_review`** (le SA n'est plus un
+ * gicrot) ; après approbation CdG puis DAF, elle bifurque vers le BT
+ * (décision CdG 16/10/2026).
  */
 export async function createHorsSaEbViaApi(
   request: APIRequestContext,
-  options: { label?: string; quantity?: number; spendCategory?: string } = {},
+  options: { label?: string; quantity?: number; unitPrice?: number; spendCategory?: string } = {},
 ): Promise<{ id: string; status: string; reference: string }> {
   await loginBtpApi(request, 'dt')
   const blank = await request.post(`${API_BASE}/api/v1/procurement/drafts/blank`, {
@@ -546,6 +548,7 @@ export async function createHorsSaEbViaApi(
           label: options.label ?? "Main d'œuvre carrelage",
           quantity: options.quantity ?? 10,
           unit: 'jour',
+          unitPrice: options.unitPrice ?? 25_000,
           spendCategory: options.spendCategory ?? 'mo_carrelage',
         },
       ],

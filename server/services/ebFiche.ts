@@ -5,6 +5,7 @@
  */
 
 import { withPrintBar } from '../lib/htmlPrint.js'
+import { chargeNatureLabel } from '../../shared/chargeNatures.js'
 import { versionSuffix } from '../../shared/requestVersion.js'
 import { formatSignatureTimestamp } from './ebSignature.js'
 
@@ -21,6 +22,8 @@ export const EB_FICHE_SERVICE = 'Direction Technique'
 export type EbFicheLine = {
   ref: string
   label: string
+  /** Libellé de la catégorie de charge (colonne C du journal — `chargeNatureLabel`). */
+  category?: string
   unit: string
   quantity: string
   unitPrice?: string
@@ -63,17 +66,21 @@ const EMPTY_LINE_COUNT = 4
 export function generateEbFicheHtml(data: EbFicheData): string {
   const service = data.service ?? EB_FICHE_SERVICE
   const pad = Math.max(0, EMPTY_LINE_COUNT - data.lines.length)
+  // Le mode de paiement est une donnée d'entête (décision DT) — plus de colonne
+  // par ligne : COMPTANT pour une EB 100 % hors SA, sinon les modes présents.
+  const modes = [...new Set(data.lines.map((l) => (l.paymentMode ?? '').trim()).filter(Boolean))]
+  const modePaiement = modes.length === 1 ? modes[0]! : modes.length > 1 ? modes.join(' · ') : 'COMPTANT'
   const rows = [
     ...data.lines.map(
       (l) => `<tr>
         <td class="ref">${escapeHtml(l.ref)}</td>
         <td class="des">${escapeHtml(l.label)}</td>
+        <td>${escapeHtml(l.category ?? '')}</td>
         <td>${escapeHtml(l.unit)}</td>
         <td class="qty">${escapeHtml(l.quantity)}</td>
         <td class="num">${escapeHtml(l.unitPrice ?? '')}</td>
         <td class="num">${escapeHtml(l.amount ?? '')}</td>
         <td>${escapeHtml(l.supplierName ?? '')}</td>
-        <td>${escapeHtml(l.paymentMode ?? '')}</td>
         <td>${escapeHtml(l.observation ?? '')}</td>
       </tr>`,
     ),
@@ -160,18 +167,24 @@ export function generateEbFicheHtml(data: EbFicheData): string {
           <div class="value">${escapeHtml(data.treatmentDate)}</div>
         </td>
       </tr>
+      <tr>
+        <td colspan="5">
+          <div class="label">MODE DE PAIEMENT</div>
+          <div class="value">${escapeHtml(modePaiement)}</div>
+        </td>
+      </tr>
     </table>
     <table class="lines">
       <thead>
         <tr>
           <th>Réf</th>
           <th>Désignations</th>
+          <th>Catégorie</th>
           <th>Unité</th>
           <th>Quantité</th>
-          <th>Prix Unitaire</th>
+          <th>PU</th>
           <th>Montant</th>
-          <th>Fournisseur</th>
-          <th>Mode de paiement</th>
+          <th>Fournisseur / Bénéficiaire</th>
           <th>Observations</th>
         </tr>
       </thead>
@@ -219,11 +232,13 @@ export function ficheLinesFromParsed(
     paymentMode?: string
     unitPrice?: number
     amount?: number
+    spendCategory?: string
   }>,
 ): EbFicheLine[] {
   return lines.map((l, i) => ({
     ref: String(i + 1),
     label: l.label,
+    category: l.spendCategory ? chargeNatureLabel(l.spendCategory) : '',
     unit: l.unit,
     quantity: String(l.quantity),
     unitPrice: l.unitPrice != null ? String(l.unitPrice) : '',

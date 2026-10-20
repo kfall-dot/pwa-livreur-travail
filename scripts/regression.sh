@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 # Mettre à jour si des tests sont ajoutés/supprimés intentionnellement.
-MIN_E2E_TESTS=131
+MIN_E2E_TESTS=132
 
 echo "══════════════════════════════════════════════════════════════"
 echo "  Non-régression PWA Livreur"
