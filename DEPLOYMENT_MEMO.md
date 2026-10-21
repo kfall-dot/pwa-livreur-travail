@@ -96,7 +96,7 @@ git push --no-verify origin master
 |---|---|
 | **Dépôt GitHub** | `https://github.com/kfall-dot/pwa-livreur-travail` (privé) |
 | **Branche** | `master` |
-| **Dernier commit** | `3e99485` — retrait artefacts `.wrangler` du suivi |
+| **Dernier commit** | `b6ed2b2` — retrait artefacts Cloudflare Workers (cible unique Railway/Netlify) |
 
 ---
 
@@ -106,6 +106,7 @@ git push --no-verify origin master
 2. **Pre-push hook** : 8 specs E2E échouent sur des sélecteurs décalés (pas des régressions). Corriger les specs ou utiliser `--no-verify`.
 3. **Deux bases Neon** : celle pointée par **Railway** (`NETLIFY_DB_URL`) contient les 3 chauffeurs démo ; le pilote BTP/Netlify vit dans une autre base/webhook. Garder les deux `NETLIFY_DB_URL` cohérentes si besoin.
 4. **`server/db/index.ts`** rollbacké dans `pwa-livreur` (original) — seul `-travail` contient le fix.
+5. **Front Netlify en prod antérieur au code courant** : le bundle servi (`index-CxDImCip.js`, ~1,06 Mo) ne contient pas les chaînes des derniers commits front (`trésorerie`, `natures`, `CdG`, `rejeu`) alors que le build local (`index-D_IvVJic.js`, ~1,49 Mo) les contient. Le déploiement Netlify est **manuel** (`npx netlify deploy --prod`, aucun workflow CI Netlify) : un redéploiement n'a pas été lancé dans cette session.
 
 ---
 
@@ -117,3 +118,15 @@ git push --no-verify origin master
 4. `fix(db)` `netlify-db` → `neon-serverless` (Pool WebSocket) — compatibilité `@neondatabase/serverless` 1.1.0
 5. `chore(git)` ignorer + retirer artefacts `.wrangler` du suivi
 6. Smoke-test : `/api/health` OK + login 3 chauffeurs (JWT signé) ✅
+
+---
+
+## 📝 Changelog session 21 octobre 2026 (nettoyage Cloudflare Workers)
+
+1. `chore(deploy)` suppression de `wrangler.jsonc`, `server/worker.ts`, `server/worker.entry.ts`, `pages/_routes.json`
+2. `chore(deploy)` retrait des scripts `pages:dev` / `pages:build:*` / `pages:deploy:*` (`package.json`)
+3. `refactor(server)` `server/index.ts` : suppression du garde `WebSocketPair` (adaptateur Workers) — démarrage Node inconditionnel
+4. `chore(lint)` retrait de `.wrangler` des ignores ESLint
+5. `docs` `DEPLOYMENT_MEMO.md` : Cloudflare documenté comme expérimentation abandonnée, cible unique Railway/Netlify
+6. Validations : typecheck front + serveur OK, build front + serveur OK, lint OK, **281/281 tests unitaires OK**
+7. Smoke-test prod : `/api/health` Railway → HTTP 200 `{"ok":true}` ; front Netlify → HTTP 200
