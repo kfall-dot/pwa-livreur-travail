@@ -313,6 +313,7 @@ Le rapport du CdG classe **déjà** les 35 natures en 2 blocs (annexe §3D). Le 
 | Saisie / édition d'EB | `technical_director` | Sélecteur **nature groupée par famille** (`<optgroup>`) sur chaque ligne | `mgr-achats-line-category-{i}` |
 | Filtre CdG | `controle_gestion` | Filtre **famille** puis filtre **nature** sur le suivi chantier | `mgr-cdg-filter-family`, `mgr-cdg-filter-category` |
 | Indicateurs chantier | `controle_gestion`, `daf`, `pdg` | **Part des matériaux** (corrigée) + **ventilation par famille** | `mgr-cdg-families` |
+| Budget vs réalisé par famille | `controle_gestion`, `daf`, `pdg` | **Drill-down par nature** (demande CdG, façon Feuil2) : ▸ déplie le réalisé d'une famille en lignes par nature (Σ = sous-total famille, I113) ; aucune enveloppe par nature | `mgr-cdg-variance-expand-{family}`, `mgr-cdg-variance-nature-{family}-{category}` |
 | Référentiel (CRUD) | — | *Différé en F02-A.2* — voir §6.2.1 | — |
 
 ---

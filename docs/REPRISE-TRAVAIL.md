@@ -220,6 +220,12 @@ Les quatre derniers points sont des **bugs corrigés en cours de recette client*
 ils n'ont pas d'invariant e2e propre, seulement un test unitaire ou une
 vérification manuelle. Ne pas les réintroduire.
 
+### 6.1 Livré depuis (oct. 2026)
+
+| Livraison | Invariant |
+|---|---|
+| **Drill-down CdG par nature** (demande CdG, façon Feuil2 du journal DG CI ENERGIE) : dans « Budget vs réalisé par famille », ▸ déplie le réalisé d'une famille en lignes par nature — Σ natures = sous-total famille, aucune enveloppe par nature (F03 ventile par famille). Logique pure `shared/budgetAllocation.ts:groupRealizedByNature` (source unique `byCategory`, aucun changement serveur/base). | I113 |
+
 ---
 
 ## 7. Prochaines étapes connues

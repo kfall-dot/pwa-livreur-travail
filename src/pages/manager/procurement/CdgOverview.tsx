@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ebSpendCategoryLabel } from '../../../../shared/ebSpendCategory'
-import { CHARGE_FAMILIES } from '../../../../shared/chargeNatures'
+import { CHARGE_FAMILIES, type ChargeFamily } from '../../../../shared/chargeNatures'
+import { groupRealizedByNature } from '../../../../shared/budgetAllocation'
 import { fetchRequests, saveBudgetAllocations } from './procurementApi'
 import { css, formatFcfa, formatPct } from './procurementUi'
 import type {
@@ -344,6 +345,22 @@ export function CdgFamilyVarianceCard({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Record<string, string>>({})
+  // Drill-down CdG (façon Feuil2) : familles dépliées → réalisé détaillé par nature.
+  const [expanded, setExpanded] = useState<Set<ChargeFamily>>(new Set())
+
+  const natureRows = useMemo(
+    () => groupRealizedByNature(indicators?.byCategory ?? []),
+    [indicators?.byCategory],
+  )
+
+  const toggleFamily = (family: ChargeFamily) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(family)) next.delete(family)
+      else next.add(family)
+      return next
+    })
+  }
 
   const startEdit = () => {
     const next: Record<string, string> = {}
@@ -443,47 +460,98 @@ export function CdgFamilyVarianceCard({
           <tbody>
             {variance.rows.map((row) => {
               const light = LIGHT_STYLE[row.trafficLight]
+              const details = natureRows.get(row.family) ?? []
+              const isOpen = expanded.has(row.family)
               return (
-                <tr key={row.family} data-testid={`mgr-cdg-variance-row-${row.family}`}>
-                  <td style={css.lineTd}>
-                    {familyEmoji(row.family)} {row.label}
-                  </td>
-                  <td style={css.lineTd}>
-                    {editing ? (
-                      <input
-                        type="number"
-                        min={0}
-                        value={draft[row.family] ?? ''}
-                        onChange={(e) => setDraft((p) => ({ ...p, [row.family]: e.target.value }))}
-                        style={{ ...css.input, width: 130 }}
-                        data-testid={`mgr-cdg-variance-input-${row.family}`}
-                      />
-                    ) : (
-                      formatFcfa(row.allocatedFcfa)
-                    )}
-                  </td>
-                  <td style={css.lineTd}>{formatFcfa(row.realizedFcfa)}</td>
-                  <td style={{ ...css.lineTd, fontWeight: 600, color: light.color }}>
-                    {formatFcfa(row.varianceFcfa)}
-                  </td>
-                  <td style={css.lineTd}>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        background: light.bg,
-                        color: light.color,
-                        borderRadius: 999,
-                        padding: '2px 8px',
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {light.dot} {row.consumedPct == null ? '—' : formatPct(row.consumedPct)}
-                    </span>
-                  </td>
-                </tr>
+                <Fragment key={row.family}>
+                  <tr data-testid={`mgr-cdg-variance-row-${row.family}`}>
+                    <td style={css.lineTd}>
+                      {details.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleFamily(row.family)}
+                          aria-expanded={isOpen}
+                          title={
+                            isOpen
+                              ? 'Replier le détail par nature'
+                              : 'Détail du réalisé par nature (façon journal CdG)'
+                          }
+                          style={{
+                            ...css.input,
+                            padding: '0 5px',
+                            marginRight: 5,
+                            lineHeight: 1.4,
+                            fontSize: 10,
+                          }}
+                          data-testid={`mgr-cdg-variance-expand-${row.family}`}
+                        >
+                          {isOpen ? '▾' : '▸'}
+                        </button>
+                      ) : null}
+                      {familyEmoji(row.family)} {row.label}
+                    </td>
+                    <td style={css.lineTd}>
+                      {editing ? (
+                        <input
+                          type="number"
+                          min={0}
+                          value={draft[row.family] ?? ''}
+                          onChange={(e) => setDraft((p) => ({ ...p, [row.family]: e.target.value }))}
+                          style={{ ...css.input, width: 130 }}
+                          data-testid={`mgr-cdg-variance-input-${row.family}`}
+                        />
+                      ) : (
+                        formatFcfa(row.allocatedFcfa)
+                      )}
+                    </td>
+                    <td style={css.lineTd}>{formatFcfa(row.realizedFcfa)}</td>
+                    <td style={{ ...css.lineTd, fontWeight: 600, color: light.color }}>
+                      {formatFcfa(row.varianceFcfa)}
+                    </td>
+                    <td style={css.lineTd}>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          background: light.bg,
+                          color: light.color,
+                          borderRadius: 999,
+                          padding: '2px 8px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {light.dot} {row.consumedPct == null ? '—' : formatPct(row.consumedPct)}
+                      </span>
+                    </td>
+                  </tr>
+                  {isOpen
+                    ? details.map((n) => (
+                        <tr
+                          key={`${row.family}-${n.category}`}
+                          style={{ background: '#f8fafc', color: '#475569' }}
+                          data-testid={`mgr-cdg-variance-nature-${row.family}-${n.category}`}
+                        >
+                          <td style={{ ...css.lineTd, paddingLeft: 34 }}>
+                            {catEmoji(n.category)} {n.label}
+                          </td>
+                          {/* Enveloppe ventilée par famille (F03) : pas d'enveloppe ni d'écart par nature. */}
+                          <td style={{ ...css.lineTd, color: '#94a3b8' }}>—</td>
+                          <td style={css.lineTd}>
+                            {formatFcfa(n.amountFcfa)}
+                            {n.shareOfFamilyPct != null && (
+                              <span style={{ ...css.meta, marginLeft: 6 }}>
+                                · {n.shareOfFamilyPct} %
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ ...css.lineTd, color: '#94a3b8' }}>—</td>
+                          <td style={{ ...css.lineTd, color: '#94a3b8' }}>—</td>
+                        </tr>
+                      ))
+                    : null}
+                </Fragment>
               )
             })}
             <tr style={{ fontWeight: 700 }}>
@@ -529,7 +597,8 @@ export function CdgFamilyVarianceCard({
 
       <p style={{ ...css.meta, marginTop: 8 }}>
         Réalisé = BC livrés + EB hors SA payées. Un dépassement est une <strong>alerte</strong>,
-        jamais un blocage.
+        jamais un blocage. Cliquez sur ▸ pour le détail du réalisé par nature (façon journal
+        CdG) — l’enveloppe, elle, reste ventilée par famille.
       </p>
     </div>
   )

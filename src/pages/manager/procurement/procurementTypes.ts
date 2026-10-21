@@ -1,4 +1,5 @@
 /** Types alignés sur l’API /procurement/* et le schéma BTP. */
+import type { ChargeFamily } from '../../../../shared/chargeNatures'
 
 export type ProcurementRole =
   | 'site_controller'
@@ -467,7 +468,7 @@ export interface BudgetFamilyAllocation {
 
 /** Une ligne du tableau à double entrée : enveloppe ventilée vs réalisé. */
 export interface FamilyVarianceRow {
-  family: string
+  family: ChargeFamily
   label: string
   allocatedFcfa: number
   realizedFcfa: number
@@ -486,7 +487,7 @@ export interface FamilyVariance {
   /** Enveloppe non encore ventilée (`budget_total − Σ allocations`). */
   unallocatedFcfa: number | null
   allocationOverBudget: boolean
-  overrunFamilies: string[]
+  overrunFamilies: ChargeFamily[]
 }
 
 // ─── F02 lot B — poste Trésorerie ────────────────────────────────────────────

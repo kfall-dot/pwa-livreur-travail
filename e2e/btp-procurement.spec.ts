@@ -2371,6 +2371,33 @@ test.describe('F03 — budget vs réalisé par famille', () => {
     )
     await expect(page.getByTestId('mgr-cdg-variance-edit')).toBeVisible()
 
+    // ── Drill-down CdG (façon Feuil2, demande terrain) : le réalisé d'une
+    //    famille se déplie par nature. Le seed a déjà livré des BC matériaux →
+    //    la famille matériaux a un réalisé > 0 → chevron présent. Les familles
+    //    sans dépense (engins, frais) n'ont PAS de chevron.
+    const expandMat = page.getByTestId('mgr-cdg-variance-expand-materiaux')
+    await expect(expandMat, 'famille matériaux dépensée → chevron').toBeVisible()
+    await expect(
+      page.getByTestId('mgr-cdg-variance-expand-engins'),
+      'engins sans dépense → pas de chevron',
+    ).toHaveCount(0)
+
+    // Replié par défaut : aucune ligne nature avant le clic
+    await expect(page.getByTestId('mgr-cdg-variance-nature-materiaux-ciments')).toHaveCount(0)
+    await expandMat.click()
+    // Au moins une nature matériau dépliée, et sa ligne montre un montant + « — »
+    // côté enveloppe (pas d'enveloppe par nature — F03 ventile par famille).
+    const matNatureRows = page.locator('[data-testid^="mgr-cdg-variance-nature-materiaux-"]')
+    await expect(matNatureRows.first()).toBeVisible()
+    expect(await matNatureRows.count()).toBeGreaterThan(0)
+    // Σ natures = sous-total famille (I113) : le réalisé famille reste le même
+    // qu'avant le dépli (le drill-down ne recalcule rien).
+    const matRow = page.getByTestId('mgr-cdg-variance-row-materiaux')
+    await expect(matRow).toContainText('8 000 000') // enveloppe famille inchangée
+    // Replier : les lignes natures disparaissent
+    await expandMat.click()
+    await expect(page.locator('[data-testid^="mgr-cdg-variance-nature-materiaux-"]')).toHaveCount(0)
+
     // ── La ventilation est réservée au CdG : vérifié au niveau API plus haut
     // (PUT allocations en rôle DAF → 403). L'UI DAF n'expose pas les
     // mgr-cdg-row-details-* (vue synthèse sans détail par chantier),

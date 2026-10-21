@@ -15,7 +15,13 @@ import {
   roundPct,
   type BudgetTrafficLight,
 } from './budgetTrafficLight.js'
-import { CHARGE_FAMILIES, chargeFamilyLabel, type ChargeFamily } from './chargeNatures.js'
+import {
+  CHARGE_FAMILIES,
+  chargeFamilyLabel,
+  chargeNatureFamily,
+  chargeNatureLabel,
+  type ChargeFamily,
+} from './chargeNatures.js'
 
 export type FamilyAllocation = { family: ChargeFamily; amountFcfa: number }
 export type FamilyRealized = { family: ChargeFamily; amountFcfa: number }
@@ -144,4 +150,63 @@ export function normalizeAllocations(input: unknown): FamilyAllocation[] {
     byFamily.set(family, (byFamily.get(family) ?? 0) + Math.trunc(amount))
   }
   return [...byFamily.entries()].map(([family, amountFcfa]) => ({ family, amountFcfa }))
+}
+
+/** Réalisé agrégé par nature — `SiteIndicators.byCategory` alimente directement ce format. */
+export type NatureRealized = { category: string; label: string; amountFcfa: number }
+
+/**
+ * Détail du réalisé d'une famille, ventilé **par nature** (demande CdG —
+ * présentation façon Feuil2 du journal DG CI ENERGIE, où chaque rubrique de
+ * dépense a sa ligne sous son sous-total).
+ */
+export type NatureRealizedRow = NatureRealized & {
+  /** Part du réalisé **de la famille**, en % (`null` si la famille est à 0). */
+  shareOfFamilyPct: number | null
+}
+
+/**
+ * Drill-down : réalisé par nature, regroupé **par famille de charge**.
+ *
+ * La ligne famille reste le sous-total exact de ses natures (Σ = réalisé
+ * famille, invariant I113) : les natures inconnues du référentiel sont donc
+ * **écartées du détail** (le sous-total famille, lui, est inchangé — il vient
+ * de `computeFamilyVariance`, pas d'ici). Les montants ≤ 0 sont ignorés.
+ * Tri par montant décroissant au sein de chaque famille.
+ *
+ * L'enveloppe n'étant ventilée que **par famille** (F03), aucune enveloppe ni
+ * écart par nature n'est calculé ici — c'est la règle d'honnêteté budgétaire.
+ */
+export function groupRealizedByNature(
+  categories: ReadonlyArray<NatureRealized>,
+): Map<ChargeFamily, NatureRealizedRow[]> {
+  const byNature = new Map<string, number>()
+  const realizedByFamily = new Map<ChargeFamily, number>()
+  for (const c of categories) {
+    const amount = Number(c.amountFcfa)
+    if (!Number.isFinite(amount) || amount <= 0) continue
+    const family = chargeNatureFamily(c.category)
+    if (!family) continue
+    byNature.set(c.category, (byNature.get(c.category) ?? 0) + amount)
+    realizedByFamily.set(family, (realizedByFamily.get(family) ?? 0) + amount)
+  }
+
+  const out = new Map<ChargeFamily, NatureRealizedRow[]>()
+  for (const [category, amountFcfa] of byNature) {
+    const family = chargeNatureFamily(category)!
+    const familyTotal = realizedByFamily.get(family) ?? 0
+    const row: NatureRealizedRow = {
+      category,
+      label: chargeNatureLabel(category),
+      amountFcfa,
+      shareOfFamilyPct: familyTotal > 0 ? roundPct((amountFcfa / familyTotal) * 100) : null,
+    }
+    const list = out.get(family) ?? []
+    list.push(row)
+    out.set(family, list)
+  }
+  for (const list of out.values()) {
+    list.sort((a, b) => b.amountFcfa - a.amountFcfa || a.category.localeCompare(b.category))
+  }
+  return out
 }

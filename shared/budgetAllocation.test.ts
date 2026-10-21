@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeFamilyVariance, normalizeAllocations } from './budgetAllocation.ts'
+import { computeFamilyVariance, groupRealizedByNature, normalizeAllocations } from './budgetAllocation.ts'
 
 describe('budgetAllocation — budget vs réalisé par famille (F03)', () => {
   it('présente TOUJOURS les 4 familles, même sans allocation ni dépense', () => {
@@ -142,5 +142,69 @@ describe('normalizeAllocations — entrées client', () => {
     assert.deepEqual(normalizeAllocations(undefined), [])
     assert.deepEqual(normalizeAllocations('x'), [])
     assert.deepEqual(normalizeAllocations({}), [])
+  })
+})
+
+describe('groupRealizedByNature — drill-down CdG par nature (façon Feuil2)', () => {
+  it('regroupe par famille, trie par montant décroissant et libelle chaque nature', () => {
+    const out = groupRealizedByNature([
+      { category: 'livraison_materiels', label: 'Livraison de matériels', amountFcfa: 100_000 },
+      { category: 'salaire_technicien', label: 'Salaires technicien', amountFcfa: 300_000 },
+      { category: 'ciments', label: 'Ciments', amountFcfa: 500_000 },
+      { category: 'ramassage_demolition', label: 'Ramassage / démolition et décapage', amountFcfa: 200_000 },
+    ])
+    assert.equal(out.size, 3)
+    assert.deepEqual(
+      (out.get('main_oeuvre') ?? []).map((r) => r.category),
+      ['salaire_technicien'],
+    )
+    assert.deepEqual(
+      (out.get('engins') ?? []).map((r) => r.category),
+      ['ramassage_demolition', 'livraison_materiels'],
+      'tri par montant décroissant au sein de la famille',
+    )
+    const ciment = out.get('materiaux')![0]!
+    assert.equal(ciment.label, 'Ciments')
+    assert.equal(ciment.amountFcfa, 500_000)
+  })
+
+  it('la part est calculée sur le réalisé de la famille (Σ natures = sous-total famille, I113)', () => {
+    const out = groupRealizedByNature([
+      { category: 'ciments', label: 'Ciments', amountFcfa: 300_000 },
+      { category: 'ferraille', label: 'Ferraille', amountFcfa: 100_000 },
+    ])
+    const rows = out.get('materiaux')!
+    assert.equal(rows.reduce((sum, r) => sum + r.amountFcfa, 0), 400_000)
+    assert.equal(rows.find((r) => r.category === 'ciments')!.shareOfFamilyPct, 75)
+    assert.equal(rows.find((r) => r.category === 'ferraille')!.shareOfFamilyPct, 25)
+  })
+
+  it('fusionne les doublons de nature (plusieurs jours de dépense)', () => {
+    const out = groupRealizedByNature([
+      { category: 'livraison_materiels', label: 'Livraison de matériels', amountFcfa: 60_000 },
+      { category: 'livraison_materiels', label: 'Livraison de matériels', amountFcfa: 40_000 },
+    ])
+    const rows = out.get('engins')!
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0]!.amountFcfa, 100_000)
+    assert.equal(rows[0]!.shareOfFamilyPct, 100)
+  })
+
+  it('ignore les montants ≤ 0 et les natures hors référentiel — jamais de nature à 0 affichée', () => {
+    const out = groupRealizedByNature([
+      { category: 'ciments', label: 'Ciments', amountFcfa: 0 },
+      { category: 'sable', label: 'Sable', amountFcfa: -50 },
+      { category: 'nature_inconnue', label: '???', amountFcfa: 1_000 },
+      { category: 'peinture', label: 'Peinture', amountFcfa: 200_000 },
+    ])
+    assert.equal(out.size, 1)
+    assert.deepEqual(
+      (out.get('materiaux') ?? []).map((r) => r.category),
+      ['peinture'],
+    )
+  })
+
+  it('sans dépense : aucune famille ne ressort (pas de chevron côté UI)', () => {
+    assert.equal(groupRealizedByNature([]).size, 0)
   })
 })
