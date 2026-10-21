@@ -11,7 +11,6 @@ export default defineConfig([
     'dist-server',
     'dev-dist',
     '.netlify',
-    '.wrangler',
     'node_modules',
     'playwright-report',
     'test-results',

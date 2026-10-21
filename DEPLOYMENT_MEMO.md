@@ -10,15 +10,11 @@
 |---|---|---|---|
 | **App PWA complète** (UI livreur + manager) | `https://pwa-livreur.netlify.app` | Netlify | ✅ Prod |
 | **API métier** (Express + DB Postgres) | `https://pwa-livreur-travail-production.up.railway.app/api/*` | Railway | ✅ Prod |
-| **Worker Cloudflare** (heartbeat + cron) | `https://pwa-livreur-api.kfallou8502.workers.dev` | Cloudflare Workers | ✅ Prod |
 
 ### Endpoints de test rapide
 ```bash
 # API métier (Railway — hôte principal)
 curl https://pwa-livreur-travail-production.up.railway.app/api/health
-
-# Worker Cloudflare (heartbeat)
-curl https://pwa-livreur-api.kfallou8502.workers.dev/api/health
 ```
 
 ---
@@ -32,16 +28,9 @@ curl https://pwa-livreur-api.kfallou8502.workers.dev/api/health
 │    → appelle l'API sur Railway   │     │    └─ DB Postgres (Neon)        │
 │                                  │     │     = CŒUR DU PROJET            │
 └──────────────────────────────────┘     └─────────────────────────────────┘
-┌─────────────────────────────────────────────┐
-│  Cloudflare Worker (pwa-livreur-api)        │
-│  ├─ Heartbeat /api/health → 200             │
-│  ├─ Cron */5 * * * *                        │
-│  └─ Limitation runtime workerd :            │
-│     Express ne tourne pas ici               │
-└─────────────────────────────────────────────┘
 ```
 
-**Point clé** : l'API métier (Express + Drizzle + Postgres) tourne sur **Railway** (Docker), servie en Prod. Le frontend Netlify consomme `https://pwa-livreur-travail-production.up.railway.app/api/*`. Le worker Cloudflare ne sert qu'un heartbeat car le runtime `workerd` ne supporte pas correctement le shim `node:http` d'Express (validé sur serverless-http, stream et Writable).
+**Point clé** : l'API métier (Express + Drizzle + Postgres) tourne sur **Railway** (Docker), servie en Prod. Le frontend Netlify consomme `https://pwa-livreur-travail-production.up.railway.app/api/*`. (Expérimentation Cloudflare Workers abandonnée en octobre 2026 : le runtime `workerd` ne supporte pas le shim `node:http` d'Express, validé sur serverless-http/stream/Writable — artefacts retirés du dépôt.)
 
 ---
 
@@ -79,12 +68,6 @@ Chauffeurs démo actifs (base Neon pointée par Railway) : **Kouassi Livreur** `
 # Build serveur (tsc → dist-server/)
 npm run build:server
 
-# Déployer le worker Cloudflare
-npx wrangler deploy
-
-# Logs du worker en temps réel
-npx wrangler tail pwa-livreur-api
-
 # Tests unitaires
 npx tsx --test server/**/*.test.ts
 
@@ -114,7 +97,6 @@ git push --no-verify origin master
 | **Dépôt GitHub** | `https://github.com/kfall-dot/pwa-livreur-travail` (privé) |
 | **Branche** | `master` |
 | **Dernier commit** | `3e99485` — retrait artefacts `.wrangler` du suivi |
-| **Compte Cloudflare** | sous-domaine `kfallou8502.workers.dev` |
 
 ---
 

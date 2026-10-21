@@ -15,29 +15,24 @@ validateProductionSecurityAtStartup()
 
 export const app = createApp()
 
-// Sur Cloudflare Workers, c'est le module worker.ts qui monte l'application :
-// pas d'app.listen ni de port. La compilation de worker.ts est déjà assurée
-// par server/worker.entry.ts dans tsconfig.server.json.
-const runningInWorkers = 'WebSocketPair' in globalThis
-if (!runningInWorkers) {
-  // Migrations idempotentes au démarrage (Railway) — avant l'écoute HTTP.
-  // Désactivation ponctuelle : SKIP_MIGRATIONS=1.
-  if (process.env.SKIP_MIGRATIONS !== '1') {
-    try {
-      await applyMigrations()
-    } catch (err) {
-      console.error('[migrations] échec au démarrage :', err instanceof Error ? err.message : err)
-      process.exit(1)
-    }
+// Serveur HTTP Node (Railway / Netlify Functions) : migrations au démarrage
+// puis écoute HTTP. La cible de déploiement est Node — pas d'adaptateur
+// serverless/edge (expérimentation Cloudflare Workers abandonnée).
+if (process.env.SKIP_MIGRATIONS !== '1') {
+  try {
+    await applyMigrations()
+  } catch (err) {
+    console.error('[migrations] échec au démarrage :', err instanceof Error ? err.message : err)
+    process.exit(1)
   }
-  const PORT = Number(process.env.PORT ?? 3002)
-  app.listen(PORT, () => {
-    console.log(`API Livreur → http://localhost:${PORT}/api`)
-    console.log(`Health      → http://localhost:${PORT}/api/health`)
-    console.log(`E-mail      → ${describeEmailProvider()}`)
-    console.log(`SMS OTP     → ${describeSmsProvider()}`)
-    if (testBypass.geofence) {
-      console.log('GEOFENCE_BYPASS actif (tests)')
-    }
-  })
 }
+const PORT = Number(process.env.PORT ?? 3002)
+app.listen(PORT, () => {
+  console.log(`API Livreur → http://localhost:${PORT}/api`)
+  console.log(`Health      → http://localhost:${PORT}/api/health`)
+  console.log(`E-mail      → ${describeEmailProvider()}`)
+  console.log(`SMS OTP     → ${describeSmsProvider()}`)
+  if (testBypass.geofence) {
+    console.log('GEOFENCE_BYPASS actif (tests)')
+  }
+})
