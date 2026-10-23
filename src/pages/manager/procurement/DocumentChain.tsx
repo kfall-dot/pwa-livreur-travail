@@ -272,7 +272,7 @@ export function DocumentChain({
               key={bc.id}
               kind="bc"
               title={`BC ${bc.reference}`}
-              subtitle={`${bc.supplierName}${bc.tourDate ? ` · tournée du ${bc.tourDate}` : ''}`}
+              subtitle={`${bc.supplierName}${bc.tourDate ? ` · tournée du ${bc.tourDate}` : ''}${bc.invoicePaid ? ' · Payé' : bc.invoiceTransmitted ? ' · À payer' : ''}`}
               amountFcfa={bc.amountFcfa}
               highlighted={chainHighlightMatches(highlight, 'bc', bc.id)}
             >

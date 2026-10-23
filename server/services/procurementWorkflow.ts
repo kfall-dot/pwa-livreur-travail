@@ -1,3 +1,4 @@
+import { payMaterialInvoice } from './materialInvoicePayment.js'
 import { getProcurementConfig } from '../config/procurement.js'
 import { getManagerById } from '../db/queries.js'
 import { db } from '../db/index.js'
@@ -56,6 +57,7 @@ import {
 } from './pdfDocuments.js'
 import { signoffFromApprovalSteps } from './ebFiche.js'
 import {
+  notifyManagersByProcurementRole,
   notifyPurchaseOrderReady,
   notifyRequestRevised,
   notifyRequestStatusChange,
@@ -374,6 +376,11 @@ export async function disburseTreasuryOrder(input: {
 }) {
   const treasury = await getTreasuryOrderById(input.companyId, input.treasuryOrderId)
   if (!treasury) throw new ProcurementWorkflowError('Bon de trésorerie introuvable', 404)
+  if (treasury.purpose === 'material_invoice') {
+    const result = await payMaterialInvoice(input)
+    if (result.request) await notifyManagersByProcurementRole(input.companyId, ['treasury', 'accountant', 'purchasing', 'controle_gestion', 'daf'], `Paiement enregistré — ${result.request.reference}`, result.allPaid ? 'Tous les BC de cette EB sont payés.' : 'Un BC de cette EB est payé. Les autres règlements restent à traiter.', { refType: 'purchase_request', refId: result.request.id, notificationType: 'task_assigned' }).catch(err => console.error('[payment notify]', err))
+    return result
+  }
 
   const request = await getPurchaseRequestById(input.companyId, treasury.purchaseRequestId)
   if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)

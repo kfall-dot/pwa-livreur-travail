@@ -1428,7 +1428,7 @@ export function AchatsTab({
         />
       ) : showRequestDetail ? (
         <RequestDetailPanel
-          detail={requestDetail}
+          detail={{ ...requestDetail, request: { ...requestDetail.request, paymentStatus: requests.find(r => r.id === requestDetail.request.id)?.paymentStatus ?? requestDetail.request.paymentStatus } }}
           readOnly={!editLock.ownedByMe}
           currentManagerId={saActor.id}
           saSupervisorId={saActor.supervisorId}
@@ -1718,7 +1718,7 @@ export function AchatsTab({
                         <span style={{ color: 'var(--text)' }}>{r.siteName ?? 'Chantier'}</span>
                       </td>
                       <td style={tdStyle}>
-                        <ProcurementStatusBadge status={r.status} />
+                        <ProcurementStatusBadge status={r.status} paymentStatus={r.paymentStatus} />
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
                         {formatFcfa(r.totalAmountFcfa)}
@@ -2999,7 +2999,7 @@ export function RequestDetailPanel({
             {request.urgency === 'urgent' ? ' · Urgent' : ''}
           </p>
         </div>
-        <ProcurementStatusBadge status={request.status} />
+        <ProcurementStatusBadge status={request.status} paymentStatus={request.paymentStatus} />
       </div>
 
       {showApprove && (

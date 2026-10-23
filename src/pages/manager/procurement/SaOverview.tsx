@@ -301,7 +301,7 @@ export function SaOverview({
                       <Pipeline step={pipelineStep(r)} />
                     </td>
                     <td style={css.lineTd}>
-                      <ProcurementStatusBadge status={r.status} />
+                      <ProcurementStatusBadge status={r.status} paymentStatus={r.paymentStatus} />
                     </td>
                     <td style={css.lineTd}>{r.totalAmountFcfa == null ? '--' : formatFcfa(r.totalAmountFcfa)}</td>
                     <td style={css.lineTd}>

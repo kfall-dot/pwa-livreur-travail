@@ -1,3 +1,4 @@
+import { MaterialInvoiceError, transmitMaterialInvoice, materialPaymentStatuses } from '../services/materialInvoicePayment.js'
 import { Router } from 'express'
 import { procurementEditLock } from '../middleware/procurementEditLock.js'
 import { isEbInitiator } from '../lib/ebOwnership.js'
@@ -343,7 +344,7 @@ const scheduleSchema = z.object({
 })
 
 function handleWorkflowError(err: unknown, res: import('express').Response): boolean {
-  if (err instanceof ProcurementWorkflowError) {
+  if (err instanceof ProcurementWorkflowError || err instanceof MaterialInvoiceError) {
     res.status(err.statusCode).json({ message: err.message })
     return true
   }
@@ -421,15 +422,29 @@ procurementRouter.patch(
   async (req, res) => {
     const body = parseBody(bcRegisterFollowupSchema, req.body, res)
     if (!body) return
-    const { manager } = req as unknown as ManagerRequest
+    const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
+    if (body.invoicePaid !== undefined) { res.status(403).json({ message: 'Seule la Trésorerie enregistre le paiement depuis son poste.' }); return }
+    if (body.invoiceTransmitted !== undefined && (procurementRole !== 'purchasing' || !body.invoiceTransmitted)) { res.status(403).json({ message: 'Seul le SA peut transmettre une facture.' }); return }
+    if (body.invoiceTransmitted && Object.keys(body).length !== 1) { res.status(400).json({ message: 'Enregistrez les informations de facture avant de la transmettre.' }); return }
     try {
-      const row = await updateBcRegisterFollowup(manager.companyId, String(req.params.poId), body)
+      const poId = String(req.params.poId)
+      if (body.invoiceTransmitted) {
+        const registerRow = (await listDeliveredBcRegister(manager.companyId)).find(row => row.purchaseOrderId === poId)
+        if (!registerRow) { res.status(404).json({ message: 'BC introuvable dans le registre des livraisons' }); return }
+        await transmitMaterialInvoice(manager.companyId, poId, registerRow.amountFcfa)
+        await notifyManagersByProcurementRole(manager.companyId, ['accountant', 'treasury'],
+          'Facture transmise — à payer', 'Le SA a transmis un dossier matériaux. L’EB et ses pièces sont consultables avant paiement.',
+          { refType: 'purchase_order', refId: poId, notificationType: 'task_assigned' }).catch(err => console.error('[invoice notify]', err))
+      }
+      const { invoiceTransmitted: _transmitted, ...followup } = body
+      const row = await updateBcRegisterFollowup(manager.companyId, poId, followup)
       if (!row) {
         res.status(404).json({ message: 'BC introuvable dans le registre' })
         return
       }
       res.json({ row })
     } catch (err) {
+      if (handleWorkflowError(err, res)) return
       console.error('[procurement] bc-register patch error', err)
       res.status(500).json({ message: 'Enregistrement suivi BC impossible' })
     }
@@ -474,20 +489,9 @@ procurementRouter.post(
       contentType,
     })
     if (!ok) {
+      await deleteLineAttachment(key).catch(() => undefined)
       res.status(404).json({ message: 'BC introuvable dans le registre' })
       return
-    }
-    // Notification du comptable (e-mail + in-app + SMS).
-    try {
-      await notifyManagersByProcurementRole(
-        manager.companyId,
-        ['accountant'],
-        `Facture transmise — ${file.originalname}`,
-        `Le Service Achats a transmis la copie de facture « ${file.originalname} » (BC ${poId}). Elle est disponible dans l'onglet Factures de la Comptabilité.`,
-        { refType: 'purchase_order', refId: poId, notificationType: 'task_assigned' },
-      )
-    } catch (err) {
-      console.error('[procurement] bc invoice notify', err)
     }
     res.json({ ok: true, fileName: file.originalname })
   },
@@ -495,7 +499,7 @@ procurementRouter.post(
 
 procurementRouter.get(
   '/bc-register/:poId/invoice-file',
-  requireProcurementRole('purchasing', 'accountant'),
+  requireProcurementRole('purchasing', 'accountant', 'treasury'),
   async (req, res) => {
     const { manager } = req as unknown as ManagerRequest
     const stored = await getBcInvoiceFile(manager.companyId, String(req.params.poId))
@@ -570,7 +574,7 @@ procurementRouter.post(
 
 procurementRouter.get(
   '/bc-register/:poId/bl-file',
-  requireProcurementRole('purchasing', 'accountant'),
+  requireProcurementRole('purchasing', 'accountant', 'treasury'),
   async (req, res) => {
     const { manager } = req as unknown as ManagerRequest
     const stored = await getBcBlFile(manager.companyId, String(req.params.poId))
@@ -1684,9 +1688,11 @@ procurementRouter.get('/requests', async (req, res) => {
   }
   // numeric Postgres → string via le driver : normaliser en nombre, sinon le front
   // concatène les totaux au lieu de les additionner (bug du montant pipeline hors BC).
+  const payments = await materialPaymentStatuses(manager.companyId)
   res.json({
     requests: requests.map((r) => ({
       ...r,
+      paymentStatus: payments.get(r.id) ?? (r.status === 'paid' ? 'paid' : null),
       totalAmountFcfa: r.totalAmountFcfa != null ? Number(r.totalAmountFcfa) : null,
     })),
   })
@@ -1706,7 +1712,7 @@ procurementRouter.get('/requests/:id', async (req, res) => {
       return
     }
   }
-  res.json(detail)
+  res.json({ ...detail, request: { ...detail.request, paymentStatus: (await materialPaymentStatuses(manager.companyId)).get(detail.request.id) ?? (detail.request.status === 'paid' ? 'paid' : null) } })
 })
 
 // GET /requests/:id/chain — chaîne documentaire EB → BT → BC → BL → facture.
@@ -2552,6 +2558,8 @@ procurementRouter.get(
         const disbursement = await getDisbursementByTreasuryOrder(manager.companyId, row.treasury.id)
         items.push({
           treasuryId: row.treasury.id,
+          purpose: row.treasury.purpose,
+          purchaseOrderId: row.treasury.purchaseOrderId,
           reference: row.treasury.reference,
           amountFcfa: Number(row.treasury.amountFcfa ?? 0),
           status: row.treasury.status,
@@ -2642,10 +2650,12 @@ procurementRouter.post(
       return
     }
 
+    const proofType = resolveLineAttachmentMime(file.originalname, file.mimetype)
+    if (!proofType) { res.status(400).json({ message: 'Justificatif PDF ou image attendu' }); return }
     const key = `treasury-disbursement/${treasuryId}/${randomUUID()}`
     try {
       await putLineAttachment(key, file.buffer, {
-        contentType: file.mimetype,
+        contentType: proofType,
         fileName: file.originalname,
       })
     } catch (err) {
@@ -2665,7 +2675,7 @@ procurementRouter.post(
         method: body.method,
         transactionReference: body.transactionReference ?? null,
         paidAt,
-        invoice: { blobKey: key, fileName: file.originalname, contentType: file.mimetype },
+        invoice: { blobKey: key, fileName: file.originalname, contentType: proofType },
       })
       res.status(201).json(result)
     } catch (err) {

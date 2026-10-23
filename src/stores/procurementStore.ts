@@ -25,7 +25,7 @@ interface ProcurementState {
   loading: boolean
   error: string | null
   /** Charge le registre (mois par défaut du serveur, ou mois explicite). */
-  load: (handleAuth: HandleAuth, selectedMonth?: string | null) => Promise<void>
+  load: (handleAuth: HandleAuth, selectedMonth?: string | null, silent?: boolean) => Promise<void>
   /** Remplace une row après confirmation serveur (patch followup, transmission…). */
   applyRow: (updated: BcRegisterRow) => void
   /** Patch local d'une row (ex. après upload de facture). */
@@ -42,9 +42,9 @@ export const useProcurementStore = create<ProcurementState>((set) => ({
   loading: true,
   error: null,
 
-  load: async (handleAuth, selectedMonth) => {
+  load: async (handleAuth, selectedMonth, silent = false) => {
     const sequence = ++loadSequence
-    set({ loading: true, error: null })
+    if (!silent) set({ loading: true, error: null })
     try {
       const q = selectedMonth ? `?month=${encodeURIComponent(selectedMonth)}` : ''
       const res = await authFetch(`/procurement/bc-register${q}`)
@@ -58,6 +58,7 @@ export const useProcurementStore = create<ProcurementState>((set) => ({
       }
       if (sequence !== loadSequence) return
       set({
+        error: null,
         rows: data.rows ?? [],
         recap: data.recap ?? [],
         months: data.months ?? [],
@@ -66,8 +67,7 @@ export const useProcurementStore = create<ProcurementState>((set) => ({
     } catch (err) {
       if (sequence !== loadSequence) return
       set({
-        rows: [],
-        recap: [],
+        ...(silent ? {} : { rows: [], recap: [] }),
         error: err instanceof Error ? err.message : 'Registre indisponible',
       })
     } finally {

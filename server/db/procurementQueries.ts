@@ -395,6 +395,7 @@ export async function listSiteMonthlyExpenses(
       .where(
         and(
           eq(treasuryDisbursements.companyId, companyId),
+          eq(treasuryOrders.purpose, 'advance'),
           gte(treasuryDisbursements.paidAt, startDate),
           lt(treasuryDisbursements.paidAt, endDate),
         ),
@@ -704,7 +705,7 @@ export async function listSiteDirectExpenseEvents(
     .from(treasuryDisbursements)
     .innerJoin(treasuryOrders, eq(treasuryDisbursements.treasuryOrderId, treasuryOrders.id))
     .innerJoin(purchaseRequests, eq(treasuryOrders.purchaseRequestId, purchaseRequests.id))
-    .where(and(eq(treasuryDisbursements.companyId, companyId), eq(purchaseRequests.siteId, siteId)))
+    .where(and(eq(treasuryDisbursements.companyId, companyId), eq(purchaseRequests.siteId, siteId), eq(treasuryOrders.purpose, 'advance')))
     .orderBy(treasuryDisbursements.paidAt)
 
   // T08 — les dépenses **historiques** rejouées depuis le journal du CdG
@@ -2381,7 +2382,8 @@ export async function listTreasuryOrdersToDisburse(companyId: string) {
         inArray(treasuryOrders.status, ['pending', 'issued']),
         // Seuls les BT du circuit hors SA sont à débourser : les BT agrégés
         // historiques du circuit matériaux restent pilotés par le BC.
-        inArray(purchaseRequests.status, ['bt_pending', 'bt_ready', 'deboursed']),
+        or(and(eq(treasuryOrders.purpose, 'advance'), inArray(purchaseRequests.status, ['bt_pending', 'bt_ready', 'deboursed'])),
+          and(eq(treasuryOrders.purpose, 'material_invoice'), sql`exists (select 1 from purchase_orders po where po.id = ${treasuryOrders.purchaseOrderId} and po.sa_invoice_transmitted = true and po.sa_invoice_paid = false)`)),
       ),
     )
     .orderBy(treasuryOrders.createdAt)
@@ -2559,7 +2561,7 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
   const allTreasury = await db
     .select({ requestId: treasuryOrders.purchaseRequestId, reference: treasuryOrders.reference })
     .from(treasuryOrders)
-    .where(inArray(treasuryOrders.purchaseRequestId, requestIds))
+    .where(and(inArray(treasuryOrders.purchaseRequestId, requestIds), eq(treasuryOrders.purpose, 'advance')))
   const treasuryByRequest = new Map<string, string[]>()
   for (const t of allTreasury) {
     const list = treasuryByRequest.get(t.requestId) ?? []
@@ -2659,7 +2661,7 @@ export async function updateBcRegisterFollowup(
   const [updated] = await db
     .update(purchaseOrders)
     .set(set)
-    .where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId)))
+    .where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId), ...(patch.invoice !== undefined ? [eq(purchaseOrders.saInvoicePaid, false)] : [])))
     .returning({ id: purchaseOrders.id })
   if (!updated) return null
   const rows = await listDeliveredBcRegister(companyId)
@@ -2690,7 +2692,7 @@ export async function setBcInvoiceFile(
   const [updated] = await db
     .update(purchaseOrders)
     .set(set)
-    .where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId)))
+    .where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId), eq(purchaseOrders.saInvoicePaid, false)))
     .returning({ id: purchaseOrders.id })
   return Boolean(updated)
 }
@@ -2764,7 +2766,7 @@ export async function listTreasuryOrdersForRequest(companyId: string, requestId:
   return db
     .select()
     .from(treasuryOrders)
-    .where(and(eq(treasuryOrders.purchaseRequestId, requestId), eq(treasuryOrders.companyId, companyId)))
+    .where(and(eq(treasuryOrders.purchaseRequestId, requestId), eq(treasuryOrders.companyId, companyId), eq(treasuryOrders.purpose, 'advance')))
     .orderBy(treasuryOrders.createdAt)
 }
 

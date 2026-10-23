@@ -131,6 +131,7 @@ export interface ApprovalStepRow {
 }
 
 export interface PurchaseRequestRow {
+  paymentStatus?: 'pending' | 'partial' | 'paid' | null
   saReviewerId?: string | null
   id: string
   companyId: string
@@ -167,6 +168,12 @@ export interface PurchaseRequestVersion {
 }
 
 export interface PurchaseOrderRow {
+  saInvoicePaid?: boolean
+  saInvoiceTransmitted?: boolean
+  saInvoice?: string | null
+  saInvoiceFileName?: string | null
+  saInvoiceBlobKey?: string | null
+  blFileName?: string | null
   id: string
   purchaseRequestId: string
   supplierId: string
@@ -346,6 +353,8 @@ export interface DocumentChainBl {
 }
 
 export interface DocumentChainBc {
+  invoicePaid?: boolean
+  invoiceTransmitted?: boolean
   id: string
   reference: string
   supplierName: string
@@ -513,6 +522,8 @@ export interface TreasuryDisbursementRow {
 
 /** Ligne de la file du poste Trésorerie (`GET /procurement/treasury`). */
 export interface TreasuryQueueItem {
+  purpose?: string
+  purchaseOrderId?: string | null
   treasuryId: string
   reference: string
   amountFcfa: number

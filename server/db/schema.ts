@@ -774,6 +774,7 @@ export type PurchaseOrder = typeof purchaseOrders.$inferSelect
 export type NewPurchaseOrder = typeof purchaseOrders.$inferInsert
 
 export const treasuryOrders = pgTable('treasury_orders', {
+  purpose: text('purpose').notNull().default('advance'),
   id: text('id').primaryKey(),
   companyId: text('company_id')
     .notNull()

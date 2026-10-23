@@ -1,8 +1,9 @@
+import { useBcRegisterLiveUpdates } from './useBcRegisterLiveUpdates'
 import { inAccountingDateRange } from './accountingFilters'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { useProcurementStore } from '../../../stores/procurementStore'
-import { fetchBcInvoiceFile, patchBcRegisterFollowup } from './procurementApi'
+import { fetchBcInvoiceFile } from './procurementApi'
 import { ProcurementStatusBadge } from './procurementUi'
 import type { BcRegisterRow } from './procurementTypes'
 
@@ -131,6 +132,7 @@ function fcfa(n: number | null | undefined): string {
 }
 
 export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) => boolean }) {
+  useBcRegisterLiveUpdates(handleAuth)
   const [subTab, setSubTab] = useState<SubTab>('dashboard')
   // Registre BC partagé (store Zustand) : même source que SuiviBcTab (SA).
   const rows = useProcurementStore((s) => s.rows)
@@ -139,7 +141,6 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
   const loading = useProcurementStore((s) => s.loading)
   const error = useProcurementStore((s) => s.error)
   const load = useProcurementStore((s) => s.load)
-  const applyRow = useProcurementStore((s) => s.applyRow)
   const [fPayment, setFPayment] = useState('')
   const [fSupplier, setFSupplier] = useState('')
   const [fSite, setFSite] = useState('')
@@ -204,16 +205,6 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
     previewUrlRef.current = null
     setPreview(null)
-  }
-
-  const toggleInvoicePaid = async (row: BcRegisterRow) => {
-    try {
-      const updated = await patchBcRegisterFollowup(row.purchaseOrderId, { invoicePaid: !row.invoicePaid })
-      applyRow(updated)
-      toast.show(!row.invoicePaid ? 'Facture marquée payée' : 'Facture marquée non payée')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Enregistrement impossible')
-    }
   }
 
   // KPI du mois : total BC, montant total, répartition par mode de paiement.
@@ -460,7 +451,7 @@ return (
                             <td className="mono">{r.amountLabel}</td>
                             <td>{r.invoice.trim() ? r.invoice : <span style={{ color: '#b45309' }}>—</span>}</td>
                             <td>
-                              {r.status ? <ProcurementStatusBadge status={r.status} /> : '—'}
+                              {r.status ? <ProcurementStatusBadge status={r.status} paymentStatus={r.invoicePaid ? 'paid' : r.invoiceTransmitted ? 'pending' : null} /> : '—'}
                             </td>
                           </tr>
                         ))}
@@ -661,16 +652,9 @@ return (
                             <td className="mono">{r.amountLabel}</td>
                             <td><span className={"cmpt-badge gray"}>{paymentLabel(r.paymentMode)}</span></td>
                             <td>
-                              <button
-                                type="button"
-                                data-testid={`cmpt-facture-paid-${r.purchaseOrderId}`}
-                                onClick={() => void toggleInvoicePaid(r)}
-                                className={`cmpt-badge gray`}
-                                style={{ cursor: 'pointer', border: 'none', fontFamily: 'inherit' }}
-                                title={r.invoicePaid ? 'Marquer non payée' : 'Marquer payée'}
-                              >
-                                {r.invoicePaid ? 'Oui' : 'Non'}
-                              </button>
+                              <span data-testid={`cmpt-facture-paid-${r.purchaseOrderId}`} className="cmpt-badge gray">
+                                {r.invoicePaid ? 'Payé' : r.invoiceTransmitted ? 'À payer' : 'Non transmis'}
+                              </span>
                             </td>
                             <td>
                               {r.invoiceFile ? (

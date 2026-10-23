@@ -1,3 +1,4 @@
+import { useBcRegisterLiveUpdates } from './useBcRegisterLiveUpdates'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { useProcurementStore } from '../../../stores/procurementStore'
@@ -114,6 +115,7 @@ type InvoiceFilter = '' | 'received' | 'missing'
 
 export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boolean }) {
   // Registre BC partagé (store Zustand) : même source que ComptabiliteTab.
+  useBcRegisterLiveUpdates(handleAuth)
   const rows = useProcurementStore((s) => s.rows)
   const recap = useProcurementStore((s) => s.recap)
   const months = useProcurementStore((s) => s.months)
@@ -285,13 +287,13 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     }
   }
 
-  // Transmettre la facture au comptable (CMPT) : PJ + n° de facture requis.
+  // Transmettre à la Comptabilité et à la Trésorerie (CMPT) : PJ + n° de facture requis.
   const transmitInvoice = async (row: BcRegisterRow) => {
     if (!row.invoiceFile || !row.invoice.trim()) return
     try {
       const updated = await patchBcRegisterFollowup(row.purchaseOrderId, { invoiceTransmitted: true })
       applyRow(updated)
-      toast.show(`Facture ${row.invoice.trim()} transmise au comptable`)
+      toast.show(`Facture ${row.invoice.trim()} transmise à la Comptabilité et à la Trésorerie`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Transmission impossible')
     }
@@ -320,6 +322,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
       key={`${row.purchaseOrderId}-${field}-${row[field]}`}
       className={`cell-input${row[field].trim() ? ' filled' : ''}`}
       defaultValue={row[field]}
+      disabled={field === 'invoice' && row.invoicePaid}
       placeholder={placeholder}
       data-testid={`mgr-suivi-bc-${field}-${row.purchaseOrderId}`}
       onBlur={(e) => void saveFollowup(row, field, e.target.value)}
@@ -504,6 +507,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                     <th>BON</th>
                     <th>MODE DE PAIEMENT</th>
                     <th>MONTANT (XOF)</th>
+                    <th>PAIEMENT</th>
                     <th>N° FACTURE</th>
                     <th>FACTURE</th>
                     <th>OBSERVATION</th>
@@ -528,6 +532,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                         </td>
                         <td>{row.paymentMode}</td>
                         <td className="mono tot">{row.amountLabel}</td>
+                        <td>{row.invoicePaid ? 'Payé' : row.invoiceTransmitted ? 'À payer' : 'Non transmis'}</td>
                         <td>{followupInput(row, 'invoice', 'n° facture…')}</td>
                         <td>
                           {row.invoiceTransmitted ? (
@@ -548,7 +553,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                                   ? 'Joindre la facture pour transmettre'
                                   : !row.invoice.trim()
                                     ? 'Saisir le numéro de facture pour transmettre'
-                                    : 'Transmettre la facture au comptable'
+                                    : 'Transmettre à la Comptabilité et à la Trésorerie'
                               }
                               data-testid={`mgr-suivi-bc-invoice-transmit-${row.purchaseOrderId}`}
                               onClick={() => void transmitInvoice(row)}

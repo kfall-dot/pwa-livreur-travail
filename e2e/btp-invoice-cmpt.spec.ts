@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test'
 import { API_BASE, UI_READY_TIMEOUT } from './helpers'
 import {
   binaryPdfFixture,
+  fetchTreasuryQueueApi,
+  disburseTreasuryApi,
   getBcRegisterRow,
   listBcRegisterRows,
   loginBtpApi,
@@ -106,7 +108,7 @@ test.describe('Facture SA → comptable (CMPT)', () => {
     await expect(
       page.getByTestId(`mgr-suivi-bc-invoice-transmitted-${bc.purchaseOrderId}`),
     ).toContainText('Transmis', { timeout: 20_000 })
-    await expect(page.getByText(`Facture ${INVOICE_NUMBER} transmise au comptable`)).toBeVisible({
+    await expect(page.getByText(`Facture ${INVOICE_NUMBER} transmise à la Comptabilité et à la Trésorerie`)).toBeVisible({
       timeout: 15_000,
     })
 
@@ -123,7 +125,7 @@ test.describe('Facture SA → comptable (CMPT)', () => {
     expect(row.invoiceFile?.fileName).toBe(INVOICE_FILE)
   })
 
-  test('CMPT : la facture transmise est « Reçu », consultable et payable — jamais éditable (I83)', async ({
+  test('CMPT : la facture transmise est « Reçu », consultable et payée uniquement par la Trésorerie (I83)', async ({
     page,
     request,
   }) => {
@@ -152,16 +154,17 @@ test.describe('Facture SA → comptable (CMPT)', () => {
     await page.getByTestId('cmpt-preview-close').click()
     await expect(page.getByTestId('cmpt-preview')).toHaveCount(0)
 
-    // Paiement : bouton Oui/Non, valeur conservée après changement de sous-onglet.
+    // Le comptable consulte ; la Trésorerie est seule à enregistrer le paiement.
     const paid = page.getByTestId(`cmpt-facture-paid-${bc.purchaseOrderId}`)
-    await expect(paid).toHaveText('Non')
-    await paid.click()
-    await expect(paid).toHaveText('Oui', { timeout: 15_000 })
-    await expect(page.getByText(/Facture marquée payée/)).toBeVisible({ timeout: 15_000 })
-
-    await page.getByTestId('cmpt-subtab-dashboard').click()
+    await expect(paid).toHaveText('À payer')
+    await expect(page.locator(`button[data-testid="cmpt-facture-paid-${bc.purchaseOrderId}"]`)).toHaveCount(0)
+    const queue = await fetchTreasuryQueueApi(request)
+    const item = queue.find(i => i.treasuryId === `invoice-${bc.purchaseOrderId}`)
+    expect(item).toBeTruthy()
+    expect((await disburseTreasuryApi(request, item!.treasuryId)).status).toBe(201)
+    await page.reload()
     await page.getByTestId('cmpt-subtab-factures').click()
-    await expect(page.getByTestId(`cmpt-facture-paid-${bc.purchaseOrderId}`)).toHaveText('Oui')
+    await expect(page.getByTestId(`cmpt-facture-paid-${bc.purchaseOrderId}`)).toHaveText('Payé')
 
     const row = await getBcRegisterRow(request, 'cmpt', bc.purchaseOrderId)
     expect(row.invoicePaid).toBe(true)
@@ -169,7 +172,7 @@ test.describe('Facture SA → comptable (CMPT)', () => {
     expect(row.invoice).toBe(INVOICE_NUMBER)
   })
 
-  test('CMPT : registre et copie lisibles, paiement autorisé, transmission interdite (I84)', async ({
+  test('CMPT : registre et copie lisibles, paiement et transmission interdits (I84)', async ({
     request,
   }) => {
     test.setTimeout(180_000)
@@ -201,11 +204,11 @@ test.describe('Facture SA → comptable (CMPT)', () => {
     )
     expect(upload.status()).toBe(403)
 
-    // Le paiement (ce que le comptable pilote) est accepté.
+    // Le paiement est réservé à la Trésorerie, même via un appel direct à l’API.
     const paid = await patchBcFollowupApi(request, 'cmpt', bc.purchaseOrderId, { invoicePaid: true })
-    expect(paid.status).toBe(200)
+    expect(paid.status).toBe(403)
     const after = await getBcRegisterRow(request, 'cmpt', bc.purchaseOrderId)
-    expect(after.invoicePaid).toBe(true)
+    expect(after.invoicePaid).toBe(false)
   })
 
   test('CMPT : espace limité à la Comptabilité, KPI du mois et suivi filtrable (I85)', async ({

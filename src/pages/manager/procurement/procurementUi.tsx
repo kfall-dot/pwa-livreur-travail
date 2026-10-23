@@ -308,7 +308,7 @@ const STATUS_COLORS: Partial<Record<PurchaseRequestStatus, { color: string; bg: 
   rejected: { color: 'var(--danger)', bg: '#fee2e2' },
 }
 
-export function ProcurementStatusBadge({ status }: { status: PurchaseRequestStatus | string }) {
+export function ProcurementStatusBadge({ status, paymentStatus }: { status: PurchaseRequestStatus | string; paymentStatus?: 'pending' | 'partial' | 'paid' | null }) {
   const palette = STATUS_COLORS[status as PurchaseRequestStatus] ?? {
     color: 'var(--text-muted)',
     bg: '#f5f0e8',
@@ -326,7 +326,7 @@ export function ProcurementStatusBadge({ status }: { status: PurchaseRequestStat
         whiteSpace: 'nowrap',
       }}
     >
-      {label}
+      {label}{paymentStatus && status !== 'paid' ? ` · ${paymentStatus === 'paid' ? 'Payé' : paymentStatus === 'partial' ? 'Partiellement payé' : 'À payer'}` : ''}
     </span>
   )
 }

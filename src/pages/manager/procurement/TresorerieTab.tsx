@@ -1,3 +1,4 @@
+import { TreasuryEbDossier } from './TreasuryEbDossier'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import {
@@ -46,6 +47,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
   const [history, setHistory] = useState<TreasuryHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [dossierId, setDossierId] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -100,6 +102,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
 
   const openForm = (item: TreasuryQueueItem) => {
     setOpenId(item.treasuryId)
+    setDossierId(item.requestId)
     setMethod('orange_money')
     setReference('')
     setPaidAt(todayIso())
@@ -109,13 +112,13 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
 
   const submit = async (item: TreasuryQueueItem) => {
     if (!file) {
-      setError('Joignez la facture ou le reçu — il est exigé au déboursé (I103).')
+      setError('Joignez le justificatif du paiement (facture ou reçu).')
       return
     }
     // Montant **verrouillé** sur celui du BT (champ grisé) : pas de saisie
     // libre, pas d'écart possible entre le bon approuvé et le déboursé.
     if (!Number.isFinite(item.amountFcfa) || item.amountFcfa <= 0) {
-      setError('Montant du BT invalide.')
+      setError('Montant du dossier invalide.')
       return
     }
     setSaving(true)
@@ -127,11 +130,13 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
         transactionReference: reference.trim() || undefined,
         paidAt,
       })
-      toast.success(`Déboursé enregistré — ${item.reference}`)
+      toast.success(`Paiement enregistré — ${item.reference}`)
+      window.dispatchEvent(new Event('procurement-payment-changed'))
       setOpenId(null)
+      setDossierId(null)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Enregistrement du déboursé impossible')
+      setError(err instanceof Error ? err.message : 'Enregistrement du paiement impossible')
     } finally {
       setSaving(false)
     }
@@ -145,12 +150,12 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
     <div data-testid="mgr-tresorerie-tab">
       <div style={{ ...css.card, marginBottom: 12 }}>
         <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>
-          💳 Poste Trésorerie — BT hors SA à débourser
+          💳 Poste Trésorerie — dossiers à payer
         </h3>
         <p style={{ ...css.meta, margin: 0 }}>
           {items.length === 0
-            ? 'Aucun bon de trésorerie en attente.'
-            : `${items.length} bon(s) en attente · ${formatFcfa(total)} FCFA`}
+            ? 'Aucun dossier en attente de paiement.'
+            : `${items.length} dossier(s) à payer · ${formatFcfa(total)} FCFA`}
         </p>
       </div>
 
@@ -158,15 +163,14 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
 
       {items.length === 0 ? (
         <EmptyHint>
-          Aucun BT à débourser. Les bons apparaissent ici dès qu’une EB de main-d’œuvre est
-          approuvée par le DAF et/ou le PDG.
+          Aucun dossier à payer. Les BT approuvés et les factures matériaux transmises par le SA apparaissent ici.
         </EmptyHint>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={css.lineTable}>
             <thead>
               <tr>
-                <th style={css.lineTh}>Bon de trésorerie</th>
+                <th style={css.lineTh}>Document</th>
                 <th style={css.lineTh}>EB</th>
                 <th style={css.lineTh}>Statut</th>
                 <th style={css.lineTh}>Montant</th>
@@ -187,9 +191,9 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
                       {item.reference}
                     </a>
                   </td>
-                  <td style={css.lineTd}>{item.requestReference}</td>
+                  <td style={css.lineTd}><button type="button" style={css.btnOutline} onClick={() => setDossierId(item.requestId)}>{item.requestReference} — Voir le dossier</button></td>
                   <td style={css.lineTd}>
-                    <ProcurementStatusBadge status={item.requestStatus} />
+                    <ProcurementStatusBadge status={item.requestStatus} paymentStatus="pending" />
                   </td>
                   <td style={css.lineTd}>{formatFcfa(item.amountFcfa)}</td>
                   <td style={css.lineTd}>
@@ -209,7 +213,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
                   <td style={css.lineTd}>
                     {item.disbursement ? (
                       <span style={{ ...css.meta, fontWeight: 600, color: 'var(--success)' }}>
-                        ✅ déboursé
+                        ✅ Payé
                       </span>
                     ) : (
                       <button
@@ -218,7 +222,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
                         style={css.input}
                         data-testid={`mgr-tresorerie-disburse-${item.treasuryId}`}
                       >
-                        Débourser
+                        À payer
                       </button>
                     )}
                   </td>
@@ -229,6 +233,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
         </div>
       )}
 
+      {dossierId && <><button type="button" style={css.btnOutline} onClick={() => setDossierId(null)}>Fermer le dossier EB</button><TreasuryEbDossier key={dossierId} requestId={dossierId} /></>}
       {openId &&
         (() => {
           const item = items.find((i) => i.treasuryId === openId)
@@ -236,10 +241,10 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
           return (
             <div style={{ ...css.card, marginTop: 12 }} data-testid="mgr-tresorerie-form">
               <h4 style={{ margin: '0 0 10px', fontSize: 14 }}>
-                Déboursé — {item.reference} · {formatFcfa(item.amountFcfa)} FCFA
+                Paiement — {item.reference} · {formatFcfa(item.amountFcfa)} FCFA
               </h4>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <Field label="Montant déboursé (FCFA) — montant du BT, non modifiable">
+                <Field label="Montant à payer (FCFA) — non modifiable">
                   <input
                     type="text"
                     readOnly
@@ -272,7 +277,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
                     data-testid="mgr-tresorerie-reference"
                   />
                 </Field>
-                <Field label="Date du déboursé">
+                <Field label="Date du paiement">
                   <input
                     type="date"
                     value={paidAt}
@@ -299,7 +304,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
                   style={css.input}
                   data-testid="mgr-tresorerie-submit"
                 >
-                  {saving ? 'Enregistrement…' : 'Enregistrer le déboursé'}
+                  {saving ? 'Enregistrement…' : 'Confirmer le paiement'}
                 </button>
                 <button type="button" disabled={saving} onClick={() => setOpenId(null)} style={css.input}>
                   Annuler
@@ -316,7 +321,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
         <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>Historique des paiements par chantier</h3>
         <p style={{ ...css.meta, margin: '0 0 10px' }}>
           {history.length === 0
-            ? 'Aucun paiement enregistré pour le moment — les déboursés apparaissent ici dès leur enregistrement.'
+            ? 'Aucun paiement enregistré pour le moment — les paiements apparaissent ici dès leur enregistrement.'
             : `${history.length} paiement(s) · ${formatFcfa(history.reduce((s, h) => s + h.amountFcfa, 0))} FCFA au total`}
         </p>
         {historyGroups.map((g) => (
@@ -358,7 +363,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
                           {h.treasuryReference}
                         </a>
                       </td>
-                      <td style={css.lineTd}>{h.requestReference}</td>
+                      <td style={css.lineTd}><button type="button" style={css.btnOutline} onClick={() => setDossierId(h.requestId)}>{h.requestReference} — Payé</button></td>
                       <td style={css.lineTd}>{DISBURSEMENT_METHOD_LABELS[h.method] ?? h.method}</td>
                       <td style={css.lineTd}>{h.transactionReference || '—'}</td>
                       <td style={css.lineTd}>

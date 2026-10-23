@@ -2,7 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { approvalDecisionLabel, canEditDraft, canReviseRequest, chainHighlightMatches, chainReferencesLabel, ProcurementRoleOptions } from './procurementUi.tsx'
+import { approvalDecisionLabel, canEditDraft, canReviseRequest, chainHighlightMatches, chainReferencesLabel, ProcurementStatusBadge, ProcurementRoleOptions } from './procurementUi.tsx'
 
 it('propose tous les espaces métier, notamment comptabilité, trésorerie et équipe SA', () => {
   const html = renderToStaticMarkup(createElement(ProcurementRoleOptions))
@@ -94,3 +94,11 @@ describe('chainHighlightMatches — maillon trouvé par le résolveur d’identi
   })
 })
 
+
+it('affiche le même état financier sans masquer le statut de livraison', () => {
+  for (const [paymentStatus, label] of [['pending', 'À payer'], ['partial', 'Partiellement payé'], ['paid', 'Payé']] as const) {
+    const html = renderToStaticMarkup(createElement(ProcurementStatusBadge, { status: 'delivered', paymentStatus }))
+    assert.ok(html.includes('Livré'))
+    assert.ok(html.includes(label))
+  }
+})

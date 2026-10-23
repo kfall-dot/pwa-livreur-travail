@@ -42,6 +42,8 @@ export type DocumentChainBl = {
 export type DocumentChainFile = { fileName: string }
 
 export type DocumentChainBc = {
+  invoicePaid: boolean
+  invoiceTransmitted: boolean
   id: string
   reference: string
   supplierName: string
@@ -119,6 +121,8 @@ export async function getDocumentChain(companyId: string, requestId: string): Pr
       tourId: purchaseOrders.tourId,
       tourDate: tours.date,
       invoiceReference: purchaseOrders.saInvoice,
+      invoicePaid: purchaseOrders.saInvoicePaid,
+      invoiceTransmitted: purchaseOrders.saInvoiceTransmitted,
       invoiceFileName: purchaseOrders.saInvoiceFileName,
       invoiceBlobKey: purchaseOrders.saInvoiceBlobKey,
       blFileName: purchaseOrders.blFileName,
@@ -144,7 +148,7 @@ export async function getDocumentChain(companyId: string, requestId: string): Pr
       purchaseOrderId: treasuryOrders.purchaseOrderId,
     })
     .from(treasuryOrders)
-    .where(and(eq(treasuryOrders.companyId, companyId), eq(treasuryOrders.purchaseRequestId, requestId)))
+    .where(and(eq(treasuryOrders.companyId, companyId), eq(treasuryOrders.purchaseRequestId, requestId), eq(treasuryOrders.purpose, 'advance')))
     .orderBy(treasuryOrders.createdAt)
 
   const blRows = await db
@@ -219,6 +223,8 @@ export async function getDocumentChain(companyId: string, requestId: string): Pr
       amountFcfa: Number(b.amountFcfa),
       tourId: b.tourId ?? null,
       tourDate: b.tourDate ?? null,
+      invoicePaid: b.invoicePaid,
+      invoiceTransmitted: b.invoiceTransmitted,
       invoiceReference: (b.invoiceReference ?? '').trim(),
       invoiceFile:
         b.invoiceBlobKey && (b.invoiceFileName ?? '').trim() ? { fileName: b.invoiceFileName!.trim() } : null,
