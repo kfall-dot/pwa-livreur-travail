@@ -1,3 +1,6 @@
+import { parseJsonAttachment } from '../lib/jsonAttachment.js'
+import { procurementCorrectionsRouter } from './procurementCorrections.js'
+import { CorrectionError } from '../services/procurementCorrections.js'
 import { MaterialInvoiceError, transmitMaterialInvoice, materialPaymentStatuses } from '../services/materialInvoicePayment.js'
 import { Router } from 'express'
 import { procurementEditLock } from '../middleware/procurementEditLock.js'
@@ -173,22 +176,20 @@ procurementRouter.use('/requests/:id', async (req, res, next) => {
 
 procurementRouter.use('/drafts/:id', procurementEditLock('drafts'))
 procurementRouter.use('/requests/:id', procurementEditLock('requests'))
+procurementRouter.use('/requests/:id/correction', procurementCorrectionsRouter)
 
-function parseJsonAttachment(body: unknown): { buffer: Buffer; originalname: string; mimetype: string } | { error: string } {
-  if (!body || typeof body !== 'object' || Buffer.isBuffer(body)) {
-    return { error: 'Fichier requis (PDF, image ou Excel)' }
-  }
-  const rec = body as { data?: unknown; fileName?: unknown; contentType?: unknown }
-  if (typeof rec.data !== 'string' || !rec.data.trim()) {
-    return { error: 'Fichier requis (PDF, image ou Excel)' }
-  }
-  const originalname = String(rec.fileName ?? 'piece-jointe').trim() || 'piece-jointe'
-  const mimetype = resolveLineAttachmentMime(originalname, String(rec.contentType ?? ''))
-  if (!mimetype) {
-    return { error: 'Type de fichier non accepté (PDF, image ou Excel)' }
-  }
-  return { buffer: Buffer.from(rec.data, 'base64'), originalname, mimetype }
-}
+// Les pièces du registre BC ne doivent pas contourner l'affectation d'un retour.
+procurementRouter.use('/bc-register/:poId', async (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) { next(); return }
+  const { manager } = req as unknown as ManagerRequest
+  const po = await getPurchaseOrderById(manager.companyId, String(req.params.poId))
+  if (!po) { res.status(404).json({ message: 'BC introuvable' }); return }
+  if (po.correctionPending) { res.status(409).json({ message: 'Ce BC est archivé après correction.' }); return }
+  const request = await getPurchaseRequestById(manager.companyId, po.purchaseRequestId)
+  if (request?.correctionTargetId && request.correctionTargetId !== manager.sub) { res.status(403).json({ message: 'Ce dossier est en correction chez une autre personne.' }); return }
+  next()
+})
+
 
 const siteSchema = z.object({
   name: z.string().min(1),
@@ -344,7 +345,7 @@ const scheduleSchema = z.object({
 })
 
 function handleWorkflowError(err: unknown, res: import('express').Response): boolean {
-  if (err instanceof ProcurementWorkflowError || err instanceof MaterialInvoiceError) {
+  if (err instanceof ProcurementWorkflowError || err instanceof MaterialInvoiceError || err instanceof CorrectionError) {
     res.status(err.statusCode).json({ message: err.message })
     return true
   }
@@ -1692,6 +1693,8 @@ procurementRouter.get('/requests', async (req, res) => {
   res.json({
     requests: requests.map((r) => ({
       ...r,
+      lifecycleStatus: r.status,
+      status: r.correctionTargetId ? r.correctionReviewRequired ? 'correction_head_review' : 'correction_required' : r.status,
       paymentStatus: payments.get(r.id) ?? (r.status === 'paid' ? 'paid' : null),
       totalAmountFcfa: r.totalAmountFcfa != null ? Number(r.totalAmountFcfa) : null,
     })),
@@ -1712,7 +1715,7 @@ procurementRouter.get('/requests/:id', async (req, res) => {
       return
     }
   }
-  res.json({ ...detail, request: { ...detail.request, paymentStatus: (await materialPaymentStatuses(manager.companyId)).get(detail.request.id) ?? (detail.request.status === 'paid' ? 'paid' : null) } })
+  res.json({ ...detail, request: { ...detail.request, lifecycleStatus: detail.request.status, status: detail.request.correctionTargetId ? detail.request.correctionReviewRequired ? 'correction_head_review' : 'correction_required' : detail.request.status, paymentStatus: (await materialPaymentStatuses(manager.companyId)).get(detail.request.id) ?? (detail.request.status === 'paid' ? 'paid' : null) } })
 })
 
 // GET /requests/:id/chain — chaîne documentaire EB → BT → BC → BL → facture.
@@ -2284,12 +2287,15 @@ procurementRouter.post('/requests/:id/reject', async (req, res) => {
     return
   }
   try {
+    if (procurementRole !== 'daf' && procurementRole !== 'pdg') { res.status(403).json({ message: 'Refus définitif réservé au DAF et au PDG' }); return }
+    const pinError = await requireValidPin(manager.sub, body.pin ?? '')
+    if (pinError) { res.status(401).json({ message: pinError }); return }
     const updated = await rejectPurchaseRequest({
       companyId: manager.companyId,
       requestId: String(req.params.id),
       managerId: manager.sub,
       procurementRole,
-      comment: body.comment,
+      comment: body.comment, pinVerified: true, ip: clientIpFromReq(req),
     })
     res.json({ request: updated })
   } catch (err) {
@@ -2523,6 +2529,7 @@ procurementRouter.get('/documents/treasury/:id/html', async (req, res) => {
     res.status(404).json({ message: 'Bon de trésorerie introuvable' })
     return
   }
+  if (row.status === 'cancelled') { res.status(409).json({ message: 'BT archivé : consultez l’historique de l’EB.' }); return }
   res.type('html').send(row.pdfHtml)
 })
 
@@ -2533,6 +2540,7 @@ procurementRouter.get('/documents/:poId/html', async (req, res) => {
     res.status(404).json({ message: 'Document introuvable' })
     return
   }
+  if (po.correctionPending) { res.status(409).json({ message: 'BC archivé après correction : consultez l’historique de l’EB.' }); return }
   if (po.pdfHtml) {
     res.type('html').send(po.pdfHtml)
     return

@@ -1,3 +1,4 @@
+import { canDefinitivelyRefuse } from '../../../../shared/procurementCorrectionPolicy'
 import { createElement, type CSSProperties } from 'react'
 import { css as managerCss } from '../managerUi'
 import type { ProcurementRole, PurchaseRequestStatus } from './procurementTypes'
@@ -288,7 +289,9 @@ export const STATUS_LABELS: Record<PurchaseRequestStatus, string> = {
   po_ready: 'BC prêt',
   delivery_scheduled: 'Livraison planifiée',
   delivered: 'Livré',
-  rejected: 'Rejeté',
+  rejected: 'Refus définitif',
+  correction_required: 'À corriger',
+  correction_head_review: 'Correction — validation chef SA',
 }
 
 const STATUS_COLORS: Partial<Record<PurchaseRequestStatus, { color: string; bg: string }>> = {
@@ -314,9 +317,8 @@ export function ProcurementStatusBadge({ status, paymentStatus }: { status: Purc
     bg: '#f5f0e8',
   }
   const label = STATUS_LABELS[status as PurchaseRequestStatus] ?? status
-  return (
-    <span
-      style={{
+  return createElement('span', {
+      style: {
         fontSize: 11,
         fontWeight: 700,
         color: palette.color,
@@ -324,11 +326,8 @@ export function ProcurementStatusBadge({ status, paymentStatus }: { status: Purc
         padding: '2px 8px',
         borderRadius: 20,
         whiteSpace: 'nowrap',
-      }}
-    >
-      {label}{paymentStatus && status !== 'paid' ? ` · ${paymentStatus === 'paid' ? 'Payé' : paymentStatus === 'partial' ? 'Partiellement payé' : 'À payer'}` : ''}
-    </span>
-  )
+      },
+    }, label + (paymentStatus && status !== 'paid' ? ` · ${paymentStatus === 'paid' ? 'Payé' : paymentStatus === 'partial' ? 'Partiellement payé' : 'À payer'}` : ''))
 }
 
 export function formatFcfa(amount?: number | null): string {
@@ -417,7 +416,7 @@ export function canRejectRequest(
   status: PurchaseRequestStatus,
   role: ProcurementRole | null | undefined,
 ): boolean {
-  return canApproveRequest(status, role)
+  return canDefinitivelyRefuse(status, role)
 }
 
 // Le PDG, à l'étape `pdg_review`, peut demander une révision des quantités :

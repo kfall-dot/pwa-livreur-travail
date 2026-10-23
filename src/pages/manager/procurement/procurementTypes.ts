@@ -33,6 +33,8 @@ export type PurchaseRequestStatus =
   | 'delivery_scheduled'
   | 'delivered'
   | 'rejected'
+  | 'correction_required'
+  | 'correction_head_review'
 
 export type WhatsappMessageType = 'text' | 'audio' | 'image' | 'document' | 'unknown'
 
@@ -119,6 +121,8 @@ export interface PurchaseRequestLineRow {
 }
 
 export interface ApprovalStepRow {
+  invalidatedAt?: string | null
+  etape?: string | null
   id: string
   purchaseRequestId: string
   role: ProcurementRole
@@ -131,6 +135,9 @@ export interface ApprovalStepRow {
 }
 
 export interface PurchaseRequestRow {
+  lifecycleStatus?: PurchaseRequestStatus
+  correctionTargetId?: string | null
+  correctionReviewRequired?: boolean
   paymentStatus?: 'pending' | 'partial' | 'paid' | null
   saReviewerId?: string | null
   id: string

@@ -8,8 +8,10 @@ export function canTakeProcurementEditLock(input: {
   reviewerId?: string | null
   supervisorId?: string | null
   linkedRequestId?: string | null
+  correctionTargetId?: string | null
 }): boolean {
   const { kind, status, role, managerId, reviewerId, supervisorId } = input
+  if (input.correctionTargetId) return input.correctionTargetId === managerId
   if (kind === 'drafts') return !input.linkedRequestId && status !== 'deleted' && ['technical_director', 'site_manager', 'purchasing'].includes(role ?? '')
   if (status === 'sa_head_review') return role === 'purchasing' && !supervisorId && managerId === reviewerId
   if (status === 'bc_head_review') return role === 'purchasing' && (managerId === reviewerId || supervisorId === reviewerId)

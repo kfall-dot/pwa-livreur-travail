@@ -10,9 +10,13 @@ export class MaterialInvoiceError extends Error {
 /** Une transmission crée un seul dossier de règlement par BC, sans reprendre l'historique. */
 export async function transmitMaterialInvoice(companyId: string, poId: string, invoiceAmountFcfa?: number) {
   return db.transaction(async tx => {
+    const [initial] = await tx.select().from(purchaseOrders).where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.companyId, companyId)))
+    if (!initial) throw new MaterialInvoiceError('BC introuvable', 404)
+    const [request] = await tx.select().from(purchaseRequests).where(eq(purchaseRequests.id, initial.purchaseRequestId)).for('update')
+    if (!request || request.correctionTargetId || ['rejected', 'correction_required'].includes(request.status)) throw new MaterialInvoiceError('Dossier refusé ou en correction : transmission suspendue', 409)
     const [po] = await tx.select().from(purchaseOrders)
       .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.companyId, companyId))).for('update')
-    if (!po || po.docType !== 'bc') throw new MaterialInvoiceError('BC introuvable', 404)
+    if (!po || po.correctionPending || po.docType !== 'bc') throw new MaterialInvoiceError('BC introuvable', 404)
     if (!po.saInvoice?.trim() || !po.saInvoiceBlobKey) throw new MaterialInvoiceError('Numéro et copie de facture obligatoires avant transmission')
     if (po.saInvoicePaid) throw new MaterialInvoiceError('Cette facture est déjà payée', 409)
     if (po.saApprovalRequired && !po.saHeadSignature) throw new MaterialInvoiceError('Le BC doit être signé par le chef SA avant transmission', 409)
@@ -42,8 +46,10 @@ export async function payMaterialInvoice(input: {
       eq(treasuryOrders.id, input.treasuryOrderId), eq(treasuryOrders.companyId, input.companyId),
     ))
     if (!order || order.purpose !== 'material_invoice' || !order.purchaseOrderId) throw new MaterialInvoiceError('Dossier de paiement introuvable', 404)
+    const [currentRequest] = await tx.select().from(purchaseRequests).where(eq(purchaseRequests.id, order.purchaseRequestId)).for('update')
+    if (!currentRequest || currentRequest.correctionTargetId || ['rejected', 'correction_required'].includes(currentRequest.status)) throw new MaterialInvoiceError('Paiement suspendu : le dossier est en correction ou refusé', 409)
     const [po] = await tx.select().from(purchaseOrders).where(and(eq(purchaseOrders.id, order.purchaseOrderId), eq(purchaseOrders.companyId, input.companyId))).for('update')
-    if (!po || !po.saInvoiceTransmitted || !po.saInvoiceBlobKey) throw new MaterialInvoiceError('La facture doit être transmise par le SA avant paiement', 409)
+    if (!po || po.correctionPending || !po.saInvoiceTransmitted || !po.saInvoiceBlobKey) throw new MaterialInvoiceError('La facture doit être transmise par le SA avant paiement', 409)
     if (order.status === 'paid' || po.saInvoicePaid) throw new MaterialInvoiceError('Cette facture est déjà payée', 409)
     if (order.status !== 'issued') throw new MaterialInvoiceError('Ce dossier n’est pas en attente de paiement', 409)
     const due = Number(order.amountFcfa)
@@ -60,7 +66,7 @@ export async function payMaterialInvoice(input: {
     // Le paiement ne remplace pas l'état de livraison : les budgets/stock dépendent de celui-ci.
     await tx.update(purchaseRequests).set({ updatedAt: new Date() }).where(eq(purchaseRequests.id, po.purchaseRequestId))
     const [request] = await tx.select().from(purchaseRequests).where(eq(purchaseRequests.id, po.purchaseRequestId))
-    const [totals] = await tx.select({ remaining: sql<number>`count(*) filter (where not ${purchaseOrders.saInvoicePaid})::int` }).from(purchaseOrders).where(and(eq(purchaseOrders.purchaseRequestId, po.purchaseRequestId), eq(purchaseOrders.docType, 'bc')))
+    const [totals] = await tx.select({ remaining: sql<number>`count(*) filter (where not ${purchaseOrders.saInvoicePaid})::int` }).from(purchaseOrders).where(and(eq(purchaseOrders.purchaseRequestId, po.purchaseRequestId), eq(purchaseOrders.docType, 'bc'), eq(purchaseOrders.correctionPending, false)))
     const allPaid = totals.remaining === 0
     return { disbursement, request: request ? { ...request, paymentStatus: allPaid ? 'paid' as const : 'partial' as const } : request, allPaid }
   })
@@ -71,7 +77,7 @@ export async function materialPaymentStatuses(companyId: string) {
   const rows = await db.select({ requestId: purchaseOrders.purchaseRequestId,
     count: sql<number>`count(*)::int`, paid: sql<number>`count(*) filter (where ${purchaseOrders.saInvoicePaid})::int`,
     transmitted: sql<number>`count(*) filter (where ${purchaseOrders.saInvoiceTransmitted})::int`,
-  }).from(purchaseOrders).where(and(eq(purchaseOrders.companyId, companyId), eq(purchaseOrders.docType, 'bc')))
+  }).from(purchaseOrders).where(and(eq(purchaseOrders.companyId, companyId), eq(purchaseOrders.docType, 'bc'), eq(purchaseOrders.correctionPending, false)))
     .groupBy(purchaseOrders.purchaseRequestId)
   return new Map(rows.map(row => [row.requestId, row.paid === row.count ? 'paid' : row.paid > 0 ? 'partial' : row.transmitted > 0 ? 'pending' : null] as const))
 }

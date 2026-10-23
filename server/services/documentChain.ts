@@ -1,4 +1,4 @@
-import { and, eq, or, type SQL } from 'drizzle-orm'
+import { and, eq, or, ne, type SQL } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import {
   certificates,
@@ -136,6 +136,7 @@ export async function getDocumentChain(companyId: string, requestId: string): Pr
         eq(purchaseOrders.companyId, companyId),
         eq(purchaseOrders.purchaseRequestId, requestId),
         eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
       ),
     )
     .orderBy(purchaseOrders.createdAt)
@@ -148,7 +149,7 @@ export async function getDocumentChain(companyId: string, requestId: string): Pr
       purchaseOrderId: treasuryOrders.purchaseOrderId,
     })
     .from(treasuryOrders)
-    .where(and(eq(treasuryOrders.companyId, companyId), eq(treasuryOrders.purchaseRequestId, requestId), eq(treasuryOrders.purpose, 'advance')))
+    .where(and(eq(treasuryOrders.companyId, companyId), eq(treasuryOrders.purchaseRequestId, requestId), eq(treasuryOrders.purpose, 'advance'), ne(treasuryOrders.status, 'cancelled')))
     .orderBy(treasuryOrders.createdAt)
 
   const blRows = await db
@@ -176,6 +177,7 @@ export async function getDocumentChain(companyId: string, requestId: string): Pr
         eq(purchaseOrders.companyId, companyId),
         eq(purchaseOrders.purchaseRequestId, requestId),
         eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
       ),
     )
     .orderBy(deliveryPoints.sequence)
@@ -268,6 +270,7 @@ async function findBcForStop(
       and(
         eq(purchaseOrders.companyId, companyId),
         eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
         links.length === 1 ? links[0] : or(...links),
       ),
     )
@@ -330,7 +333,8 @@ async function resolveById(
       requestId: purchaseOrders.purchaseRequestId,
     })
     .from(purchaseOrders)
-    .where(and(eq(purchaseOrders.companyId, companyId), eq(purchaseOrders.docType, 'bc'), eq(purchaseOrders.id, id)))
+    .where(and(eq(purchaseOrders.companyId, companyId), eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false), eq(purchaseOrders.id, id)))
     .limit(1)
   if (bc) return { requestId: bc.requestId, matched: { kind: 'bc', id: bc.id, reference: bc.reference } }
 
@@ -416,6 +420,7 @@ export async function resolveDocumentChain(
         and(
           eq(purchaseOrders.companyId, companyId),
           eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
           eq(purchaseOrders.reference, ref),
         ),
       )

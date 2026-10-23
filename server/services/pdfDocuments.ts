@@ -252,7 +252,7 @@ function linesToRows(
   const body = lines
     .map(
       (l) =>
-        `<tr class="dotrow"><td class="qty">${escapeHtml(l.quantity)}</td><td class="unit">${escapeHtml(l.unit)}</td><td class="desc">${escapeHtml(l.label)}</td><td class="pu">${escapeHtml(formatFcfa(l.unitPriceFcfa))}</td><td class="tot">${escapeHtml(formatFcfa(l.amountFcfa))}</td></tr>`,
+        `<tr class="dotrow"><td class="qty">${escapeHtml(l.quantity)}</td><td class="unit">${escapeHtml(l.unit)}</td><td class="desc">${escapeHtml(l.label)}${l.observation?.trim() ? `<br><small>${escapeHtml(l.observation)}</small>` : ''}</td><td class="pu">${escapeHtml(formatFcfa(l.unitPriceFcfa))}</td><td class="tot">${escapeHtml(formatFcfa(l.amountFcfa))}</td></tr>`,
     )
     .join('')
   const tva = Math.round(totalTtc - totalTtc / 1.18)
@@ -338,7 +338,7 @@ export function generateBtHtml(
   const isRevised = typeof data.version === 'number' && data.version > 1
   const revisedDate = data.revisedAt ? new Date(data.revisedAt).toLocaleDateString('fr-FR') : ''
   const revisionBanner = isRevised
-    ? `<div class="revision-banner">VERSION MODIFIÉE n° ${escapeHtml(String(data.version))} — révisée par le PDG${revisedDate ? ` le ${escapeHtml(revisedDate)}` : ''}${data.revisionComment ? ` — Motif : ${escapeHtml(data.revisionComment)}` : ''}</div>`
+    ? `<div class="revision-banner">VERSION MODIFIÉE n° ${escapeHtml(String(data.version))} — révisée${revisedDate ? ` le ${escapeHtml(revisedDate)}` : ''}${data.revisionComment ? ` — Motif : ${escapeHtml(data.revisionComment)}` : ''}</div>`
     : ''
   return withPrintBar(renderTemplate(
     DEFAULT_BT_TEMPLATE,

@@ -1,3 +1,4 @@
+import { CorrectionWorkflowPanel } from './CorrectionWorkflowPanel'
 import { usesManualProcurementClaim } from '../../../../shared/procurementEditLock'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../managerApi'
@@ -97,6 +98,8 @@ const tdStyle: React.CSSProperties = {
 }
 
 const PRE_BC_STATUSES = new Set([
+  'correction_required',
+  'correction_head_review',
   'sa_head_review',
   'bc_head_review',
   'submitted',
@@ -330,12 +333,11 @@ export function AchatsTab({
   const [view, setView] = useState<AchatsView>('inbox')
   const [saActor, setSaActor] = useState<{ id: string; supervisorId: string | null }>({ id: '', supervisorId: null })
   useEffect(() => {
-    if (procurementRole !== 'purchasing') return
     let cancelled = false
     const loadSaActor = async () => {
       try {
         const res = await authFetch('/auth/me')
-        if (!res.ok) throw new Error('Profil SA indisponible')
+        if (!res.ok) throw new Error('Profil métier indisponible')
         const data = await res.json() as { manager: { id: string; saSupervisorId?: string | null } }
         if (!cancelled) setSaActor({ id: data.manager.id, supervisorId: data.manager.saSupervisorId ?? null })
       } catch {
@@ -915,7 +917,7 @@ export function AchatsTab({
     }
     setActionLoading(true)
     try {
-      const detail = await rejectRequest(selectedRequestId, { comment: approvalComment })
+      const detail = await rejectRequest(selectedRequestId, { comment: approvalComment, pin: approvalPin })
       setRequestDetail(detail)
       toast.info('Demande rejetée.')
       void loadRequests()
@@ -1200,6 +1202,10 @@ export function AchatsTab({
 
   return (
     <div data-testid="mgr-achats-tab">
+      {requests.some(r => r.correctionTargetId === saActor.id) && <div style={css.card}>
+        <h3>Corrections qui vous sont affectées</h3>
+        {requests.filter(r => r.correctionTargetId === saActor.id).map(r => <button key={r.id} type="button" style={css.btnOutline} onClick={() => { setView('requests'); setSelectedRequestId(r.id) }}>{r.reference} — {r.correctionReviewRequired ? 'Valider la correction' : 'Corriger'}</button>)}
+      </div>}
       <h2 style={{ ...css.sectionTitle, marginBottom: '0.25rem' }}>
         {procurementRole === 'technical_director'
           ? 'Espace Direction technique'
@@ -1435,6 +1441,7 @@ export function AchatsTab({
           readOnly={manualClaim && !editLock.ownedByMe}
           currentManagerId={saActor.id}
           saSupervisorId={saActor.supervisorId}
+          onCorrectionChanged={(next) => { setRequestDetail(next); void loadRequests(); refreshInbox() }}
           onApproveSaBc={() => void handleApproveSaBc()}
           procurementRole={procurementRole}
           highlight={chainLookup}
@@ -2641,6 +2648,7 @@ export function RequestDetailPanel({
   currentManagerId,
   saSupervisorId,
   onApproveSaBc,
+  onCorrectionChanged,
   detail,
   procurementRole,
   highlight,
@@ -2683,6 +2691,7 @@ export function RequestDetailPanel({
   readOnly?: boolean
   currentManagerId?: string
   saSupervisorId?: string | null
+  onCorrectionChanged?: (detail: RequestDetailResponse) => void
   onApproveSaBc?: () => void
   detail: RequestDetailResponse
   procurementRole: ProcurementRole | null
@@ -2788,10 +2797,10 @@ export function RequestDetailPanel({
     siteBudget?.remainingFcfa != null &&
     total > siteBudget.remainingFcfa
   const needsPdg = total >= 500_000
-  const saStep = approvalSteps.find((s) => s.role === 'purchasing')
-  const dtStep = approvalSteps.find((s) => s.role === 'technical_director')
-  const dafStep = approvalSteps.find((s) => s.role === 'daf' && s.decision === 'approved')
-  const pdgStep = approvalSteps.find((s) => s.role === 'pdg' && s.decision === 'approved')
+  const saStep = approvalSteps.filter(s => !s.invalidatedAt).find((s) => s.role === 'purchasing' && s.decision === 'approved')
+  const dtStep = approvalSteps.filter(s => !s.invalidatedAt).find((s) => s.role === 'technical_director' && s.decision === 'approved')
+  const dafStep = approvalSteps.filter(s => !s.invalidatedAt).find((s) => s.role === 'daf' && s.decision === 'approved')
+  const pdgStep = approvalSteps.filter(s => !s.invalidatedAt).find((s) => s.role === 'pdg' && s.decision === 'approved')
   const [preview, setPreview] = useState<{ url: string; fileName: string; contentType: string } | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const previewUrlRef = useRef<string | null>(null)
@@ -3639,7 +3648,7 @@ export function RequestDetailPanel({
               <div key={s.id} style={{ fontSize: 13 }}>
                 <strong>{PROCUREMENT_ROLE_LABELS[s.role]}</strong>
                 {' — '}
-                {approvalDecisionLabel(s.role, s.decision)}
+                {s.etape === 'correction_requested' ? 'Correction demandée' : s.etape === 'correction_resubmitted' ? 'Correction soumise' : s.etape === 'validation_correction_sa' ? 'Correction validée' : approvalDecisionLabel(s.role, s.decision)}{s.invalidatedAt ? ' (ancienne version — visa non applicable)' : ''}
                 {s.comment ? ` : ${s.comment}` : ''}
                 <span style={css.meta}> · {formatApprovalAt(s.createdAt)}</span>
               </div>
@@ -3708,9 +3717,10 @@ export function RequestDetailPanel({
           </div>
         ))}
 
+      <CorrectionWorkflowPanel detail={detail} readOnly={procurementRole === 'treasury' ? false : readOnly} onChanged={onCorrectionChanged} />
       <DocumentChain
         requestId={request.id}
-        canAttachBl={!readOnly && procurementRole === 'purchasing'}
+        canAttachBl={!readOnly && procurementRole === 'purchasing' && (!request.correctionTargetId || request.correctionTargetId === currentManagerId)}
         highlight={highlight}
       />
 
@@ -3923,7 +3933,7 @@ export function RequestDetailPanel({
                 disabled={actionLoading}
                 style={{ ...css.btnDanger, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
               >
-                {actionLoading ? 'Rejet…' : 'Rejeter'}
+                {actionLoading ? 'Refus…' : 'Refuser définitivement'}
               </button>
             )}
           </div>

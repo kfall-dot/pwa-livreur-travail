@@ -70,6 +70,8 @@ export const purchaseRequestStatusEnum = pgEnum('purchase_request_status', [
   'delivery_scheduled',
   'delivered',
   'rejected',
+  'correction_required',
+  'correction_head_review',
   'deleted',
 ])
 
@@ -645,6 +647,8 @@ export type Supplier = typeof suppliers.$inferSelect
 export type NewSupplier = typeof suppliers.$inferInsert
 
 export const purchaseRequests = pgTable('purchase_requests', {
+  correctionTargetId: text('correction_target_id').references(() => managers.id),
+  correctionReviewRequired: boolean('correction_review_required').notNull().default(false),
   saReviewerId: text('sa_reviewer_id').references(() => managers.id),
   id: text('id').primaryKey(),
   companyId: text('company_id')
@@ -716,6 +720,7 @@ export type PurchaseRequestLine = typeof purchaseRequestLines.$inferSelect
 export type NewPurchaseRequestLine = typeof purchaseRequestLines.$inferInsert
 
 export const approvalSteps = pgTable('approval_steps', {
+  invalidatedAt: timestamp('invalidated_at'),
   id: text('id').primaryKey(),
   purchaseRequestId: text('purchase_request_id')
     .notNull()
@@ -734,6 +739,7 @@ export type ApprovalStep = typeof approvalSteps.$inferSelect
 export type NewApprovalStep = typeof approvalSteps.$inferInsert
 
 export const purchaseOrders = pgTable('purchase_orders', {
+  correctionPending: boolean('correction_pending').notNull().default(false),
   saApprovalRequired: boolean('sa_approval_required').notNull().default(false),
   saHeadSignature: text('sa_head_signature'),
   id: text('id').primaryKey(),
@@ -1013,3 +1019,18 @@ export type ParsedEbLine = {
   amount?: number
   spendCategory?: string
 }
+
+/** Retours tracés : version source, destinataire et pièces archivées avant correction. */
+export const procurementCorrections = pgTable('procurement_corrections', {
+  id: text('id').primaryKey(), companyId: text('company_id').notNull().references(() => companies.id),
+  requestId: text('request_id').notNull().references(() => purchaseRequests.id),
+  requestedById: text('requested_by_id').notNull().references(() => managers.id),
+  targetManagerId: text('target_manager_id').notNull().references(() => managers.id),
+  targetRole: text('target_role').notNull(),
+  kind: text('kind').notNull(), reason: text('reason').notNull(), fromStatus: text('from_status').notNull(),
+  state: text('state').notNull().default('open'), sourceVersion: integer('source_version').notNull(),
+  snapshot: jsonb('snapshot').notNull(), uploadedKeys: jsonb('uploaded_keys').$type<string[]>().notNull().default([]),
+  resumeStatus: text('resume_status'),
+  responseComment: text('response_comment'), createdAt: timestamp('created_at').notNull().defaultNow(),
+  resubmittedAt: timestamp('resubmitted_at'),
+})

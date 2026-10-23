@@ -3,6 +3,15 @@ import assert from 'node:assert/strict'
 import { ficheLinesFromParsed, generateEbFicheHtml, signoffFromApprovalSteps } from './ebFiche.ts'
 
 describe('generateEbFicheHtml', () => {
+  it('écarte les visas invalidés et ne transforme pas un retour PDG en approbation', () => {
+    const base = { createdAt: new Date(), comment: 'Ancien visa', managerName: 'Test' }
+    const result = signoffFromApprovalSteps([
+      { ...base, role: 'daf', decision: 'approved', invalidatedAt: new Date() },
+      { ...base, role: 'pdg', decision: 'revised', etape: 'correction_requested' },
+    ])
+    assert.equal(result.dafSignature, '')
+    assert.equal(result.pdgSignature, '')
+  })
   it('reprend les libellés de FICHE DE BESOIN ACHAT', () => {
     const html = generateEbFicheHtml({
       reference: 'EB-TEST-01',

@@ -6,8 +6,9 @@ import type { RequestDetailResponse } from './procurementTypes'
 const noop = () => {}
 
 /** La même fiche EB et la même chaîne documentaire que dans Achats, en lecture seule. */
-export function TreasuryEbContent({ detail, onBack = noop }: { detail: RequestDetailResponse; onBack?: () => void }) {
+export function TreasuryEbContent({ detail, onBack = noop, onChanged }: { onChanged?: (detail: RequestDetailResponse) => void; detail: RequestDetailResponse; onBack?: () => void }) {
   return <RequestDetailPanel
+    onCorrectionChanged={onChanged}
     detail={detail} readOnly procurementRole="treasury" managerName="Trésorerie"
     backLabel="← Retour à la Trésorerie" onBack={onBack} highlight={null}
     approvalComment="" approvalPin="" selectedSupplierId="" poAmount="" actionLoading={false}
@@ -33,5 +34,5 @@ export function TreasuryEbDossier({ requestId, onBack }: { requestId: string; on
   }, [requestId])
   if (error) return <p role="alert">{error}</p>
   if (!detail) return <p>Chargement du dossier EB…</p>
-  return <section data-testid="mgr-treasury-eb-dossier"><TreasuryEbContent detail={detail} onBack={onBack} /></section>
+  return <section data-testid="mgr-treasury-eb-dossier"><TreasuryEbContent detail={detail} onBack={onBack} onChanged={setDetail} /></section>
 }

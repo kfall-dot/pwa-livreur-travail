@@ -1,20 +1,19 @@
+import { finalRefusal } from './procurementCorrections.js'
 import { payMaterialInvoice } from './materialInvoicePayment.js'
 import { getProcurementConfig } from '../config/procurement.js'
 import { getManagerById } from '../db/queries.js'
 import { db } from '../db/index.js'
-import { purchaseRequests, purchaseOrders, approvalSteps } from '../db/schema.js'
+import { purchaseRequests, purchaseOrders, approvalSteps, treasuryOrders, treasuryDisbursements } from '../db/schema.js'
 import { randomUUID } from 'crypto'
 import { hashEbContenu } from './ebSignature.js'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { canValidateSaAction, isValidSaSupervisor } from '../../shared/saTeamPolicy.js'
 import {
   createPurchaseOrder,
-  createTreasuryDisbursement,
   createTreasuryOrder,
   getActiveDocumentTemplate,
   getApprovalSteps,
   getCompanyName,
-  getDisbursementByTreasuryOrder,
   getPurchaseRequestById,
   getPurchaseRequestLines,
   getRequestDetail,
@@ -24,7 +23,6 @@ import {
   getTreasuryOrderByLine,
   getTreasuryOrderByRequest,
   linkDeliveryPointsToPurchaseOrder,
-  listDisbursementsForRequest,
   listPurchaseOrdersForRequest,
   listTreasuryOrdersForRequest,
   recordApprovalStep,
@@ -294,6 +292,7 @@ export async function ensureTreasuryAdvances(
     if (existing) {
       const pdfHtml = await buildTreasuryPdf(request, site, existing, lines, template, steps, existing.reference, ebReference, [line])
       await updateTreasuryOrderHtml(existing.id, pdfHtml)
+      if (existing.status === 'cancelled') await updateTreasuryOrderStatus(existing.id, 'pending')
       await updateTreasuryOrderAmount(existing.id, amount)
       if (linkedBcId) await setTreasuryOrderPurchaseOrder(existing.id, linkedBcId)
       out.push({ ...existing, pdfHtml, amountFcfa: String(amount), purchaseOrderId: linkedBcId ?? existing.purchaseOrderId })
@@ -382,71 +381,36 @@ export async function disburseTreasuryOrder(input: {
     return result
   }
 
-  const request = await getPurchaseRequestById(input.companyId, treasury.purchaseRequestId)
-  if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)
-  if (request.status !== 'bt_ready' && request.status !== 'deboursed') {
-    throw new ProcurementWorkflowError(
-      `Déboursé impossible au statut ${request.status} (attendu : bt_ready)`,
-    )
-  }
-
-  if (await getDisbursementByTreasuryOrder(input.companyId, input.treasuryOrderId)) {
-    throw new ProcurementWorkflowError('Ce bon de trésorerie a déjà été déboursé', 409)
-  }
-
-  // I103 — aucun déboursé sans pièce justificative.
-  if (!input.invoice?.blobKey) {
-    throw new ProcurementWorkflowError(
-      'La facture (ou le reçu) est obligatoire pour enregistrer un déboursé',
-    )
-  }
-
-  const due = Number(treasury.amountFcfa ?? 0)
-  const amountFcfa = Math.round(input.amountFcfa && input.amountFcfa > 0 ? input.amountFcfa : due)
-  if (amountFcfa <= 0) throw new ProcurementWorkflowError('Montant déboursé invalide')
-  if (amountFcfa > due) {
-    throw new ProcurementWorkflowError('Le déboursé dépasse le montant du bon de trésorerie')
-  }
-
-  const disbursement = await createTreasuryDisbursement({
-    companyId: input.companyId,
-    treasuryOrderId: input.treasuryOrderId,
-    amountFcfa,
-    method: input.method,
-    transactionReference: input.transactionReference ?? null,
-    paidAt: input.paidAt,
-    recordedByManagerId: input.managerId,
-    invoiceBlobKey: input.invoice.blobKey,
-    invoiceFileName: input.invoice.fileName,
-    invoiceContentType: input.invoice.contentType,
+  const result = await db.transaction(async tx => {
+    // Same lock order as correction requests and material payments.
+    const [request] = await tx.select().from(purchaseRequests).where(and(eq(purchaseRequests.id, treasury.purchaseRequestId), eq(purchaseRequests.companyId, input.companyId))).for('update')
+    if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)
+    if (request.correctionTargetId) throw new ProcurementWorkflowError('Paiement suspendu pendant la correction', 409)
+    if (!['bt_ready', 'deboursed'].includes(request.status)) throw new ProcurementWorkflowError('Cette EB ne peut pas être payée à cette étape', 409)
+    const [current] = await tx.select().from(treasuryOrders).where(and(eq(treasuryOrders.id, input.treasuryOrderId), eq(treasuryOrders.companyId, input.companyId))).for('update')
+    if (!current || !['pending', 'issued'].includes(current.status)) throw new ProcurementWorkflowError('Ce bon a déjà été traité ou annulé', 409)
+    const existing = await tx.select().from(treasuryDisbursements).where(eq(treasuryDisbursements.treasuryOrderId, current.id))
+    if (existing.length) throw new ProcurementWorkflowError('Ce bon a déjà été payé', 409)
+    if (!input.invoice?.blobKey) throw new ProcurementWorkflowError('La facture ou le reçu est obligatoire')
+    const due = Number(current.amountFcfa)
+    const amount = Math.round(input.amountFcfa && input.amountFcfa > 0 ? input.amountFcfa : due)
+    if (amount <= 0 || amount > due) throw new ProcurementWorkflowError('Montant du règlement invalide')
+    const [disbursement] = await tx.insert(treasuryDisbursements).values({
+      id: 'td-' + randomUUID(), companyId: input.companyId, treasuryOrderId: current.id, amountFcfa: String(amount),
+      method: input.method, transactionReference: input.transactionReference ?? null, paidAt: input.paidAt,
+      recordedByManagerId: input.managerId, invoiceBlobKey: input.invoice.blobKey,
+      invoiceFileName: input.invoice.fileName, invoiceContentType: input.invoice.contentType,
+    }).returning()
+    await tx.update(treasuryOrders).set({ status: 'deboursed' }).where(eq(treasuryOrders.id, current.id))
+    const all = await tx.select().from(treasuryOrders).where(and(eq(treasuryOrders.purchaseRequestId, request.id), eq(treasuryOrders.purpose, 'advance'), ne(treasuryOrders.status, 'cancelled')))
+    const allPaid = all.length > 0 && all.every(t => ['paid', 'deboursed'].includes(t.status))
+    if (allPaid) await tx.update(treasuryOrders).set({ status: 'paid' }).where(and(eq(treasuryOrders.purchaseRequestId, request.id), eq(treasuryOrders.purpose, 'advance'), ne(treasuryOrders.status, 'cancelled')))
+    const nextStatus: PurchaseRequestStatus = allPaid ? 'paid' : 'deboursed'
+    const [updated] = await tx.update(purchaseRequests).set({ status: nextStatus, updatedAt: new Date() }).where(eq(purchaseRequests.id, request.id)).returning()
+    return { disbursement, request: updated, allPaid }
   })
-
-  await updateTreasuryOrderStatus(input.treasuryOrderId, 'deboursed')
-
-  // L'EB est `paid` quand tous ses BT sont déboursés, `deboursed` sinon.
-  const [all, disbursed] = await Promise.all([
-    listTreasuryOrdersForRequest(input.companyId, treasury.purchaseRequestId),
-    listDisbursementsForRequest(input.companyId, treasury.purchaseRequestId),
-  ])
-  const paidIds = new Set(disbursed.map((d) => d.treasury.id))
-  const allPaid = all.length > 0 && all.every((t) => paidIds.has(t.id))
-  if (allPaid) {
-    for (const t of all) await updateTreasuryOrderStatus(t.id, 'paid')
-  }
-
-  const nextStatus: PurchaseRequestStatus = allPaid ? 'paid' : 'deboursed'
-  const updated = await updatePurchaseRequestStatus(
-    input.companyId,
-    treasury.purchaseRequestId,
-    nextStatus,
-  )
-  await notifyRequestStatusChange(input.companyId, request.reference, nextStatus, [
-    'treasury',
-    'controle_gestion',
-    'daf',
-  ])
-
-  return { disbursement, request: updated, allPaid }
+  await notifyRequestStatusChange(input.companyId, result.request.reference, result.request.status, ['treasury', 'controle_gestion', 'daf']).catch(err => console.error('[payment notify]', err))
+  return result
 }
 
 export async function createTreasuryAdvanceForRequest(input: {
@@ -468,35 +432,9 @@ export async function createTreasuryAdvanceForRequest(input: {
 }
 
 export async function rejectPurchaseRequest(input: {
-  companyId: string
-  requestId: string
-  managerId: string
-  procurementRole: ProcurementRole
-  comment?: string | null
-}) {
-  const request = await getPurchaseRequestById(input.companyId, input.requestId)
-  if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)
-
-  const required = getRequiredApproverRole(request.status)
-  if (required && input.procurementRole !== required) {
-    const pdgOverride =
-      input.procurementRole === 'pdg' &&
-      (request.status === 'daf_review' || request.status === 'daf_bt_review')
-    if (!pdgOverride) {
-      throw new ProcurementWorkflowError(`Seul le rôle ${required} peut rejeter à cette étape`)
-    }
-  }
-
-  await recordApprovalStep({
-    purchaseRequestId: input.requestId,
-    role: input.procurementRole,
-    managerId: input.managerId,
-    decision: 'rejected',
-    comment: input.comment,
-  })
-
-  return updatePurchaseRequestStatus(input.companyId, input.requestId, 'rejected')
-}
+  companyId: string; requestId: string; managerId: string; procurementRole: ProcurementRole;
+  comment?: string | null; pinVerified?: boolean; ip?: string;
+}) { return finalRefusal(input) }
 
 /**
  * Révision PDG des quantités (option A) — autorisée uniquement au statut `pdg_review`.
@@ -698,7 +636,7 @@ export async function approveSaPreparedPurchaseOrders(input: {
   await db.transaction(async (tx) => {
     const [current] = await tx.select().from(purchaseRequests).where(and(eq(purchaseRequests.id, request.id), eq(purchaseRequests.companyId, input.companyId))).for('update')
     if (!current || current.status !== 'bc_head_review' || current.saReviewerId !== input.managerId) throw new ProcurementWorkflowError('Cette validation a déjà été traitée', 409)
-    const currentOrders = await tx.select().from(purchaseOrders).where(and(eq(purchaseOrders.purchaseRequestId, request.id), eq(purchaseOrders.companyId, input.companyId))).for('update')
+    const currentOrders = await tx.select().from(purchaseOrders).where(and(eq(purchaseOrders.purchaseRequestId, request.id), eq(purchaseOrders.companyId, input.companyId), eq(purchaseOrders.correctionPending, false))).for('update')
     if (currentOrders.length !== orders.length || currentOrders.some((po) => !orders.some((snapshot) => snapshot.id === po.id && snapshot.pdfHtml === po.pdfHtml && snapshot.amountFcfa === po.amountFcfa))) throw new ProcurementWorkflowError('Les BC ont changé : rechargez avant de les signer', 409)
     for (const document of documents) {
       await tx.update(purchaseOrders).set({ pdfHtml: document.html, saHeadSignature: input.signature }).where(and(eq(purchaseOrders.id, document.id), eq(purchaseOrders.companyId, input.companyId)))

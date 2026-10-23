@@ -1,3 +1,4 @@
+import { canRequestCorrection } from '../../shared/procurementCorrectionPolicy.js'
 import type { Request, Response, NextFunction } from 'express'
 import { resolveDatabaseUrl } from '../db/index.js'
 import { Pool } from '@neondatabase/serverless'
@@ -11,7 +12,7 @@ type Lease = { manager_id: string; owner_name: string; expires_at: Date }
 const READ_LEASE = `SELECT l.manager_id, m.name AS owner_name, l.expires_at
   FROM procurement_edit_locks l JOIN managers m ON m.id=l.manager_id
   WHERE l.company_id=$1 AND l.document_kind=$2 AND l.document_id=$3 AND l.expires_at > now()`
-type DocumentState = { status: string; saReviewerId?: string | null; purchaseRequestId?: string | null }
+type DocumentState = { status: string; correctionTargetId?: string | null; saReviewerId?: string | null; purchaseRequestId?: string | null }
 let lockPool: Pool | undefined
 function getLockPool() {
   if (!lockPool) {
@@ -37,10 +38,13 @@ export function procurementEditLock(kind: Kind, idFromRequest = (req: Request) =
       ? await getDraftById(manager.companyId, documentId)
       : await getPurchaseRequestById(manager.companyId, documentId)
     if (!document) { res.status(404).json({ message: 'Document introuvable' }); return }
+    if (document.correctionTargetId && mutation && !lockOperation && !path.startsWith('/correction/')) { res.status(409).json({ message: 'Demande en correction : les autres actions sont suspendues.' }); return }
     const actor = await getManagerById(manager.sub)
     if (!actor || actor.companyId !== manager.companyId) { res.status(403).json({ message: 'Compte introuvable' }); return }
-    const canClaim = canTakeProcurementEditLock({ kind, status: document.status, role: actor.procurementRole, managerId: actor.id,
+    if (mutation && document.correctionTargetId && document.correctionTargetId !== actor.id) { res.status(403).json({ message: 'Cette correction est affectée à une autre personne.' }); return }
+    const canClaim = (path === '/correction/request' && canRequestCorrection(document.status, actor.procurementRole, !actor.saSupervisorId)) || canTakeProcurementEditLock({ kind, status: document.status, role: actor.procurementRole, managerId: actor.id,
       reviewerId: 'saReviewerId' in document ? document.saReviewerId : null, supervisorId: actor.saSupervisorId,
+      correctionTargetId: document.correctionTargetId,
       linkedRequestId: 'purchaseRequestId' in document ? document.purchaseRequestId : null })
     const view = (current: Lease | undefined) => ({ canClaim, ownedByMe: current?.manager_id === actor.id, ownerName: current?.owner_name ?? null, expiresAt: current?.expires_at ?? null })
     if (lockOperation && req.method === 'GET') {
@@ -92,7 +96,7 @@ export function procurementEditLock(kind: Kind, idFromRequest = (req: Request) =
       }
       // Bail visible par les lecteurs ; le mutex reste acquis jusqu'à la fin
       // de l'écriture. Les données métier utilisent leurs connexions habituelles.
-      const complete = () => finish(res.statusCode < 400 && (path === '/dashboard/tours' || req.method === 'DELETE' && path === '/' || /\/(submit|submit-finance|approve|approve-sa-bc|reject|revise-quantities|create-bt|create-po|schedule-delivery)$/.test(path)))
+      const complete = () => finish(res.statusCode < 400 && (path === '/dashboard/tours' || req.method === 'DELETE' && path === '/' || /\/(submit|submit-finance|approve|approve-sa-bc|reject|revise-quantities|create-bt|create-po|schedule-delivery|correction\/request|correction\/resubmit|correction\/approve)$/.test(path)))
       // Une déconnexion du navigateur ne doit pas libérer le mutex avant que
       // le traitement métier ait terminé. end() est également appelé lorsque
       // la réponse ne peut plus être transmise au client déconnecté.

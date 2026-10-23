@@ -280,6 +280,7 @@ async function sumEngagedBc(companyId: string, siteId: string): Promise<number> 
         eq(purchaseRequests.companyId, companyId),
         eq(purchaseRequests.siteId, siteId),
         eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
         inArray(purchaseRequests.status, [...ENGAGED_BC_STATUSES]),
       ),
     )
@@ -298,6 +299,7 @@ async function sumRealizedBc(companyId: string, siteId: string): Promise<number>
         eq(purchaseRequests.companyId, companyId),
         eq(purchaseRequests.siteId, siteId),
         eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
         eq(purchaseRequests.status, 'delivered'),
       ),
     )
@@ -320,6 +322,7 @@ async function listEngagedBcChrono(
         eq(purchaseRequests.companyId, companyId),
         eq(purchaseRequests.siteId, siteId),
         eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
         inArray(purchaseRequests.status, [...ENGAGED_BC_STATUSES]),
       ),
     )
@@ -378,6 +381,7 @@ export async function listSiteMonthlyExpenses(
         and(
           eq(purchaseRequests.companyId, companyId),
           eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
           inArray(purchaseRequests.status, [...ENGAGED_BC_STATUSES]),
           gte(purchaseOrders.createdAt, startDate),
           lt(purchaseOrders.createdAt, endDate),
@@ -535,6 +539,7 @@ async function listSiteDeliveryExpenseEvents(companyId: string, siteId: string) 
         eq(purchaseOrders.companyId, companyId),
         eq(purchaseRequests.siteId, siteId),
         eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
         eq(deliveryPoints.status, 'delivered'),
       ),
     )
@@ -1038,6 +1043,7 @@ export async function listSiteBudgets(
         and(
           eq(purchaseRequests.companyId, companyId),
           eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
           inArray(purchaseRequests.status, [...ENGAGED_BC_STATUSES]),
           inArray(purchaseRequests.siteId, siteIds),
         ),
@@ -1054,6 +1060,7 @@ export async function listSiteBudgets(
         and(
           eq(purchaseRequests.companyId, companyId),
           eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
           eq(purchaseRequests.status, 'delivered'),
           inArray(purchaseRequests.siteId, siteIds),
         ),
@@ -1914,6 +1921,7 @@ export async function getApprovalSteps(requestId: string) {
       comment: approvalSteps.comment,
       ip: approvalSteps.ip,
       etape: approvalSteps.etape,
+      invalidatedAt: approvalSteps.invalidatedAt,
       pinVerified: approvalSteps.pinVerified,
       createdAt: approvalSteps.createdAt,
     })
@@ -2070,7 +2078,7 @@ export async function getRequestDetail(companyId: string, requestId: string) {
     db
       .select()
       .from(purchaseOrders)
-      .where(eq(purchaseOrders.purchaseRequestId, requestId))
+      .where(and(eq(purchaseOrders.purchaseRequestId, requestId), eq(purchaseOrders.correctionPending, false)))
       .orderBy(purchaseOrders.createdAt),
     listTreasuryOrdersForRequest(companyId, requestId),
   ])
@@ -2380,6 +2388,7 @@ export async function listTreasuryOrdersToDisburse(companyId: string) {
       and(
         eq(treasuryOrders.companyId, companyId),
         inArray(treasuryOrders.status, ['pending', 'issued']),
+        isNull(purchaseRequests.correctionTargetId),
         // Seuls les BT du circuit hors SA sont à débourser : les BT agrégés
         // historiques du circuit matériaux restent pilotés par le BC.
         or(and(eq(treasuryOrders.purpose, 'advance'), inArray(purchaseRequests.status, ['bt_pending', 'bt_ready', 'deboursed'])),
@@ -2430,7 +2439,7 @@ export async function listPurchaseOrdersForRequest(companyId: string, requestId:
   return db
     .select()
     .from(purchaseOrders)
-    .where(and(eq(purchaseOrders.purchaseRequestId, requestId), eq(purchaseOrders.companyId, companyId)))
+    .where(and(eq(purchaseOrders.purchaseRequestId, requestId), eq(purchaseOrders.companyId, companyId), eq(purchaseOrders.correctionPending, false)))
     .orderBy(purchaseOrders.createdAt)
 }
 
@@ -2535,6 +2544,7 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       and(
         eq(purchaseOrders.companyId, companyId),
         eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
         // Livraison confirmée = déclaration « full » ou « partial » (cf. dashboard livraison).
         // Les partielles sont incluses avec le libellé « livraison partielle » en Observation.
         inArray(declarations.outcome, ['full', 'partial']),
@@ -2766,7 +2776,7 @@ export async function listTreasuryOrdersForRequest(companyId: string, requestId:
   return db
     .select()
     .from(treasuryOrders)
-    .where(and(eq(treasuryOrders.purchaseRequestId, requestId), eq(treasuryOrders.companyId, companyId), eq(treasuryOrders.purpose, 'advance')))
+    .where(and(eq(treasuryOrders.purchaseRequestId, requestId), eq(treasuryOrders.companyId, companyId), eq(treasuryOrders.purpose, 'advance'), ne(treasuryOrders.status, 'cancelled')))
     .orderBy(treasuryOrders.createdAt)
 }
 
@@ -2807,6 +2817,7 @@ export async function getDeliveryDocumentRefs(
       purchaseOrders,
       and(
         eq(purchaseOrders.docType, 'bc'),
+        eq(purchaseOrders.correctionPending, false),
         or(eq(deliveryPoints.purchaseOrderId, purchaseOrders.id), eq(purchaseOrders.tourId, deliveryPoints.tourId)),
       ),
     )

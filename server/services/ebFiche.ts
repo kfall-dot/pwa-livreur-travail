@@ -93,7 +93,7 @@ export function generateEbFicheHtml(data: EbFicheData): string {
   const vSuffix = versionSuffix(data.version)
   const revisedDate = data.revisedAt ? new Date(data.revisedAt).toLocaleDateString('fr-FR') : ''
   const revisionBanner = isRevised
-    ? `<div class="revision-banner">VERSION MODIFIÉE n° ${escapeHtml(String(data.version))} — révisée par le PDG${revisedDate ? ` le ${escapeHtml(revisedDate)}` : ''}${data.revisionComment ? ` — Motif : ${escapeHtml(data.revisionComment)}` : ''}</div>`
+    ? `<div class="revision-banner">VERSION MODIFIÉE n° ${escapeHtml(String(data.version))} — révisée${revisedDate ? ` le ${escapeHtml(revisedDate)}` : ''}${data.revisionComment ? ` — Motif : ${escapeHtml(data.revisionComment)}` : ''}</div>`
     : ''
 
   return withPrintBar(`<!DOCTYPE html>
@@ -261,6 +261,8 @@ function financeBox(name?: string | null, date?: string | null, signature?: stri
 }
 
 type SignoffStep = {
+  etape?: string | null
+  invalidatedAt?: Date | string | null
   role: string
   decision: string
   comment: string | null
@@ -314,6 +316,7 @@ export function signoffFromApprovalSteps(steps: Array<SignoffStep>): {
   pdgDate: string
   pdgSignature: string
 } {
+  steps = steps.filter(s => !s.invalidatedAt)
   const sa = steps.find((s) => s.role === 'purchasing' && s.decision === 'approved')
   const dt = steps.find((s) => s.role === 'technical_director' && s.decision === 'approved')
   const daf = steps.find((s) => s.role === 'daf' && s.decision === 'approved')
@@ -321,7 +324,7 @@ export function signoffFromApprovalSteps(steps: Array<SignoffStep>): {
   // révision des quantités (décision `revised`) : les deux valent signature.
   const pdg =
     steps.find((s) => s.role === 'pdg' && s.decision === 'approved') ??
-    steps.find((s) => s.role === 'pdg' && s.decision === 'revised')
+    steps.find((s) => s.role === 'pdg' && s.decision === 'revised' && !s.etape?.startsWith('correction_'))
   const fmt = (d?: Date | string) => (d ? new Date(d).toLocaleDateString('fr-FR') : '')
   return {
     treatedByName: stepDisplayName(sa),

@@ -150,7 +150,7 @@ describe('generateBtHtml — fiche trésorerie achats', () => {
     // Bandeau rouge en tête de fiche : version, auteur et motif de la révision.
     assert.match(
       revised,
-      /VERSION MODIFIÉE n° 2 — révisée par le PDG le \d{2}\/\d{2}\/\d{4} — Motif : Quantité ciment ajustée/,
+      /VERSION MODIFIÉE n° 2 — révisée le \d{2}\/\d{2}\/\d{4} — Motif : Quantité ciment ajustée/,
     )
     assert.match(revised, /<title>Fiche trésorerie BT-2026-0001 — v2<\/title>/)
     // Les deux visas coexistent sur le BT régénéré.
@@ -162,7 +162,7 @@ describe('generateBtHtml — fiche trésorerie achats', () => {
     // BT initial (v1) : ni bandeau, ni suffixe de version.
     const initial = generateBtHtml(null, btSample)
     assert.doesNotMatch(initial, /VERSION MODIFIÉE/)
-    assert.doesNotMatch(initial, /révisée par le PDG/)
+    assert.doesNotMatch(initial, /révisée/)
     assert.match(initial, /<title>Fiche trésorerie BT-2026-0001<\/title>/)
   })
 })
