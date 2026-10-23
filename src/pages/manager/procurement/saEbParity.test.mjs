@@ -55,7 +55,7 @@ test('les EB créées par le SA et reçues du DT offrent les mêmes commandes co
       'onRevisePinChange', 'onReviseModalClose', 'onReviseConfirm',
     ].map((name) => [name, noop]))
     const draftLine = { label: 'Ciment', unit: 'sac', quantity: 10, spendCategory: 'autres_materiaux' }
-    const draftHtml = renderToStaticMarkup(createElement(DraftReviewPanel, {
+    const draftProps = {
       detail: {
         draft: { id: 'draft-sa', createdAt: '2026-10-22T12:00:00Z', parsedLines: [draftLine] },
         messages: [], sites: [], suppliers: [], parseHints: { source: 'blank_fiche' },
@@ -67,8 +67,20 @@ test('les EB créées par le SA et reçues du DT offrent les mêmes commandes co
       onUrgencyChange: noop, onSiteChange: noop, onRequesterChange: noop,
       onObjetChange: noop, onNeededByChange: noop, onPinChange: noop,
       onValidate: noop, onSubmit: noop,
-    }))
+    }
+    const draftHtml = renderToStaticMarkup(createElement(DraftReviewPanel, draftProps))
     assert.ok(draftHtml.includes('Continuer vers validation'))
+    for (const role of ['technical_director', 'purchasing']) {
+      const lockedDraft = renderToStaticMarkup(createElement(DraftReviewPanel, { ...draftProps, procurementRole: role, canEdit: false }))
+      const addLabor = lockedDraft.match(/<button[^>]*data-testid="mgr-achats-draft-add-labor"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? ''
+      assert.ok(addLabor.includes('Ligne main d’œuvre'), `${role} voit le bouton avant la prise en charge`)
+      assert.ok(addLabor.includes('disabled'), `${role} ne peut pas ajouter une ligne sans le verrou`)
+      assert.ok(lockedDraft.includes('Pour ajouter des lignes'), 'la fiche explique comment activer le bouton')
+      const editableDraft = renderToStaticMarkup(createElement(DraftReviewPanel, { ...draftProps, procurementRole: role, canEdit: true }))
+      const editableLabor = editableDraft.match(/<button[^>]*data-testid="mgr-achats-draft-add-labor"[^>]*>/)?.[0] ?? ''
+      assert.ok(editableLabor && !editableLabor.includes('disabled'), `${role} peut ajouter de la main-d’œuvre après prise en charge`)
+    }
+
     for (const control of [
       'mgr-achats-draft-select-all', 'mgr-achats-draft-line-select-0',
       'mgr-achats-draft-bulk-supplier-select', 'mgr-achats-draft-bulk-supplier-assign',

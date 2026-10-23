@@ -2431,6 +2431,19 @@ export function DraftReviewPanel({
             créez deux EB distinctes (la main d’œuvre part directement au CdG).
           </div>
         )}
+        {canEditDraft(procurementRole) && (
+          <div style={{ margin: '12px 0' }}>
+            <div style={css.actionRow}>
+              <button type="button" disabled={!canEdit || actionLoading} onClick={() => onAddLine('material')} style={css.btnOutline} data-testid="mgr-achats-draft-add-material">
+                + Ligne matériau
+              </button>
+              <button type="button" disabled={!canEdit || actionLoading} onClick={() => onAddLine('labor')} style={css.btnOutline} data-testid="mgr-achats-draft-add-labor">
+                + Ligne main d’œuvre
+              </button>
+            </div>
+            {!canEdit && <p style={css.meta}>Pour ajouter des lignes, cliquez sur « Prendre en charge » en haut de la fiche. Si une autre personne a pris en charge le brouillon, attendez qu’elle le libère.</p>}
+          </div>
+        )}
         {materialEntries.length > 0 && (
           <>
             {renderSectionHead('🧱 Matériaux & fournitures', materialEntries.length, sectionTotal(materialEntries), false)}
@@ -2458,11 +2471,7 @@ export function DraftReviewPanel({
             </div>
           </>
         )}
-        {canEdit && (
-          <button type="button" onClick={() => onAddLine('material')} style={{ ...css.btnOutline, margin: 8 }}>
-            + Ligne matériau
-          </button>
-        )}
+
 
         {laborEntries.length > 0 && (
           <>
@@ -2491,11 +2500,7 @@ export function DraftReviewPanel({
             </div>
           </>
         )}
-        {canEdit && (
-          <button type="button" onClick={() => onAddLine('labor')} style={{ ...css.btnOutline, margin: 8 }}>
-            + Ligne main d’œuvre
-          </button>
-        )}
+
 
 
 

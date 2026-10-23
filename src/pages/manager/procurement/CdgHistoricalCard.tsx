@@ -144,7 +144,7 @@ export function CdgHistoricalCard({ canEdit }: { canEdit: boolean }) {
       const result = await importHistoricalJournal(rows, targetSiteId || undefined)
       const already = result.skipped > 0 ? ` · ${result.skipped} déjà présente(s)` : ''
       toast.success(
-        `${result.imported} ligne(s) rejouée(s) — ${formatFcfa(result.importedFcfa)}${already}`,
+        `${result.imported} ligne(s) importée(s) — ${formatFcfa(result.importedFcfa)}${already}`,
       )
       reset()
       await reload()
@@ -172,11 +172,11 @@ export function CdgHistoricalCard({ canEdit }: { canEdit: boolean }) {
 
   return (
     <div style={{ ...css.card, marginTop: 16 }} data-testid="mgr-cdg-historique-rejeu">
-      <h4 style={{ margin: '0 0 6px', fontSize: 13 }}>🗄️ Rejeu de l&apos;historique — journal du CdG</h4>
+      <h4 style={{ margin: '0 0 6px', fontSize: 13 }}>🗄️ Import des dépenses historiques du CdG</h4>
       <p style={{ ...css.meta, marginTop: 0 }}>
-        Les dépenses hors BC sont rejouées comme des <strong>faits datés</strong> et alimentent le
+        Les dépenses historiques hors BC sont importées avec leur <strong>date d’origine</strong> et alimentent le
         réalisé. Les lignes portant un n° de BC sont <strong>exclues</strong> : elles sont déjà des
-        bons de commande de TraceO (I100). Rejouer deux fois le même fichier n&apos;ajoute rien (I99).
+        bons de commande de TraceO. Importer deux fois le même fichier ne crée aucun doublon.
       </p>
       {canEdit && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
@@ -206,12 +206,12 @@ export function CdgHistoricalCard({ canEdit }: { canEdit: boolean }) {
             />
             <Metric
               testid="mgr-cdg-historique-excluded"
-              label="Déjà dans TraceO — exclues (I100)"
+              label="Lignes avec BC — exclues"
               value={`${preview.excluded.lines} ligne(s) · ${formatFcfa(preview.excluded.fcfa)}`}
             />
             <Metric
               testid="mgr-cdg-historique-to-import"
-              label="À rejouer — hors BC"
+              label="À importer — hors BC"
               value={`${preview.toImport.lines} ligne(s) · ${formatFcfa(preview.toImport.fcfa)}`}
             />
             <Metric
@@ -345,7 +345,7 @@ export function CdgHistoricalCard({ canEdit }: { canEdit: boolean }) {
                 disabled={busy || preview.toImport.lines === 0}
                 onClick={() => void doImport()}
               >
-                Rejouer {preview.toImport.lines} ligne(s) hors BC
+                Importer {preview.toImport.lines} ligne(s) hors BC
               </button>
               <button type="button" style={css.btnOutline} disabled={busy} onClick={reset}>
                 Annuler
@@ -403,7 +403,7 @@ export function CdgHistoricalCard({ canEdit }: { canEdit: boolean }) {
 
       {batches.length === 0 && !preview && (
         <p style={{ ...css.meta, marginBottom: 0 }} data-testid="mgr-cdg-historique-empty">
-          Aucun historique rejoué pour l&apos;instant.
+          Aucune dépense historique importée pour l&apos;instant.
         </p>
       )}
     </div>
