@@ -4,13 +4,14 @@ import { authFetch } from '../managerApi'
 type LockView = { canClaim: boolean; ownedByMe: boolean; ownerName: string | null; expiresAt: string | null }
 const EMPTY_LOCK: LockView = { canClaim: false, ownedByMe: false, ownerName: null, expiresAt: null }
 
-export function useProcurementEditLock(kind: 'drafts' | 'requests', id: string | null, revision: string) {
+export function useProcurementEditLock(kind: 'drafts' | 'requests', id: string | null, revision: string, autoAcquire = false) {
   const url = id ? `/procurement/${kind}/${encodeURIComponent(id)}/lock` : null
   const [snapshot, setSnapshot] = useState<{ url: string | null; view: LockView }>({ url: null, view: EMPTY_LOCK })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const currentUrl = useRef(url)
   const owner = useRef(false)
+  const previousRevision = useRef({ url, revision })
   const view = snapshot.url === url ? snapshot.view : EMPTY_LOCK
 
   const send = useCallback(async (method: string, renew = false) => {
@@ -40,7 +41,9 @@ export function useProcurementEditLock(kind: 'drafts' | 'requests', id: string |
     owner.current = false
     setError('')
     if (!url) return
-    refresh()
+    // Le créateur prend immédiatement en charge son nouveau brouillon.
+    // Le serveur reste arbitre : une prise en charge concurrente renvoie 423.
+    void send(autoAcquire ? 'POST' : 'GET').catch((err: Error) => setError(err.message))
     const timer = window.setInterval(() => {
       void send(owner.current ? 'POST' : 'GET', owner.current).catch((err: Error) => setError(err.message))
     }, 30000)
@@ -52,8 +55,13 @@ export function useProcurementEditLock(kind: 'drafts' | 'requests', id: string |
       if (owner.current) void authFetch(url, { method: 'DELETE', keepalive: true }).catch(() => {})
       owner.current = false
     }
-  }, [url, send, refresh])
-  useEffect(() => { if (url) refresh() }, [revision, refresh, url])
+  }, [url, send, refresh, autoAcquire])
+  useEffect(() => {
+    const previous = previousRevision.current
+    previousRevision.current = { url, revision }
+    // Éviter un GET concurrent de la prise en charge initiale.
+    if (url && previous.url === url && previous.revision !== revision) refresh()
+  }, [revision, refresh, url])
 
   const act = async (method: 'POST' | 'DELETE') => {
     setBusy(true)

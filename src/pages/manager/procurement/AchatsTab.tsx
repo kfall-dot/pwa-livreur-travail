@@ -333,6 +333,7 @@ export function AchatsTab({
   const [cdgBudgets, setCdgBudgets] = useState<SiteBudget[]>([])
   const [cdgFocus, setCdgFocus] = useState<'all' | 'validate' | 'pipeline'>('all')
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
+  const [createdDraftId, setCreatedDraftId] = useState<string | null>(null)
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [draftDetail, setDraftDetail] = useState<DraftDetailResponse | null>(null)
   const [requestDetail, setRequestDetail] = useState<RequestDetailResponse | null>(null)
@@ -1086,6 +1087,7 @@ export function AchatsTab({
         : '',
     )
     setEditPin('')
+    setCreatedDraftId(draftId)
     setSelectedDraftId(draftId)
     setSelectedRequestId(null)
     setView('inbox')
@@ -1172,6 +1174,7 @@ export function AchatsTab({
     view === 'inbox' ? 'drafts' : 'requests',
     view === 'inbox' ? selectedDraftId : selectedRequestId,
     view === 'inbox' ? draftDetail?.draft.status ?? '' : requestDetail?.request.status ?? '',
+    view === 'inbox' && selectedDraftId === createdDraftId,
   )
 
   return (
