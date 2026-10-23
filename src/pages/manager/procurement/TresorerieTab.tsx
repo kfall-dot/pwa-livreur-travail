@@ -233,7 +233,7 @@ export function TresorerieTab({ handleAuth }: { handleAuth: (status: number) => 
         </div>
       )}
 
-      {dossierId && <><button type="button" style={css.btnOutline} onClick={() => setDossierId(null)}>Fermer le dossier EB</button><TreasuryEbDossier key={dossierId} requestId={dossierId} /></>}
+      {dossierId && <><button type="button" style={css.btnOutline} onClick={() => setDossierId(null)}>Fermer le dossier EB</button><TreasuryEbDossier key={dossierId} requestId={dossierId} onBack={() => setDossierId(null)} /></>}
       {openId &&
         (() => {
           const item = items.find((i) => i.treasuryId === openId)

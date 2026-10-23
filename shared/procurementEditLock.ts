@@ -21,3 +21,9 @@ export function canTakeProcurementEditLock(input: {
   if (status === 'po_ready' || status === 'delivery_scheduled') return role === 'purchasing' || role === 'technical_director'
   return false
 }
+
+/** Le CdG valide seul : pas de réservation manuelle avant lecture/visa.
+ * Les mutations restent sérialisées par le middleware serveur. */
+export function usesManualProcurementClaim(role: string | null | undefined): boolean {
+  return role !== 'controle_gestion'
+}

@@ -9,6 +9,7 @@ test('les EB créées par le SA et reçues du DT offrent les mêmes commandes co
   try {
     const { RequestDetailPanel, DraftReviewPanel } = await server.ssrLoadModule('/src/pages/manager/procurement/AchatsTab.tsx')
     const { fetchRequest } = await server.ssrLoadModule('/src/pages/manager/procurement/procurementApi.ts')
+    const { TreasuryEbContent } = await server.ssrLoadModule('/src/pages/manager/procurement/TreasuryEbDossier.tsx')
     const previousFetch = globalThis.fetch
     try {
       globalThis.fetch = async () => new Response(JSON.stringify({ message: 'Erreur interne du serveur' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
@@ -132,6 +133,18 @@ test('les EB créées par le SA et reçues du DT offrent les mêmes commandes co
       assert.ok(!readOnlyHtml.includes('data-testid="mgr-achats-save-pricing"'), 'une fiche verrouillée ne permet pas de changer les montants')
       assert.ok(!readOnlyHtml.includes('data-testid="mgr-sa-head-approve"'), 'le chef ne valide pas une fiche prise en charge par une autre personne')
       assert.ok(readOnlyHtml.includes('mgr-achats-request-eb-fiche-link'), 'la consultation et l’impression restent disponibles')
+      const treasuryHtml = renderToStaticMarkup(createElement(TreasuryEbContent, { detail: { ...reviewProps.detail, approvalSteps: [{ id: 'visa-cdg', role: 'controle_gestion', decision: 'approved', managerId: 'cdg-1', managerName: 'CdG', createdAt: '2026-10-23T12:00:00Z' }] }, onBack: noop }))
+      for (const section of ['mgr-achats-request-eb-fiche', 'mgr-achats-request-eb-fiche-link', 'mgr-achats-history', 'mgr-chain-loading']) {
+        assert.ok(treasuryHtml.includes(`data-testid="${section}"`), `Trésorerie : même fiche EB avec ${section}`)
+      }
+      for (const control of ['mgr-achats-save-pricing', 'mgr-sa-head-approve', 'btp-approve-btn', 'mgr-achats-submit-finance']) {
+        assert.ok(!treasuryHtml.includes(`data-testid="${control}"`), `la Trésorerie ne modifie pas l’EB : ${control}`)
+      }
+      const cdgHtml = renderToStaticMarkup(createElement(RequestDetailPanel, { ...reviewProps, procurementRole: 'controle_gestion', readOnly: false,
+        detail: { ...reviewProps.detail, request: { ...reviewProps.detail.request, status: 'cdg_review' } } }))
+      assert.ok(cdgHtml.includes('data-testid="btp-approve-btn"'), 'le CdG peut directement valider sa demande')
+      assert.ok(cdgHtml.includes('data-testid="mgr-achats-sign-pin"'), 'le NIP CdG reste requis')
+
       if (status === 'submitted') {
         const resourceHtml = renderToStaticMarkup(createElement(RequestDetailPanel, { ...reviewProps, currentManagerId: 'resource-sa', saSupervisorId: 'head-sa' }))
         assert.ok(resourceHtml.includes('Soumettre au chef SA'))

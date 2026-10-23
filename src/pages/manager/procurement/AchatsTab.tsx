@@ -1,3 +1,4 @@
+import { usesManualProcurementClaim } from '../../../../shared/procurementEditLock'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { toast } from '../../../lib/toast'
@@ -1189,9 +1190,10 @@ export function AchatsTab({
 
   const showDraftReview = view === 'inbox' && selectedDraftId && draftDetail
   const showRequestDetail = view === 'requests' && selectedRequestId && requestDetail
+  const manualClaim = usesManualProcurementClaim(procurementRole)
   const editLock = useProcurementEditLock(
     view === 'inbox' ? 'drafts' : 'requests',
-    view === 'inbox' ? selectedDraftId : selectedRequestId,
+    !manualClaim ? null : view === 'inbox' ? selectedDraftId : selectedRequestId,
     view === 'inbox' ? draftDetail?.draft.status ?? '' : requestDetail?.request.status ?? '',
     view === 'inbox' && selectedDraftId === createdDraftId,
   )
@@ -1382,7 +1384,8 @@ export function AchatsTab({
       </div>
 
       {error && <AlertBox>{error}</AlertBox>}
-      {(showDraftReview || showRequestDetail) && (
+      {procurementRole === 'controle_gestion' && showRequestDetail && <p style={css.meta}>Consultez le dossier et ses pièces, puis validez ou rejetez la demande avec votre NIP.</p>}
+      {manualClaim && (showDraftReview || showRequestDetail) && (
         <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-eb-edit-lock" role="status">
           <strong>{editLock.ownedByMe ? 'Vous prenez en charge cette demande.' : editLock.ownerName ? `Demande prise en charge par ${editLock.ownerName} — lecture seule.` : 'Demande en lecture seule.'}</strong>
           <div style={{ ...css.actionRow, marginTop: 8 }}>
@@ -1429,7 +1432,7 @@ export function AchatsTab({
       ) : showRequestDetail ? (
         <RequestDetailPanel
           detail={{ ...requestDetail, request: { ...requestDetail.request, paymentStatus: requests.find(r => r.id === requestDetail.request.id)?.paymentStatus ?? requestDetail.request.paymentStatus } }}
-          readOnly={!editLock.ownedByMe}
+          readOnly={manualClaim && !editLock.ownedByMe}
           currentManagerId={saActor.id}
           saSupervisorId={saActor.supervisorId}
           onApproveSaBc={() => void handleApproveSaBc()}
@@ -2633,6 +2636,7 @@ export function DraftReviewPanel({
 }
 
 export function RequestDetailPanel({
+  backLabel = '← Retour aux demandes',
   readOnly = false,
   currentManagerId,
   saSupervisorId,
@@ -2675,6 +2679,7 @@ export function RequestDetailPanel({
   onReviseModalClose,
   onReviseConfirm,
 }: {
+  backLabel?: string
   readOnly?: boolean
   currentManagerId?: string
   saSupervisorId?: string | null
@@ -2988,7 +2993,7 @@ export function RequestDetailPanel({
   return (
     <div ref={editorRef} data-testid="mgr-achats-request-detail" style={{ ...css.section, scrollMarginTop: 24 }}>
       <button type="button" onClick={onBack} style={{ ...css.btnGhost, marginBottom: '1rem' }}>
-        ← Retour aux demandes
+        {backLabel}
       </button>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
