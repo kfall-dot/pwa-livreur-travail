@@ -64,6 +64,7 @@ export async function notifyManagersByProcurementRole(
   subject: string,
   text: string,
   options?: {
+    managerIds?: string[]
     link?: string
     refType?: string
     refId?: string
@@ -76,7 +77,7 @@ export async function notifyManagersByProcurementRole(
     .where(eq(managers.companyId, companyId))
 
   const targets = rows.filter(
-    (m) => m.procurementRole && roles.includes(m.procurementRole),
+    (m) => m.procurementRole && roles.includes(m.procurementRole) && (!options?.managerIds || options.managerIds.includes(m.id)),
   )
 
   let notified = 0
@@ -138,7 +139,7 @@ export async function notifyRequestStatusChange(
   reference: string,
   status: string,
   targetRoles: ProcurementRole[],
-  options?: { lines?: string },
+  options?: { lines?: string; managerIds?: string[] },
 ): Promise<void> {
   const statusDetail = status === 'submitted' ? ' (Service achats)' : status === 'cdg_review' ? ' (Contrôle de gestion)' : ''
   const linesDetail = options?.lines ? `\n\nDétail :\n${options.lines}` : ''
@@ -149,6 +150,7 @@ export async function notifyRequestStatusChange(
     `La demande ${reference} est passée au statut « ${status} » et nécessite votre action${statusDetail}.${linesDetail}`,
     {
       notificationType: 'approval_required',
+      managerIds: options?.managerIds,
     },
   )
 }

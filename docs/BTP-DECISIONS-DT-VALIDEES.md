@@ -6,6 +6,44 @@
 
 ---
 
+## D5 — Circuit DT : revue terrain → DT → SA (I110)
+
+### Règle
+
+Une EB WhatsApp créée par le **Chef Chantier (CDC)** est d'abord soumise au **statut `dt_review`** (revue technique). Le DT approuve ensuite :
+
+| Famille de charge | Statut après DT | Circuit suivant |
+|-------------------|-----------------|-----------------|
+| Matériaux (ciment, fer, sable…) | `submitted` | SA → CdG → DAF |
+| Hors SA (main-d'œuvre, engins, frais) | `cdg_review` | CdG → DAF → trésorerie |
+
+### Quand le DT soumet lui-même
+
+Si le **DT** soumet l'EB directement (ex. déboursé sec ventilé), le statut initial est :
+
+- `submitted` (matériaux) ou `cdg_review` (hors SA) — **pas** d'étape `dt_review`.
+
+### Séquence complète (matériaux)
+
+```
+CDC soumet draft  →  dt_review  (notifie DT)
+DT approuve       →  submitted  (notifie SA)
+SA chiffre + envoie au CdG  →  cdg_review  (notifie CdG)
+CdG approuve      →  daf_review  (notifie DAF)
+DAF approuve (< 500 K)  →  sa_review  (notifie SA → émission BC)
+```
+
+### Implémentation
+
+| Artefact | Transition |
+|----------|-----------|
+| `server/routes/procurement.ts` `/drafts/:id/submit` | `requireProcurementRole('technical_director', 'site_manager')` ; `initialStatus` = `dt_review` si soumission par un non-DT |
+| `server/services/procurementWorkflow.ts` `approvePurchaseRequest` | `case 'dt_review'`: `horsSa → cdg_review / sinon submitted` |
+| `shared/chargeFlow.ts` `isHorsSaFlow` | déclencheur du routage matériaux vs hors SA |
+| `e2e/btp-helpers.ts` | `terrainSubmitDraft` (CDC) + `dtApproveRequest` (DT) |
+
+---
+
 ## Synthèse des 4 arbitrages
 
 | # | Question | Décision DT | Implication TraceO |

@@ -21,12 +21,19 @@ describe('saFinanceIncompleteMessage', () => {
   })
 
   it('refuse sans fournisseur, paiement ou PJ', () => {
-    assert.equal(saFinanceIncompleteMessage([{ ...line, supplierName: '' }]), SA_FINANCE_REQUIRED_MESSAGE)
-    assert.equal(saFinanceIncompleteMessage([{ ...line, paymentMode: '  ' }]), SA_FINANCE_REQUIRED_MESSAGE)
-    assert.equal(
-      saFinanceIncompleteMessage([{ ...line, attachmentFileName: null, attachmentBlobKey: null }]),
-      SA_FINANCE_REQUIRED_MESSAGE,
-    )
+    assert.match(saFinanceIncompleteMessage([{ ...line, supplierName: '' }]) ?? '', /ligne 1 « Ciment » : fournisseur/)
+    assert.match(saFinanceIncompleteMessage([{ ...line, paymentMode: '  ' }]) ?? '', /ligne 1 « Ciment » : mode de paiement/)
+    const missingAttachment = saFinanceIncompleteMessage([{ ...line, attachmentFileName: null, attachmentBlobKey: null }]) ?? ''
+    assert.ok(missingAttachment.startsWith(SA_FINANCE_REQUIRED_MESSAGE))
+    assert.match(missingAttachment, /ligne 1 « Ciment » : pièce jointe/)
+  })
+
+  it('indique les numéros des lignes concernées et accepte une facture partagée', () => {
+    const shared = { ...line, attachmentFileName: null, attachmentBlobKey: 'shared-invoice' }
+    assert.equal(saFinanceIncompleteMessage([shared, { ...shared, label: 'Fer' }]), null)
+    const message = saFinanceIncompleteMessage([line, { ...line, label: 'Fer', supplierName: '', paymentMode: '' }]) ?? ''
+    assert.match(message, /ligne 2 « Fer » : fournisseur, mode de paiement/)
+    assert.doesNotMatch(message, /ligne 1/)
   })
 
   it('refuse un PU manquant avant le contrôle commercial', () => {

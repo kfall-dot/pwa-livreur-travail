@@ -347,7 +347,7 @@ managersRoutes.patch('/dashboard/managers/:id', requireAdmin, async (req, res) =
       }
     }
 
-    const update: Partial<{ name: string; email: string; passwordHash: string; role: 'admin' | 'manager'; procurementRole: ProcurementRole | null }> = {}
+    const update: Partial<{ name: string; email: string; passwordHash: string; role: 'admin' | 'manager'; procurementRole: ProcurementRole | null; saSupervisorId: string | null }> = {}
     if (name?.trim()) update.name = name.trim()
     if (email?.trim()) {
       const normalizedEmail = email.trim().toLowerCase()
@@ -389,6 +389,23 @@ managersRoutes.patch('/dashboard/managers/:id', requireAdmin, async (req, res) =
         typeof pr === 'string' && validProcurementRoles.includes(pr) ? (pr as ProcurementRole) : null
     }
 
+    if ('saSupervisorId' in req.body) {
+      const supervisorId = typeof req.body.saSupervisorId === 'string' ? req.body.saSupervisorId.trim() : ''
+      if (supervisorId) {
+        const supervisor = await getManagerById(supervisorId)
+        if (supervisorId === current.id || (update.procurementRole ?? current.procurementRole) !== 'purchasing' || !supervisor || supervisor.companyId !== manager.companyId || supervisor.procurementRole !== 'purchasing' || supervisor.saSupervisorId) {
+          res.status(400).json({ message: 'Choisissez un chef SA de la même entreprise, distinct de la ressource et sans supérieur SA' })
+          return
+        }
+      }
+      update.saSupervisorId = supervisorId || null
+    }
+    if ('procurementRole' in update && update.procurementRole !== 'purchasing') update.saSupervisorId = null
+    const reports = (await getAllManagers(manager.companyId)).filter((m) => m.saSupervisorId === current.id)
+    if (reports.length && (('procurementRole' in update && update.procurementRole !== 'purchasing') || update.saSupervisorId)) {
+      res.status(400).json({ message: 'Réaffectez les ressources de ce chef SA avant de modifier sa fonction' })
+      return
+    }
     const row = await updateManager(String(id), update)
     if (!row) {
       res.status(404).json({ message: 'Gestionnaire introuvable' })

@@ -19,6 +19,18 @@ const sample: BcTemplateData = {
 }
 
 describe('generateBcHtml — formulaire papier', () => {
+  it('marque les BC ressources comme brouillons avant le visa du chef SA', () => {
+    assert.match(generateBcHtml(null, { ...sample, pendingSaHeadReview: true }), /BROUILLON — en attente de validation du chef SA/)
+    assert.doesNotMatch(generateBcHtml(null, sample), /BROUILLON — en attente/)
+  })
+
+  it('inscrit la signature vérifiée du chef SA et échappe son contenu dans le BC', () => {
+    const html = generateBcHtml(null, { ...sample, saHeadSignature: 'Chef SA <script>\nNIP vérifié\n22/10/2026' })
+    assert.match(html, /Chef SA &lt;script&gt;/)
+    assert.match(html, /NIP vérifié/)
+    assert.doesNotMatch(html, /<script>/)
+    assert.doesNotMatch(html, /BROUILLON — en attente/)
+  })
   it('reproduit les zones du bon de commande (quantité, PU, TVA, autorisation)', () => {
     const html = generateBcHtml(null, sample)
     assert.match(html, /BON DE COMMANDE N°BC-2026-0001/)

@@ -120,9 +120,11 @@ const SA_TAB_LABELS: Record<SaTab, string> = {
 /** ── Dashboard SA (rôle purchasing) — fidèle à docs/mockups/sa-dashboard.html ── */
 export function SaOverview({
   requests,
+  currentManagerId,
   onOpenRequest,
 }: {
   requests: PurchaseRequestRow[]
+  currentManagerId?: string
   onOpenRequest: (id: string) => void
 }) {
   const [tab, setTab] = useState<SaTab>('todo')
@@ -177,8 +179,9 @@ export function SaOverview({
 
   const actionLabel = (r: PurchaseRequestRow): string => {
     if (r.status === 'po_ready') return 'Planifier la tournée'
-    if (r.status === 'sa_review' && r.totalAmountFcfa == null) return 'Chiffrer'
-    if (r.status === 'submitted') return 'Chiffrer'
+    if (r.status === 'submitted' || (r.status === 'sa_review' && r.totalAmountFcfa == null)) {
+      return currentManagerId && r.createdByManagerId === currentManagerId ? 'Validation SA' : 'Chiffrer'
+    }
     return 'Voir'
   }
 

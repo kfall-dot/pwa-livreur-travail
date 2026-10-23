@@ -16,6 +16,7 @@ import {
   createHorsSaEbViaApi,
   deleteHistoricalBatchApi,
   disburseTreasuryApi,
+  dtApproveRequest,
   dtSubmitDraft,
   fetchHistoricalExpensesApi,
   fetchRequestDisbursementsApi,
@@ -39,6 +40,7 @@ import {
   simulateDeliveredBcViaApi,
   simulateEbToPo,
   simulateWhatsappEb,
+  terrainSubmitDraft,
 } from './btp-helpers'
 
 function todayIso(): string {
@@ -563,6 +565,39 @@ test.describe('Achats chantier BTP (procurement)', () => {
     const dafList = await request.get(`${API_BASE}/api/v1/procurement/requests`)
     const dafBody = (await dafList.json()) as { requests: Array<{ id: string; status: string }> }
     expect(dafBody.requests.some((r) => r.id === submitted.id && r.status === 'daf_review')).toBe(true)
+  })
+
+  test('CDC terrain → DT review → DT approve → submitted → SA → CdG → DAF (I110)', async ({ request }) => {
+    const simulated = await simulateWhatsappEb(request)
+
+    // 1. CDC (Chef Chantier) soumet depuis le terrain → dt_review
+    const reviewed = await terrainSubmitDraft(request, simulated.draftId)
+    expect(reviewed.status).toBe('dt_review')
+    expect(reviewed.notifiedRoles).toEqual(['technical_director'])
+
+    // 2. DT valide la revue → submitted (matériaux)
+    const submitted = await dtApproveRequest(request, reviewed.id)
+    expect(submitted.status).toBe('submitted')
+
+    // DAF ne voit pas la demande avant qu'elle ne soit au CdG
+    await loginBtpApi(request, 'daf')
+    const dafHidden = await request.get(`${API_BASE}/api/v1/procurement/requests`)
+    const dafHiddenBody = (await dafHidden.json()) as { requests: Array<{ id: string }> }
+    expect(dafHiddenBody.requests.some((r) => r.id === reviewed.id)).toBe(false)
+
+    // 3. SA chiffre + envoie au CdG → cdg_review
+    const quoted = await saPriceAndSubmitFinance(request, reviewed.id, 1000)
+    expect(quoted.request.status).toBe('cdg_review')
+    expect(quoted.finance.needsPdg).toBe(false)
+    expect(quoted.finance.notifiedRoles).toEqual(['controle_gestion'])
+
+    // 4. CdG approuve → daf_review
+    const cdgApproved = await approveBtpRequest(request, reviewed.id, 'cdg')
+    expect(cdgApproved.request.status).toBe('daf_review')
+
+    // 5. DAF approuve → sa_review (matériaux, < 500 K)
+    const dafApproved = await approveBtpRequest(request, reviewed.id, 'daf')
+    expect(dafApproved.request.status).toBe('sa_review')
   })
 
   test('SA joint une PJ depuis le bouton visible (I44)', async ({ page, request }) => {

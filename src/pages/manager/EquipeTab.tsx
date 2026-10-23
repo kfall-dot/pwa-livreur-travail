@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { authFetch } from './managerApi';
-import { PROCUREMENT_ROLE_LABELS } from './procurement/procurementUi';
+import { PROCUREMENT_ROLE_LABELS, ProcurementRoleOptions } from './procurement/procurementUi';
 import { EditDriverModal } from './modals/EditDriverModal';
 
 type Chip = 'gestionnaires' | 'livreurs' | 'chantiers';
@@ -12,6 +12,7 @@ interface MgrRow {
   phone: string;
   role: string;
   procurementRole?: string | null;
+  saSupervisorId?: string | null;
   status: string;
   pending: boolean;
 }
@@ -48,7 +49,8 @@ const ACCESS_ROLE_LABELS: Record<string, string> = {
  * l'invitation, `managers.procurement_role`) prime sur le rôle d'accès ; la valeur
  * brute `manager` / `admin` ne doit jamais s'afficher (libellés : `PROCUREMENT_ROLE_LABELS`).
  */
-function roleLabel(row: { role: string; procurementRole?: string | null }): string {
+function roleLabel(row: { role: string; procurementRole?: string | null; saSupervisorId?: string | null }): string {
+  if (row.procurementRole === 'purchasing') return row.saSupervisorId ? 'Ressource SA' : 'Chef SA';
   if (row.procurementRole) {
     const metier = (PROCUREMENT_ROLE_LABELS as Record<string, string>)[row.procurementRole];
     if (metier) return metier;
@@ -177,6 +179,7 @@ export default function EquipeTab({
         id: str(m.id), name: str(m.name || m.full_name || m.email || 'Membre'),
         email: str(m.email), phone: str(m.phone), role: str(m.role),
         procurementRole: str(m.procurementRole || m.procurement_role) || null,
+        saSupervisorId: str(m.saSupervisorId) || null,
         status: str(m.status || 'active'), pending: false,
       })) : []
       const invs: MgrRow[] = ri ? firstArray(await ri.json(), 'invites').map((i) => ({
@@ -296,6 +299,7 @@ export default function EquipeTab({
           <h2>Gestionnaires</h2>
           <span className="sub">{mgrs.length} compte(s)</span>
         </div>
+        <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>Cette liste affiche les comptes de votre organisation. Les rôles disponibles se choisissent lors d’une invitation ou de la modification d’un compte.</p>
         <div className="filters">
           <label>Statut
             <select value={stG} onChange={(e) => setStG(e.target.value)}>
@@ -315,15 +319,7 @@ export default function EquipeTab({
             <label>Espace de travail *
               <select required value={invite.procurementRole} data-testid="mgr-invite-procurement-role" onChange={(e) => setInvite((p) => ({ ...p, procurementRole: e.target.value }))}>
                 <option value="">-- Choisir un rôle --</option>
-                <option value="technical_director">Directeur technique (DT)</option>
-                <option value="site_controller">Conducteur de travaux (SA)</option>
-                <option value="purchasing">Service achats</option>
-                <option value="controle_gestion">Contrôle de gestion (CdG)</option>
-                <option value="daf">DAF</option>
-                <option value="pdg">PDG</option>
-                <option value="site_manager">Chef de chantier (CdC)</option>
-                <option value="accountant">Comptabilité</option>
-                <option value="treasury">Trésorerie</option>
+                <ProcurementRoleOptions />
               </select>
             </label>
             <button type="submit" className="btn btn-primary" disabled={savingI} data-testid="mgr-invite-send">{savingI ? 'Envoi…' : 'Envoyer l\u2019invitation'}</button>
@@ -410,20 +406,37 @@ export default function EquipeTab({
             <label style={{ display: 'block', marginBottom: 16, fontSize: 12, color: '#64748b' }}>Espace de travail
               <select value={editingMgr.procurementRole ?? ''} onChange={(e) => setEditingMgr({ ...editingMgr, procurementRole: e.target.value || null })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, marginTop: 4 }}>
                 <option value="">-- Aucun --</option>
-                <option value="technical_director">Directeur technique (DT)</option>
-                <option value="site_controller">Conducteur de travaux (SA)</option>
-                <option value="purchasing">Service achats</option>
-                <option value="controle_gestion">Contrôle de gestion (CdG)</option>
-                <option value="daf">DAF</option>
-                <option value="pdg">PDG</option>
-                <option value="site_manager">Chef de chantier (CdC)</option>
-                <option value="accountant">Comptabilité</option>
-                <option value="treasury">Trésorerie</option>
+                <ProcurementRoleOptions />
               </select>
             </label>
+            {editingMgr.procurementRole === 'purchasing' && (
+              <label style={{ display: 'block', marginBottom: 16, fontSize: 12, color: '#64748b' }}>
+                Chef SA de cette ressource
+                <select value={editingMgr.saSupervisorId ?? ''} onChange={(e) => setEditingMgr({ ...editingMgr, saSupervisorId: e.target.value || null })} style={{ width: '100%', padding: 8 }}>
+                  <option value="">Aucun — compte dirigeant SA</option>
+                  {managers.filter((m) => m.id !== editingMgr.id && m.procurementRole === 'purchasing' && !m.saSupervisorId && !m.pending).map((m) => <option key={m.id} value={m.id}>{m.name} — {m.email}</option>)}
+                </select>
+              </label>
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" className="btn" onClick={() => setEditModal(null)}>Annuler</button>
-              <button type="button" className="btn btn-primary" disabled={savingEdit} onClick={async () => { setSavingEdit(true); try { await authFetch(`/dashboard/managers/${editingMgr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingMgr.name, phone: editingMgr.phone || null, role: editingMgr.role, procurementRole: editingMgr.procurementRole || null }) }); setEditModal(null); void load(); } finally { setSavingEdit(false); } }}>{savingEdit ? 'Sauvegarde…' : 'Enregistrer'}</button>
+              <button type="button" className="btn btn-primary" disabled={savingEdit} onClick={async () => {
+                setSavingEdit(true)
+                try {
+                  const res = await authFetch(`/dashboard/managers/${editingMgr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingMgr.name, phone: editingMgr.phone || null, role: editingMgr.role, procurementRole: editingMgr.procurementRole || null, saSupervisorId: editingMgr.procurementRole === 'purchasing' ? editingMgr.saSupervisorId || null : null }) })
+                  if (!res.ok) {
+                    const data = await res.json() as { message?: string }
+                    setError(data.message || 'Modification de l’équipe impossible')
+                    return
+                  }
+                  setEditModal(null)
+                  void load()
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Modification de l’équipe impossible')
+                } finally {
+                  setSavingEdit(false)
+                }
+              }}>{savingEdit ? 'Sauvegarde…' : 'Enregistrer'}</button>
             </div>
           </div>
         </div>

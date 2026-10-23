@@ -381,6 +381,7 @@ authRoutes.get('/auth/me', requireManager, async (req, res) => {
       companyId: manager.companyId,
       role: row?.role ?? manager.managerRole,
       procurementRole: row?.procurementRole ?? null,
+      saSupervisorId: row?.saSupervisorId ?? null,
       totpEnabled: Boolean(row?.totpEnabled),
     },
   })

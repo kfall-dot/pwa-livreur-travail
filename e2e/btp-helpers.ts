@@ -22,6 +22,7 @@ export const BTP_PILOT = {
   PDG_EMAIL: 'pdg@btp-pilote.ci',
   SA_EMAIL: 'sa@btp-pilote.ci',
   CDG_EMAIL: 'cdg@btp-pilote.ci',
+  CDC_EMAIL: 'cdc@btp-pilote.ci',
   CMPT_EMAIL: 'cmpt@btp-pilote.ci',
   TREASURY_EMAIL: 'tresorerie@btp-pilote.ci',
   PASSWORD: 'admin1234',
@@ -83,7 +84,7 @@ export async function simulateWhatsappEb(
 }
 
 /** Rôles BTP du seed pilote (`cmpt` = comptable, `tresorerie` = poste Trésorerie). */
-export type BtpRole = 'dt' | 'daf' | 'sa' | 'pdg' | 'cdg' | 'cmpt' | 'tresorerie'
+export type BtpRole = 'dt' | 'daf' | 'sa' | 'pdg' | 'cdg' | 'cdc' | 'cmpt' | 'tresorerie'
 
 export async function loginBtpApi(
   request: APIRequestContext,
@@ -98,11 +99,13 @@ export async function loginBtpApi(
           ? BTP_PILOT.PDG_EMAIL
           : role === 'cdg'
             ? BTP_PILOT.CDG_EMAIL
-            : role === 'cmpt'
-              ? BTP_PILOT.CMPT_EMAIL
-              : role === 'tresorerie'
-                ? BTP_PILOT.TREASURY_EMAIL
-                : BTP_PILOT.SA_EMAIL
+            : role === 'cdc'
+              ? BTP_PILOT.CDC_EMAIL
+              : role === 'cmpt'
+                ? BTP_PILOT.CMPT_EMAIL
+                : role === 'tresorerie'
+                  ? BTP_PILOT.TREASURY_EMAIL
+                  : BTP_PILOT.SA_EMAIL
   const login = await request.post(`${API_BASE}/api/v1/auth/login-dashboard`, {
     data: { email, password: BTP_PILOT.PASSWORD },
   })
@@ -179,6 +182,36 @@ export async function dtSubmitDraft(
     notifiedRoles?: string[]
   }
   return { ...body.request, notifiedRoles: body.notifiedRoles }
+}
+
+/** CDC (Chef Chantier) soumet un brouillon WhatsApp depuis le terrain → `dt_review` (I110). */
+export async function terrainSubmitDraft(
+  request: APIRequestContext,
+  draftId: string,
+): Promise<{ id: string; status: string; reference: string; notifiedRoles?: string[] }> {
+  await loginBtpApi(request, 'cdc')
+  const submit = await request.post(`${API_BASE}/api/v1/procurement/drafts/${draftId}/submit`, {
+    data: { requesterName: 'Chef chantier' },
+  })
+  expect(submit.ok(), await submit.text()).toBeTruthy()
+  const body = (await submit.json()) as {
+    request: { id: string; status: string; reference: string }
+    notifiedRoles?: string[]
+  }
+  return { ...body.request, notifiedRoles: body.notifiedRoles }
+}
+
+/** DT approuve une EB en cours de revue → `submitted` (matériaux) ou `cdg_review` (hors SA) (I110). */
+export async function dtApproveRequest(
+  request: APIRequestContext,
+  requestId: string,
+): Promise<{ request: { id: string; status: string } }> {
+  await loginBtpApi(request, 'dt')
+  const res = await request.post(`${API_BASE}/api/v1/procurement/requests/${requestId}/approve`, {
+    data: { pin: BTP_PINS.dt },
+  })
+  expect(res.ok(), await res.text()).toBeTruthy()
+  return (await res.json()) as { request: { id: string; status: string } }
 }
 
 export type SaPriceLine = {
@@ -309,11 +342,13 @@ export async function loginBtpManager(page: Page, role: BtpRole): Promise<void> 
           ? BTP_PILOT.PDG_EMAIL
           : role === 'cdg'
             ? BTP_PILOT.CDG_EMAIL
-            : role === 'cmpt'
-              ? BTP_PILOT.CMPT_EMAIL
-              : role === 'tresorerie'
-                ? BTP_PILOT.TREASURY_EMAIL
-                : BTP_PILOT.SA_EMAIL
+            : role === 'cdc'
+              ? BTP_PILOT.CDC_EMAIL
+              : role === 'cmpt'
+                ? BTP_PILOT.CMPT_EMAIL
+                : role === 'tresorerie'
+                  ? BTP_PILOT.TREASURY_EMAIL
+                  : BTP_PILOT.SA_EMAIL
 
   await page.context().clearCookies()
   await page.goto('/manager/login', { waitUntil: 'domcontentloaded' })

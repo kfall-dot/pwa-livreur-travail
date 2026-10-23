@@ -742,14 +742,14 @@ export async function setManagerTotp(
 
 export async function getAllManagers(
   companyId: string,
-): Promise<Array<Pick<Manager, 'id' | 'email' | 'name' | 'role' | 'procurementRole' | 'createdAt'>>> {
+): Promise<Array<Pick<Manager, 'id' | 'email' | 'name' | 'role' | 'procurementRole' | 'saSupervisorId' | 'createdAt'>>> {
   return db
     .select({
       id: managers.id,
       email: managers.email,
       name: managers.name,
       role: managers.role,
-      procurementRole: managers.procurementRole,
+      procurementRole: managers.procurementRole, saSupervisorId: managers.saSupervisorId,
       createdAt: managers.createdAt,
     })
     .from(managers)
@@ -783,14 +783,15 @@ export async function createManager(
 
 export async function updateManager(
   id: string,
-  data: Partial<Pick<Manager, 'name' | 'email' | 'passwordHash' | 'role' | 'procurementRole'>>,
+  data: Partial<Pick<Manager, 'name' | 'email' | 'passwordHash' | 'role' | 'procurementRole' | 'saSupervisorId'>>,
 ): Promise<Manager | null> {
-  const set: Partial<Pick<Manager, 'name' | 'email' | 'passwordHash' | 'role' | 'procurementRole'>> = {}
+  const set: Partial<Pick<Manager, 'name' | 'email' | 'passwordHash' | 'role' | 'procurementRole' | 'saSupervisorId'>> = {}
   if (data.name) set.name = data.name.trim()
   if (data.email) set.email = data.email.trim().toLowerCase()
   if (data.passwordHash) set.passwordHash = data.passwordHash
   if (data.role) set.role = data.role
   if ('procurementRole' in data) set.procurementRole = data.procurementRole ?? null
+  if ('saSupervisorId' in data) set.saSupervisorId = data.saSupervisorId ?? null
   if (Object.keys(set).length === 0) return getManagerById(id)
   const [row] = await db.update(managers).set(set).where(eq(managers.id, id)).returning()
   return row ?? null

@@ -1,4 +1,11 @@
 import { getProcurementConfig } from '../config/procurement.js'
+import { getManagerById } from '../db/queries.js'
+import { db } from '../db/index.js'
+import { purchaseRequests, purchaseOrders, approvalSteps } from '../db/schema.js'
+import { randomUUID } from 'crypto'
+import { hashEbContenu } from './ebSignature.js'
+import { and, eq } from 'drizzle-orm'
+import { canValidateSaAction, isValidSaSupervisor } from '../../shared/saTeamPolicy.js'
 import {
   createPurchaseOrder,
   createTreasuryDisbursement,
@@ -68,6 +75,7 @@ const APPROVER_FOR_STATUS: Partial<Record<PurchaseRequestStatus, ProcurementRole
   cdg_review: 'controle_gestion',
   daf_review: 'daf',
   daf_bt_review: 'daf',
+  dt_review: 'technical_director',
   pdg_review: 'pdg',
   sa_review: 'purchasing',
 }
@@ -168,6 +176,11 @@ export async function approvePurchaseRequest(input: {
         nextStatus = 'sa_review'
         notifyRoles = ['purchasing']
       }
+      break
+    case 'dt_review':
+      // EB terrain validée par le DT : matériaux → SA ; hors SA → CdG direct (I110)
+      nextStatus = horsSa ? 'cdg_review' : 'submitted'
+      notifyRoles = horsSa ? ['controle_gestion'] : ['purchasing']
       break
     case 'sa_review':
       throw new ProcurementWorkflowError('Utilisez create-po pour générer le bon de commande')
@@ -576,11 +589,16 @@ export async function createPurchaseOrderForRequest(input: {
 }) {
   const request = await getPurchaseRequestById(input.companyId, input.requestId)
   if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)
-  if (request.status !== 'sa_review' && request.status !== 'po_ready') {
+  if (request.status !== 'sa_review' && request.status !== 'po_ready' && request.status !== 'bc_head_review') {
     throw new ProcurementWorkflowError('Le BC ne peut être créé qu’après validation DAF')
   }
 
   const lines = await getPurchaseRequestLines(request.id)
+  const actor = await getManagerById(input.managerId)
+  if (!actor || actor.companyId !== input.companyId || actor.procurementRole !== 'purchasing') throw new ProcurementWorkflowError('Compte SA requis', 403)
+  if (actor.saSupervisorId && !isValidSaSupervisor(actor, await getManagerById(actor.saSupervisorId))) throw new ProcurementWorkflowError('Chef SA affecté invalide')
+  if (request.status === 'bc_head_review' && actor.saSupervisorId && actor.saSupervisorId !== request.saReviewerId) throw new ProcurementWorkflowError('Cette émission est déjà confiée à une autre équipe SA', 403)
+  const pendingSaHeadReview = Boolean(actor.saSupervisorId || request.status === 'bc_head_review')
   const names = distinctSupplierNames(lines)
   let supplierId = input.supplierId ?? request.supplierId
   if (!supplierId && names.length === 1) {
@@ -603,7 +621,7 @@ export async function createPurchaseOrderForRequest(input: {
   ])
   if (!site || !supplier) throw new ProcurementWorkflowError('Chantier ou fournisseur introuvable')
 
-  const bcData = buildBcDataFromRequest(request, site, supplier, lines, companyName)
+  const bcData = { ...buildBcDataFromRequest(request, site, supplier, lines, companyName), pendingSaHeadReview }
   const amount = bcData.amountFcfa
   // Réfs. croisées imprimées sur le BC : EB d'origine + BT déjà générés (comptant).
   const chainRefs = {
@@ -612,6 +630,7 @@ export async function createPurchaseOrderForRequest(input: {
   }
 
   const po = await createPurchaseOrder({
+    saApprovalRequired: pendingSaHeadReview,
     companyId: input.companyId,
     purchaseRequestId: request.id,
     supplierId,
@@ -622,10 +641,66 @@ export async function createPurchaseOrderForRequest(input: {
   const pdfHtml = generateBcHtml(template, { ...bcData, ...chainRefs, reference: po.reference })
   await updatePurchaseOrderHtml(po.id, pdfHtml)
 
-  await updatePurchaseRequestStatus(input.companyId, request.id, 'po_ready', { supplierId })
-  await notifyPurchaseOrderReady(input.companyId, request.reference, po.reference)
+  await updatePurchaseRequestStatus(input.companyId, request.id, pendingSaHeadReview ? 'bc_head_review' : 'po_ready', { supplierId, saReviewerId: actor.saSupervisorId || request.saReviewerId })
+  if (pendingSaHeadReview) {
+    await recordApprovalStep({ purchaseRequestId: request.id, role: 'purchasing', managerId: actor.id, decision: 'approved', etape: 'preparation_bc_sa', comment: `${actor.name} — BC ${po.reference} préparé pour validation du chef SA` })
+    await notifyRequestStatusChange(input.companyId, request.reference, 'bc_head_review', ['purchasing'], { managerIds: [actor.saSupervisorId || request.saReviewerId!] })
+  } else {
+    await notifyPurchaseOrderReady(input.companyId, request.reference, po.reference)
+  }
 
   return { ...po, pdfHtml, amountFcfa: String(amount) }
+}
+
+export async function approveSaPreparedPurchaseOrders(input: {
+  companyId: string
+  requestId: string
+  managerId: string
+  signature: string
+  ordersHash: string
+  ip: string
+}) {
+  const [request, actor] = await Promise.all([
+    getPurchaseRequestById(input.companyId, input.requestId), getManagerById(input.managerId),
+  ])
+  if (!request || !actor || actor.companyId !== input.companyId) throw new ProcurementWorkflowError('Dossier introuvable', 404)
+  if (!canValidateSaAction(actor, request.saReviewerId)) throw new ProcurementWorkflowError('Validation réservée au chef SA désigné', 403)
+  if (request.status !== 'bc_head_review') throw new ProcurementWorkflowError('Aucun BC en attente de validation du chef SA', 409)
+  const [orders, lines, site, template, companyName, detail, treasury] = await Promise.all([
+    listPurchaseOrdersForRequest(input.companyId, request.id), getPurchaseRequestLines(request.id),
+    getSiteById(input.companyId, request.siteId), getActiveDocumentTemplate(input.companyId, 'bc'),
+    getCompanyName(input.companyId), getRequestDetail(input.companyId, request.id),
+    listTreasuryOrdersForRequest(input.companyId, request.id),
+  ])
+  if (!site || !orders.length || orders.some((po) => po.tourId)) throw new ProcurementWorkflowError('BC manquant ou déjà planifié', 409)
+  if (hashEbContenu(orders.map((po) => ({ id: po.id, reference: po.reference, supplierId: po.supplierId, amount: po.amountFcfa, html: po.pdfHtml }))) !== input.ordersHash) throw new ProcurementWorkflowError('Les BC ont changé : rechargez avant de les signer', 409)
+  for (const name of distinctSupplierNames(lines)) {
+    const supplier = detail?.suppliers.find((s) => namesMatch(s.name, name))
+    if (!supplier || !orders.some((po) => po.supplierId === supplier.id)) throw new ProcurementWorkflowError('Préparez tous les BC fournisseurs avant de les valider')
+  }
+  const documents: Array<{ id: string; html: string }> = []
+  for (const po of orders) {
+    const supplier = await getSupplierById(input.companyId, po.supplierId)
+    if (!supplier) throw new ProcurementWorkflowError('Fournisseur introuvable')
+    documents.push({ id: po.id, html: generateBcHtml(template, {
+      ...buildBcDataFromRequest(request, site, supplier, lines, companyName),
+      reference: po.reference, ebReference: `${request.reference}${versionSuffix(request.version)}`,
+      btReferences: treasury.map((t) => t.reference), saHeadSignature: input.signature,
+    }) })
+  }
+  await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(purchaseRequests).where(and(eq(purchaseRequests.id, request.id), eq(purchaseRequests.companyId, input.companyId))).for('update')
+    if (!current || current.status !== 'bc_head_review' || current.saReviewerId !== input.managerId) throw new ProcurementWorkflowError('Cette validation a déjà été traitée', 409)
+    const currentOrders = await tx.select().from(purchaseOrders).where(and(eq(purchaseOrders.purchaseRequestId, request.id), eq(purchaseOrders.companyId, input.companyId))).for('update')
+    if (currentOrders.length !== orders.length || currentOrders.some((po) => !orders.some((snapshot) => snapshot.id === po.id && snapshot.pdfHtml === po.pdfHtml && snapshot.amountFcfa === po.amountFcfa))) throw new ProcurementWorkflowError('Les BC ont changé : rechargez avant de les signer', 409)
+    for (const document of documents) {
+      await tx.update(purchaseOrders).set({ pdfHtml: document.html, saHeadSignature: input.signature }).where(and(eq(purchaseOrders.id, document.id), eq(purchaseOrders.companyId, input.companyId)))
+    }
+    await tx.update(purchaseRequests).set({ status: 'po_ready', updatedAt: new Date() }).where(eq(purchaseRequests.id, request.id))
+    await tx.insert(approvalSteps).values({ id: `apr-${randomUUID()}`, purchaseRequestId: request.id, role: 'purchasing', managerId: input.managerId, decision: 'approved', comment: input.signature, etape: 'validation_bc_sa', pinVerified: true, ip: input.ip })
+  })
+  for (const po of orders) await notifyPurchaseOrderReady(input.companyId, request.reference, po.reference)
+  return getRequestDetail(input.companyId, request.id)
 }
 
 export async function createPurchaseOrdersForEb(input: {
@@ -690,6 +765,7 @@ export async function markDeliveryScheduled(
     throw new ProcurementWorkflowError('La livraison ne peut être planifiée qu’après génération du BC')
   }
   const pos = await listPurchaseOrdersForRequest(companyId, requestId)
+  if (pos.some((po) => po.saApprovalRequired && !po.saHeadSignature)) throw new ProcurementWorkflowError('Signature du chef SA requise avant la livraison', 409)
   const target =
     (purchaseOrderId ? pos.find((p) => p.id === purchaseOrderId) : null)
     ?? pos.find((p) => !p.tourId)

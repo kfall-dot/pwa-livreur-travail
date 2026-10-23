@@ -249,7 +249,7 @@ export async function fetchRequests(status?: string): Promise<PurchaseRequestRow
 
 export async function fetchRequest(id: string): Promise<RequestDetailResponse> {
   const res = await authFetch(`${BASE}/requests/${encodeURIComponent(id)}`)
-  if (!res.ok) throw new Error('Demande introuvable')
+  if (!res.ok) throw await apiErrorMessage(res, `Chargement de l’EB impossible (HTTP ${res.status})`)
   return res.json() as Promise<RequestDetailResponse>
 }
 
@@ -339,13 +339,13 @@ export async function updateRequestPricing(
   return res.json() as Promise<RequestDetailResponse>
 }
 
-export async function submitRequestFinance(id: string): Promise<{
+export async function submitRequestFinance(id: string, pin?: string): Promise<{
   request: PurchaseRequestRow
   finance: { totalAmountFcfa: number; needsPdg: boolean; notifiedRoles: string[]; thresholdFcfa: number }
 }> {
   const res = await authFetch(`${BASE}/requests/${encodeURIComponent(id)}/submit-finance`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify({ pin }),
   })
   if (!res.ok) {
     throw await apiErrorMessage(res, 'Envoi au DAF échoué')
@@ -369,6 +369,12 @@ async function fileToBase64Payload(file: File): Promise<{
     binary += String.fromCharCode(...Array.from(buf.subarray(i, i + chunk)))
   }
   return { fileName: file.name, contentType: file.type, data: btoa(binary) }
+}
+
+export async function approveSaBc(id: string, pin: string): Promise<RequestDetailResponse> {
+  const res = await authFetch(`${BASE}/requests/${encodeURIComponent(id)}/approve-sa-bc`, { method: 'POST', body: JSON.stringify({ pin }) })
+  if (!res.ok) throw await apiErrorMessage(res, 'Validation du BC refusée')
+  return res.json() as Promise<RequestDetailResponse>
 }
 
 export async function uploadRequestLineAttachment(

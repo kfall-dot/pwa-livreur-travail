@@ -1,4 +1,10 @@
 import { Router } from 'express'
+import { procurementEditLock } from '../middleware/procurementEditLock.js'
+import { isEbInitiator } from '../lib/ebOwnership.js'
+import { ebDraftSubmissionStatus } from '../../shared/ebDraftSubmission.js'
+import { canValidateSaAction, canReleaseSaPurchaseOrders, isValidSaSupervisor } from '../../shared/saTeamPolicy.js'
+import { approveSaPreparedPurchaseOrders } from '../services/procurementWorkflow.js'
+import { listPurchaseOrdersForRequest } from '../db/procurementQueries.js'
 import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { getProcurementConfig } from '../config/procurement.js'
@@ -127,6 +133,46 @@ export const procurementRouter = Router()
 procurementRouter.use(requireManager)
 procurementRouter.use(loadProcurementRole)
 
+// Tous les accès directs (fiche, pièces jointes, chaîne, modifications) doivent
+// respecter l'initiateur, même si le CdC connaît l'identifiant d'une autre EB.
+procurementRouter.use('/drafts/:id', async (req, res, next) => {
+  const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
+  if (procurementRole !== 'site_manager' && procurementRole !== 'purchasing') return next()
+  if (req.params.id === 'blank' || req.params.id === 'from-paste') return next()
+  const draft = await getDraftById(manager.companyId, String(req.params.id))
+  if (!draft || draft.createdByManagerId !== manager.sub) {
+    res.status(404).json({ message: 'Brouillon introuvable' })
+    return
+  }
+  if (procurementRole === 'purchasing' && draft.purchaseRequestId && req.method !== 'GET') {
+    res.status(409).json({ message: 'Cette EB est déjà créée : poursuivez depuis sa fiche de chiffrage' })
+    return
+  }
+  next()
+})
+
+async function requestInitiatedBy(
+  companyId: string,
+  request: { sourceDraftId: string | null; createdByManagerId: string | null },
+  managerId: string,
+): Promise<boolean> {
+  return isEbInitiator(request, managerId, (id) => getDraftById(companyId, id))
+}
+
+procurementRouter.use('/requests/:id', async (req, res, next) => {
+  const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
+  if (procurementRole !== 'site_manager') return next()
+  const request = await getPurchaseRequestById(manager.companyId, String(req.params.id))
+  if (!request || !await requestInitiatedBy(manager.companyId, request, manager.sub)) {
+    res.status(404).json({ message: 'Demande introuvable' })
+    return
+  }
+  next()
+})
+
+procurementRouter.use('/drafts/:id', procurementEditLock('drafts'))
+procurementRouter.use('/requests/:id', procurementEditLock('requests'))
+
 function parseJsonAttachment(body: unknown): { buffer: Buffer; originalname: string; mimetype: string } | { error: string } {
   if (!body || typeof body !== 'object' || Buffer.isBuffer(body)) {
     return { error: 'Fichier requis (PDF, image ou Excel)' }
@@ -159,6 +205,15 @@ const supplierSchema = z.object({
   hasAccount: z.boolean().optional(),
   address: z.string().optional(),
 })
+
+async function siteManagerSiteIds(companyId: string, managerId: string): Promise<string[]> {
+  const companySites = await listSites(companyId)
+  return companySites.filter((site) => site.managerId === managerId).map((site) => site.id)
+}
+
+function hasAssignedSite(siteId: string | null | undefined, assignedSiteIds: string[]): boolean {
+  return Boolean(siteId && assignedSiteIds.includes(siteId))
+}
 
 const parsedLineSchema = z.object({
   label: z.string().min(1),
@@ -340,8 +395,8 @@ procurementRouter.get(
       const all = await listDeliveredBcRegister(manager.companyId)
       const months = availableBcRegisterMonths(all)
       const requested = typeof req.query.month === 'string' ? req.query.month.trim() : ''
-      const month = months.some((m) => m.key === requested) ? requested : (months[0]?.key ?? null)
-      const rows = month ? filterBcRegisterByMonth(all, month) : []
+      const month = requested === 'all' ? 'all' : months.some((m) => m.key === requested) ? requested : (months[0]?.key ?? null)
+      const rows = month === 'all' ? all : month ? filterBcRegisterByMonth(all, month) : []
       const recap = recapBySupplier(rows)
       res.json({ months, month, rows, recap })
     } catch (err) {
@@ -566,8 +621,11 @@ procurementRouter.get(
 // ─── Sites ───────────────────────────────────────────────────────────────────
 
 procurementRouter.get('/sites', async (req, res) => {
-  const { manager } = req as unknown as ManagerRequest
-  const rows = await listSites(manager.companyId)
+  const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
+  let rows = await listSites(manager.companyId)
+  if (procurementRole === 'site_manager') {
+    rows = rows.filter((site) => site.managerId === manager.sub)
+  }
   res.json({ sites: rows })
 })
 
@@ -1145,16 +1203,29 @@ procurementRouter.post(
 
 procurementRouter.post(
   '/drafts/from-paste',
-  requireProcurementRole('technical_director'),
+  requireProcurementRole('technical_director', 'site_manager', 'purchasing'),
   async (req, res) => {
     const body = parseBody(pasteDraftSchema, req.body, res)
     if (!body) return
-    const { manager } = req as unknown as ManagerRequest
+    const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
     try {
+      let siteId = body.siteId
+      if (procurementRole === 'site_manager') {
+        const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+        if (assignedSiteIds.length === 0) {
+          res.status(403).json({ message: 'Aucun chantier ne vous est affecté' })
+          return
+        }
+        siteId = siteId || (assignedSiteIds.length === 1 ? assignedSiteIds[0] : undefined)
+        if (!siteId || !hasAssignedSite(siteId, assignedSiteIds)) {
+          res.status(403).json({ message: 'Sélectionnez un chantier qui vous est affecté' })
+          return
+        }
+      }
       const result = await createDraftFromPastedText({
         companyId: manager.companyId,
         bodyText: body.bodyText,
-        siteId: body.siteId,
+        siteId,
         pastedByManagerId: manager.sub,
         pastedByName: (await currentManagerName(manager.sub, '')).trim() || null,
       })
@@ -1174,11 +1245,23 @@ procurementRouter.post(
 
 procurementRouter.post(
   '/drafts/blank',
-  requireProcurementRole('technical_director'),
+  requireProcurementRole('technical_director', 'site_manager', 'purchasing'),
   async (req, res) => {
-    const { manager } = req as unknown as ManagerRequest
-    const siteId = typeof req.body?.siteId === 'string' ? req.body.siteId : undefined
+    const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
+    let siteId = typeof req.body?.siteId === 'string' ? req.body.siteId : undefined
     try {
+      if (procurementRole === 'site_manager') {
+        const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+        if (assignedSiteIds.length === 0) {
+          res.status(403).json({ message: 'Aucun chantier ne vous est affecté' })
+          return
+        }
+        siteId = siteId || (assignedSiteIds.length === 1 ? assignedSiteIds[0] : undefined)
+        if (!siteId || !hasAssignedSite(siteId, assignedSiteIds)) {
+          res.status(403).json({ message: 'Sélectionnez un chantier qui vous est affecté' })
+          return
+        }
+      }
       const result = await createBlankEbDraft({
         companyId: manager.companyId,
         createdByManagerId: manager.sub,
@@ -1194,11 +1277,15 @@ procurementRouter.post(
 
 procurementRouter.get('/drafts', async (req, res) => {
   const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
-  if (procurementRole && procurementRole !== 'technical_director') {
+  if (procurementRole !== 'technical_director' && procurementRole !== 'site_manager' && procurementRole !== 'purchasing') {
     res.json({ drafts: [], count: 0 })
     return
   }
-  let drafts = await listDrafts(manager.companyId)
+  const assignedSiteIds = procurementRole === 'site_manager'
+    ? await siteManagerSiteIds(manager.companyId, manager.sub)
+    : undefined
+  let drafts = await listDrafts(manager.companyId, assignedSiteIds, procurementRole === 'site_manager' || procurementRole === 'purchasing' ? manager.sub : undefined)
+  if (procurementRole === 'purchasing') drafts = drafts.filter((draft) => !draft.purchaseRequestId)
   if (req.query.needsReview === 'true') {
     drafts = drafts.filter((d) => d.needsReview && !d.purchaseRequestId)
   }
@@ -1210,12 +1297,21 @@ procurementRouter.get('/inbox-count', async (req, res) => {
   const threshold = getProcurementConfig(manager.companyId).btThresholdFcfa
   if (procurementRole === 'technical_director') {
     const drafts = (await listDrafts(manager.companyId)).filter((d) => d.needsReview && !d.purchaseRequestId)
+    const pendingApprovalCount = (await listPurchaseRequests(manager.companyId))
+      .filter((request) => request.status === 'dt_review').length
+    res.json({ count: drafts.length + pendingApprovalCount })
+    return
+  }
+  if (procurementRole === 'site_manager') {
+    const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+    const drafts = (await listDrafts(manager.companyId, assignedSiteIds, manager.sub))
+      .filter((draft) => !draft.purchaseRequestId)
     res.json({ count: drafts.length })
     return
   }
   const requests = await listPurchaseRequests(manager.companyId)
   if (procurementRole === 'purchasing') {
-    res.json({ count: requests.filter((r) => r.status === 'submitted').length })
+    res.json({ count: requests.filter((r) => r.status === 'submitted' || (r.saReviewerId === manager.sub && (r.status === 'sa_head_review' || r.status === 'bc_head_review'))).length })
     return
   }
   if (procurementRole === 'controle_gestion') {
@@ -1245,14 +1341,22 @@ procurementRouter.get('/inbox-count', async (req, res) => {
 
 procurementRouter.get('/drafts/:id', async (req, res) => {
   const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
-  if (procurementRole && procurementRole !== 'technical_director') {
-    res.status(403).json({ message: 'Les brouillons non soumis sont réservés au Directeur technique' })
+  if (procurementRole !== 'technical_director' && procurementRole !== 'site_manager' && procurementRole !== 'purchasing') {
+    res.status(403).json({ message: 'Accès aux brouillons réservé au DT, au Chef de chantier et au Service achats' })
     return
   }
   const detail = await getDraftDetail(manager.companyId, String(req.params.id))
   if (!detail) {
     res.status(404).json({ message: 'Brouillon introuvable' })
     return
+  }
+  if (procurementRole === 'site_manager') {
+    const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+    if (!hasAssignedSite(detail.draft.siteId, assignedSiteIds) || detail.draft.purchaseRequestId) {
+      res.status(404).json({ message: 'Brouillon introuvable' })
+      return
+    }
+    detail.sites = detail.sites.filter((site) => assignedSiteIds.includes(site.id))
   }
   res.json(detail)
 })
@@ -1263,6 +1367,17 @@ procurementRouter.get('/drafts/:id/html', async (req, res) => {
   if (!detail) {
     res.status(404).json({ message: 'Brouillon introuvable' })
     return
+  }
+  if (procurementRole !== 'technical_director' && procurementRole !== 'site_manager' && procurementRole !== 'purchasing') {
+    res.status(403).json({ message: 'Accès à la fiche EB réservé au DT, au Chef de chantier et au Service achats' })
+    return
+  }
+  if (procurementRole === 'site_manager') {
+    const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+    if (!hasAssignedSite(detail.draft.siteId, assignedSiteIds)) {
+      res.status(404).json({ message: 'Brouillon introuvable' })
+      return
+    }
   }
   const lines = (detail.draft.parsedLines as ParsedEbLine[] | null) ?? []
   const requester =
@@ -1293,12 +1408,24 @@ procurementRouter.get('/drafts/:id/html', async (req, res) => {
 
 procurementRouter.patch(
   '/drafts/:id',
-  requireProcurementRole('technical_director'),
+  requireProcurementRole('technical_director', 'site_manager', 'purchasing'),
   async (req, res) => {
     const body = parseBody(draftPatchSchema, req.body, res)
     if (!body) return
     const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
     const draftId = String(req.params.id)
+    if (procurementRole === 'site_manager') {
+      const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+      const existing = await getDraftById(manager.companyId, draftId)
+      if (!existing || existing.purchaseRequestId || !hasAssignedSite(existing.siteId, assignedSiteIds)) {
+        res.status(404).json({ message: 'Brouillon introuvable' })
+        return
+      }
+      if (body.siteId !== undefined && !hasAssignedSite(body.siteId, assignedSiteIds)) {
+        res.status(403).json({ message: 'Vous ne pouvez pas déplacer une EB vers un chantier non affecté' })
+        return
+      }
+    }
     const draft = await updateDraft(manager.companyId, draftId, {
       parsedLines: body.parsedLines as ParsedEbLine[] | undefined,
       parsedUrgency: body.parsedUrgency,
@@ -1326,10 +1453,18 @@ procurementRouter.patch(
 
 procurementRouter.delete(
   '/drafts/:id',
-  requireProcurementRole('technical_director'),
+  requireProcurementRole('technical_director', 'site_manager', 'purchasing'),
   async (req, res) => {
-    const { manager } = req as unknown as ManagerRequest
+    const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
     try {
+      if (procurementRole === 'site_manager') {
+        const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+        const existing = await getDraftById(manager.companyId, String(req.params.id))
+        if (!existing || existing.purchaseRequestId || !hasAssignedSite(existing.siteId, assignedSiteIds)) {
+          res.status(404).json({ message: 'Brouillon introuvable' })
+          return
+        }
+      }
       const ok = await softDeleteDraft(manager.companyId, String(req.params.id), manager.sub)
       if (!ok) {
         res.status(404).json({ message: 'Brouillon introuvable' })
@@ -1345,7 +1480,7 @@ procurementRouter.delete(
 
 procurementRouter.post(
   '/drafts/:id/submit',
-  requireProcurementRole('technical_director'),
+  requireProcurementRole('technical_director', 'site_manager', 'purchasing'),
   async (req, res) => {
     const body = parseBody(submitDraftSchema, req.body, res)
     if (!body) return
@@ -1355,6 +1490,17 @@ procurementRouter.post(
     if (!draft) {
       res.status(404).json({ message: 'Brouillon introuvable' })
       return
+    }
+    if (draft.purchaseRequestId || draft.status === 'deleted') {
+      res.status(409).json({ message: 'Ce brouillon a déjà été transmis ou supprimé' })
+      return
+    }
+    if (procurementRole === 'site_manager') {
+      const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+      if (!hasAssignedSite(draft.siteId, assignedSiteIds)) {
+        res.status(404).json({ message: 'Brouillon introuvable' })
+        return
+      }
     }
     if (!draft.siteId) {
       res.status(400).json({ message: 'Chantier requis sur le brouillon' })
@@ -1460,6 +1606,10 @@ procurementRouter.post(
       await mergeDraftParseHints(draftId, { demandeur: requesterName })
     }
 
+    const initialStatus = ebDraftSubmissionStatus(
+      procurementRole as 'technical_director' | 'site_manager' | 'purchasing',
+      horsSaOnly,
+    )
     const request = await createPurchaseRequestFromDraft({
       companyId: manager.companyId,
       siteId: draft.siteId,
@@ -1471,8 +1621,8 @@ procurementRouter.post(
       totalAmountFcfa: body.totalAmountFcfa ?? (linesTotalFcfa > 0 ? linesTotalFcfa : null),
       notes: body.notes ?? null,
       createdByManagerId: manager.sub,
-      // EB 100 % hors SA → CdG direct : le SA n'est plus un gicrot (I110).
-      initialStatus: horsSaOnly ? 'cdg_review' : 'submitted',
+      // EB terrain soumise par le DT → CdG direct ; sinon étape de revue DT (I110).
+      initialStatus,
     })
     await ensureProductsFromEbLines(manager.companyId, lines)
     if (signature) {
@@ -1488,11 +1638,13 @@ procurementRouter.post(
       })
     }
     await linkDraftToRequest(draftId, request.id)
-    const notifiedRoles: ProcurementRole[] = horsSaOnly ? ['controle_gestion'] : ['purchasing']
+    const notifiedRoles: ProcurementRole[] = initialStatus === 'dt_review'
+      ? ['technical_director']
+      : initialStatus === 'cdg_review' ? ['controle_gestion'] : ['purchasing']
     await notifyRequestStatusChange(
       manager.companyId,
       request.reference,
-      horsSaOnly ? 'cdg_review' : 'submitted',
+      initialStatus,
       notifiedRoles,
     )
     res.status(201).json({ request, notifiedRoles })
@@ -1523,9 +1675,13 @@ function requestVisibleToRole(
 procurementRouter.get('/requests', async (req, res) => {
   const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
   const threshold = getProcurementConfig(manager.companyId).btThresholdFcfa
-  const requests = (await listPurchaseRequests(manager.companyId)).filter((r) =>
+  let requests = (await listPurchaseRequests(manager.companyId, procurementRole === 'site_manager' ? manager.sub : undefined)).filter((r) =>
     requestVisibleToRole(procurementRole, r.status, r.totalAmountFcfa != null ? Number(r.totalAmountFcfa) : null, threshold),
   )
+  if (procurementRole === 'site_manager') {
+    const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+    requests = requests.filter((request) => assignedSiteIds.includes(request.siteId))
+  }
   // numeric Postgres → string via le driver : normaliser en nombre, sinon le front
   // concatène les totaux au lieu de les additionner (bug du montant pipeline hors BC).
   res.json({
@@ -1537,11 +1693,18 @@ procurementRouter.get('/requests', async (req, res) => {
 })
 
 procurementRouter.get('/requests/:id', async (req, res) => {
-  const { manager } = req as unknown as ManagerRequest
+  const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
   const detail = await getRequestDetail(manager.companyId, String(req.params.id))
   if (!detail) {
     res.status(404).json({ message: 'Demande introuvable' })
     return
+  }
+  if (procurementRole === 'site_manager') {
+    const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+    if (!assignedSiteIds.includes(detail.request.siteId)) {
+      res.status(404).json({ message: 'Demande introuvable' })
+      return
+    }
   }
   res.json(detail)
 })
@@ -1549,8 +1712,16 @@ procurementRouter.get('/requests/:id', async (req, res) => {
 // GET /requests/:id/chain — chaîne documentaire EB → BT → BC → BL → facture.
 // Ouvert à tous les rôles achats : c'est la vue de navigation entre les pièces.
 procurementRouter.get('/requests/:id/chain', async (req, res) => {
-  const { manager } = req as unknown as ManagerRequest
+  const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
   try {
+    if (procurementRole === 'site_manager') {
+      const request = await getPurchaseRequestById(manager.companyId, String(req.params.id))
+      const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+      if (!request || !assignedSiteIds.includes(request.siteId) || !await requestInitiatedBy(manager.companyId, request, manager.sub)) {
+        res.status(404).json({ message: 'Demande introuvable' })
+        return
+      }
+    }
     const chain = await getDocumentChain(manager.companyId, String(req.params.id))
     if (!chain) {
       res.status(404).json({ message: 'Demande introuvable' })
@@ -1568,7 +1739,7 @@ procurementRouter.get('/requests/:id/chain', async (req, res) => {
 // (`matched`) et sa chaîne complète. Ouvert à tous les rôles achats : c'est de
 // la navigation entre pièces, comme /requests/:id/chain.
 procurementRouter.get('/document-chain', async (req, res) => {
-  const { manager } = req as unknown as ManagerRequest
+  const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
   const ref = String(req.query.ref ?? '').trim()
   if (!ref) {
     res.status(400).json({ message: 'Identifiant manquant' })
@@ -1585,6 +1756,16 @@ procurementRouter.get('/document-chain', async (req, res) => {
     if (!resolved) {
       res.status(404).json({ message: 'Aucune pièce ne correspond à cet identifiant' })
       return
+    }
+    if (procurementRole === 'site_manager') {
+      const request = resolved.requestId
+        ? await getPurchaseRequestById(manager.companyId, resolved.requestId)
+        : null
+      const assignedSiteIds = await siteManagerSiteIds(manager.companyId, manager.sub)
+      if (!request || !assignedSiteIds.includes(request.siteId) || !await requestInitiatedBy(manager.companyId, request, manager.sub)) {
+        res.status(404).json({ message: 'Aucune pièce ne correspond à cet identifiant' })
+        return
+      }
     }
     res.json(resolved)
   } catch (err) {
@@ -1642,9 +1823,27 @@ procurementRouter.post(
       res.status(404).json({ message: 'Demande introuvable' })
       return
     }
-    if (request.status !== 'submitted') {
-      res.status(400).json({ message: 'Cette EB a déjà été envoyée au Contrôle de gestion' })
+    if (request.status !== 'submitted' && request.status !== 'sa_head_review') {
+      res.status(400).json({ message: 'Cette EB ne peut pas être soumise à cette étape' })
       return
+    }
+    const actor = await getManagerById(manager.sub)
+    if (!actor || actor.companyId !== manager.companyId || actor.procurementRole !== 'purchasing') {
+      res.status(403).json({ message: 'Compte SA requis' })
+      return
+    }
+    let headSignature: EbApprobation | null = null
+    if (request.status === 'sa_head_review') {
+      if (!canValidateSaAction(actor, request.saReviewerId)) {
+        res.status(403).json({ message: 'Validation réservée au chef SA désigné' })
+        return
+      }
+      const pin = typeof req.body?.pin === 'string' ? req.body.pin : ''
+      if (!await verifySignaturePin({ managerId: actor.id, passwordHash: actor.passwordHash, pin })) {
+        res.status(401).json({ message: 'NIP de signature incorrect ou manquant' })
+        return
+      }
+      headSignature = createApprobation({ ebReference: request.reference, etape: 'validation_chiffrage_sa', approbateur: actor.name, role: 'SA', ipAddress: clientIpFromReq(req), contenuHash: hashEbContenu(await getPurchaseRequestLines(requestId)) })
     }
     const lines = await getPurchaseRequestLines(requestId)
     const incomplete = saFinanceIncompleteMessage(lines)
@@ -1661,6 +1860,18 @@ procurementRouter.post(
       })),
     )
     const threshold = getProcurementConfig(manager.companyId).btThresholdFcfa
+    if (request.status === 'submitted' && actor.saSupervisorId) {
+      const supervisor = await getManagerById(actor.saSupervisorId)
+      if (!isValidSaSupervisor(actor, supervisor)) {
+        res.status(400).json({ message: 'Le chef SA affecté à cette ressource est indisponible : vérifiez son équipe' })
+        return
+      }
+      const pending = await updatePurchaseRequestStatus(manager.companyId, requestId, 'sa_head_review', { totalAmountFcfa, saReviewerId: actor.saSupervisorId })
+      await recordApprovalStep({ purchaseRequestId: requestId, role: 'purchasing', managerId: actor.id, decision: 'approved', etape: 'preparation_chiffrage_sa', comment: `${actor.name} — chiffrage soumis au chef SA` })
+      await notifyRequestStatusChange(manager.companyId, request.reference, 'sa_head_review', ['purchasing'], { managerIds: [actor.saSupervisorId] })
+      res.json({ request: pending, treasuryOrder: null, finance: { totalAmountFcfa, needsPdg: false, notifiedRoles: ['purchasing'], thresholdFcfa: threshold } })
+      return
+    }
     const needsPdg = needsPdgApproval(totalAmountFcfa, threshold)
     const notifiedRoles: ProcurementRole[] = ['controle_gestion']
     const saName = await currentManagerName(manager.sub, manager.email)
@@ -1669,8 +1880,10 @@ procurementRouter.post(
       role: 'purchasing',
       managerId: manager.sub,
       decision: 'approved',
-      comment: `${saName}\nChiffrage SA`,
-      etape: 'traitement_sa',
+      comment: headSignature ? formatSignatureBlock(headSignature) : `${saName}\nChiffrage SA`,
+      etape: headSignature ? 'validation_chiffrage_sa' : 'traitement_sa',
+      pinVerified: Boolean(headSignature),
+      ip: clientIpFromReq(req),
     })
     let treasuryOrder = null
     if (hasComptantLines(priced)) {
@@ -2031,6 +2244,31 @@ procurementRouter.post('/requests/:id/approve', async (req, res) => {
   }
 })
 
+procurementRouter.post('/requests/:id/approve-sa-bc', requireProcurementRole('purchasing'), async (req, res) => {
+  const { manager } = req as unknown as ManagerRequest
+  const body = parseBody(approveSchema, req.body, res)
+  if (!body) return
+  try {
+    const actor = await getManagerById(manager.sub)
+    const request = await getPurchaseRequestById(manager.companyId, String(req.params.id))
+    if (!actor || !request || actor.companyId !== manager.companyId || !canValidateSaAction(actor, request.saReviewerId)) {
+      res.status(403).json({ message: 'Validation réservée au chef SA désigné' })
+      return
+    }
+    if (!await verifySignaturePin({ managerId: actor.id, passwordHash: actor.passwordHash, pin: body.pin ?? '' })) {
+      res.status(401).json({ message: 'NIP de signature incorrect ou manquant' })
+      return
+    }
+    const orders = await listPurchaseOrdersForRequest(manager.companyId, request.id)
+    const signature = createApprobation({ ebReference: request.reference, etape: 'validation_bc_sa', approbateur: actor.name, role: 'SA', ipAddress: clientIpFromReq(req), contenuHash: hashEbContenu(orders.map((po) => ({ id: po.id, reference: po.reference, supplierId: po.supplierId, amount: po.amountFcfa, html: po.pdfHtml }))) })
+    res.json(await approveSaPreparedPurchaseOrders({ companyId: manager.companyId, requestId: request.id, managerId: actor.id, signature: formatSignatureBlock(signature), ordersHash: signature.contenuHash, ip: clientIpFromReq(req) }))
+  } catch (err) {
+    if (handleWorkflowError(err, res)) return
+    console.error('[procurement] validation BC chef SA', err)
+    res.status(500).json({ message: 'Validation du BC impossible' })
+  }
+})
+
 procurementRouter.post('/requests/:id/reject', async (req, res) => {
   const body = parseBody(approveSchema, req.body, res)
   if (!body) return
@@ -2196,6 +2434,10 @@ procurementRouter.post(
     try {
       const detail = await getRequestDetail(manager.companyId, requestId)
       const pos = detail?.purchaseOrders ?? []
+      if (!detail || !canReleaseSaPurchaseOrders(detail.request.status, pos)) {
+        res.status(409).json({ message: 'Les BC doivent être validés avant de planifier la livraison' })
+        return
+      }
       const targetPo =
         (body.purchaseOrderId ? pos.find((p) => p.id === body.purchaseOrderId) : null)
         ?? pos.find((p) => !p.tourId)

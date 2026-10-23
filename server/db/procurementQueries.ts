@@ -32,7 +32,7 @@ import {
   type DisbursementMethod,
 } from './schema.js'
 import { lineAmountFcfa } from '../services/ebPricing.js'
-import { ENGAGED_BC_STATUSES, amendmentWouldUndercutEngaged, computeBudgetKpis, computeBudgetTotals, firstOverrunAt, toFcfaInt } from '../services/siteBudget.js'
+import { buildDirectBudgetEntries, ENGAGED_BC_STATUSES, amendmentWouldUndercutEngaged, computeBudgetKpis, computeBudgetTotals, firstOverrunAt, toFcfaInt } from '../services/siteBudget.js'
 import {
   buildSiteIndicators,
   eventFromDeliveredBc,
@@ -241,6 +241,33 @@ async function sumApprovedAmendments(siteId: string): Promise<number> {
   return toFcfaInt(row?.total)
 }
 
+/** Dépenses hors SA : engagement au BT approuvé, réalisation au déboursé.
+ * Les lignes matériaux restent exclusivement comptées par leurs BC. */
+async function directBudgetEntries(companyId: string, siteIds: string[]) {
+  const payments = db.select({ orderId: treasuryDisbursements.treasuryOrderId,
+    total: sql<string>`sum(${treasuryDisbursements.amountFcfa})`.as('paid_total') })
+    .from(treasuryDisbursements).where(eq(treasuryDisbursements.companyId, companyId))
+    .groupBy(treasuryDisbursements.treasuryOrderId).as('budget_payments')
+  const [orders, history] = await Promise.all([
+    db.select({ requestId: treasuryOrders.purchaseRequestId, siteId: purchaseRequests.siteId,
+      amount: treasuryOrders.amountFcfa, createdAt: treasuryOrders.createdAt,
+      paidAmount: payments.total })
+      .from(treasuryOrders)
+      .innerJoin(purchaseRequests, eq(purchaseRequests.id, treasuryOrders.purchaseRequestId))
+      .leftJoin(payments, eq(payments.orderId, treasuryOrders.id))
+      .where(and(eq(treasuryOrders.companyId, companyId), inArray(purchaseRequests.siteId, siteIds),
+        inArray(purchaseRequests.status, ['bt_pending', 'bt_ready', 'deboursed', 'paid']))),
+    db.select({ siteId: historicalExpenseLines.siteId, amount: historicalExpenseLines.amountFcfa,
+      date: historicalExpenseLines.occurredOn }).from(historicalExpenseLines)
+      .where(and(eq(historicalExpenseLines.companyId, companyId), inArray(historicalExpenseLines.siteId, siteIds))),
+  ])
+  const ids = [...new Set(orders.map(r => r.requestId))]
+  const lines = ids.length ? await db.select({ requestId: purchaseRequestLines.purchaseRequestId,
+    label: purchaseRequestLines.label, spendCategory: purchaseRequestLines.spendCategory })
+    .from(purchaseRequestLines).where(inArray(purchaseRequestLines.purchaseRequestId, ids)) : []
+  return buildDirectBudgetEntries(orders, lines, history.map(r => ({ ...r, date: isoDateValue(r.date) })))
+}
+
 async function sumEngagedBc(companyId: string, siteId: string): Promise<number> {
   const [row] = await db
     .select({
@@ -297,7 +324,10 @@ async function listEngagedBcChrono(
       ),
     )
     .orderBy(asc(purchaseOrders.createdAt))
-  return rows.map((row) => ({ amountFcfa: toFcfaInt(row.amountFcfa), createdAt: row.createdAt }))
+  const direct = await directBudgetEntries(companyId, [siteId])
+  return [...rows.map((row) => ({ amountFcfa: toFcfaInt(row.amountFcfa), createdAt: row.createdAt })),
+    ...direct.map(row => ({ amountFcfa: row.engaged, createdAt: row.createdAt }))]
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
 }
 
 async function nextAmendmentReference(companyId: string): Promise<string> {
@@ -389,7 +419,7 @@ export async function getSiteBudget(companyId: string, siteId: string): Promise<
   const site = await getSiteById(companyId, siteId)
   if (!site) return null
 
-  const [approvedSum, engagedFcfa, realizedFcfa, amendmentRows] = await Promise.all([
+  const [approvedSum, engagedBc, realizedBc, amendmentRows, directEntries] = await Promise.all([
     sumApprovedAmendments(siteId),
     sumEngagedBc(companyId, siteId),
     sumRealizedBc(companyId, siteId),
@@ -410,7 +440,10 @@ export async function getSiteBudget(companyId: string, siteId: string): Promise<
       .leftJoin(managers, eq(siteBudgetAmendments.createdByManagerId, managers.id))
       .where(and(eq(siteBudgetAmendments.companyId, companyId), eq(siteBudgetAmendments.siteId, siteId)))
       .orderBy(desc(siteBudgetAmendments.createdAt)),
+    directBudgetEntries(companyId, [siteId]),
   ])
+  const engagedFcfa = engagedBc + directEntries.reduce((sum, r) => sum + r.engaged, 0)
+  const realizedFcfa = realizedBc + directEntries.reduce((sum, r) => sum + r.realized, 0)
 
   const decidedIds = [...new Set(amendmentRows.map((r) => r.decidedById).filter(Boolean))] as string[]
   const decidedManagers =
@@ -978,7 +1011,7 @@ export async function listSiteBudgets(
   if (siteRows.length === 0) return []
   const siteIds = siteRows.map((s) => s.id)
 
-  const [approvedRows, engagedRows, realizedRows, amendmentRows] = await Promise.all([
+  const [approvedRows, engagedRows, realizedRows, amendmentRows, directEntries] = await Promise.all([
     db
       .select({
         siteId: siteBudgetAmendments.siteId,
@@ -1043,6 +1076,7 @@ export async function listSiteBudgets(
       .leftJoin(managers, eq(siteBudgetAmendments.createdByManagerId, managers.id))
       .where(and(eq(siteBudgetAmendments.companyId, companyId), inArray(siteBudgetAmendments.siteId, siteIds)))
       .orderBy(desc(siteBudgetAmendments.createdAt)),
+    directBudgetEntries(companyId, siteIds),
   ])
 
   const approvedBySite = new Map(approvedRows.map((r) => [r.siteId, toFcfaInt(r.total)]))
@@ -1056,6 +1090,11 @@ export async function listSiteBudgets(
       .filter((r): r is { siteId: string; total: string } => typeof r.siteId === 'string')
       .map((r) => [r.siteId, toFcfaInt(r.total)]),
   )
+  for (const entry of directEntries) {
+    if (!entry.siteId) continue
+    engagedBySite.set(entry.siteId, (engagedBySite.get(entry.siteId) ?? 0) + entry.engaged)
+    realizedBySite.set(entry.siteId, (realizedBySite.get(entry.siteId) ?? 0) + entry.realized)
+  }
   const amendmentsBySite = new Map<string, typeof amendmentRows>()
   for (const row of amendmentRows) {
     const list = amendmentsBySite.get(row.siteId) ?? []
@@ -1391,11 +1430,17 @@ export async function markWhatsappMessageProcessed(messageId: string) {
 
 // ─── Drafts ──────────────────────────────────────────────────────────────────
 
-export async function listDrafts(companyId: string) {
+export async function listDrafts(companyId: string, siteIds?: string[], createdByManagerId?: string) {
+  if (siteIds && siteIds.length === 0) return []
   return db
     .select()
     .from(purchaseRequestDrafts)
-    .where(and(eq(purchaseRequestDrafts.companyId, companyId), ne(purchaseRequestDrafts.status, 'deleted')))
+    .where(and(
+      eq(purchaseRequestDrafts.companyId, companyId),
+      ne(purchaseRequestDrafts.status, 'deleted'),
+      ...(createdByManagerId ? [eq(purchaseRequestDrafts.createdByManagerId, createdByManagerId)] : []),
+      ...(siteIds ? [inArray(purchaseRequestDrafts.siteId, siteIds)] : []),
+    ))
     .orderBy(desc(purchaseRequestDrafts.createdAt))
 }
 
@@ -1410,6 +1455,7 @@ export async function getDraftById(companyId: string, draftId: string) {
 
 export async function createDraftFromParse(input: {
   companyId: string
+  createdByManagerId?: string | null
   siteId?: string | null
   sourceMessageIds: string[]
   parsedLines: ParsedEbLine[]
@@ -1423,6 +1469,7 @@ export async function createDraftFromParse(input: {
     .values({
       id,
       companyId: input.companyId,
+      createdByManagerId: input.createdByManagerId ?? null,
       siteId: input.siteId ?? null,
       status: 'draft_parsed',
       sourceMessageIds: input.sourceMessageIds,
@@ -1620,7 +1667,7 @@ async function nextReference(companyId: string, prefix: string): Promise<string>
   return `${prefix}-${year}-${String(seq).padStart(4, '0')}`
 }
 
-export async function listPurchaseRequests(companyId: string) {
+export async function listPurchaseRequests(companyId: string, initiatedByManagerId?: string) {
   // La colonne « Chantier » de l’UI lit `siteName` : sans jointure, le champ est
   // absent de la réponse et l’écran SA affiche un repli générique « Chantier ».
   return db
@@ -1630,7 +1677,14 @@ export async function listPurchaseRequests(companyId: string) {
     })
     .from(purchaseRequests)
     .leftJoin(sites, eq(purchaseRequests.siteId, sites.id))
-    .where(eq(purchaseRequests.companyId, companyId))
+    .leftJoin(purchaseRequestDrafts, eq(purchaseRequests.sourceDraftId, purchaseRequestDrafts.id))
+    .where(and(
+      eq(purchaseRequests.companyId, companyId),
+      ...(initiatedByManagerId ? [or(
+        eq(purchaseRequestDrafts.createdByManagerId, initiatedByManagerId),
+        and(isNull(purchaseRequests.sourceDraftId), eq(purchaseRequests.createdByManagerId, initiatedByManagerId)),
+      )] : []),
+    ))
     .orderBy(desc(purchaseRequests.createdAt))
     .then((rows) =>
       rows.map((row) => ({
@@ -1944,6 +1998,7 @@ export async function updatePurchaseRequestStatus(
   requestId: string,
   status: PurchaseRequestStatus,
   patch: Partial<{
+    saReviewerId: string | null
     supplierId: string | null
     totalAmountFcfa: number | null
     notes: string | null
@@ -1958,6 +2013,7 @@ export async function updatePurchaseRequestStatus(
     .set({
       status,
       updatedAt: new Date(),
+      ...(patch.saReviewerId !== undefined ? { saReviewerId: patch.saReviewerId } : {}),
       ...(patch.supplierId !== undefined ? { supplierId: patch.supplierId } : {}),
       ...(patch.totalAmountFcfa !== undefined
         ? { totalAmountFcfa: patch.totalAmountFcfa != null ? String(patch.totalAmountFcfa) : null }
@@ -2054,6 +2110,7 @@ export async function getActiveDocumentTemplate(companyId: string, docType: 'bc'
 }
 
 export async function createPurchaseOrder(input: {
+  saApprovalRequired?: boolean
   companyId: string
   purchaseRequestId: string
   supplierId: string
@@ -2071,6 +2128,7 @@ export async function createPurchaseOrder(input: {
       id,
       companyId: input.companyId,
       purchaseRequestId: input.purchaseRequestId,
+      saApprovalRequired: input.saApprovalRequired ?? false,
       supplierId: input.supplierId,
       reference,
       docType: input.docType ?? 'bc',
@@ -2405,6 +2463,7 @@ export async function upsertDocumentTemplate(input: {
 }
 
 export type BcRegisterRow = {
+  status: PurchaseRequestStatus
   purchaseOrderId: string
   purchaseRequestId: string
   siteName: string
@@ -2440,6 +2499,7 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
     .select({
       poId: purchaseOrders.id,
       poReference: purchaseOrders.reference,
+      requestStatus: purchaseRequests.status,
       poAmount: purchaseOrders.amountFcfa,
       requestId: purchaseOrders.purchaseRequestId,
       siteName: sites.name,
@@ -2538,6 +2598,7 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       .map((l) => ({ lineId: l.id, fileName: l.attachmentFileName!.trim() }))
     return {
       purchaseOrderId: row.poId,
+      status: row.requestStatus,
       purchaseRequestId: row.requestId,
       siteName: row.siteName,
       supplierName: row.supplierName,

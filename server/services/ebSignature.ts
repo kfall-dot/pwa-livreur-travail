@@ -25,7 +25,7 @@ export const SIGNATURE_ETAPES_PAR_ROLE: Record<SignatureRole, string[]> = {
   DT: ['validation_dt'],
   DAF: ['approbation_daf_1', 'validation_daf_2'],
   PDG: ['validation_pdg'],
-  SA: ['lancement_achat'],
+  SA: ['lancement_achat', 'validation_chiffrage_sa', 'validation_bc_sa'],
   CDG: ['validation_cdg'],
 }
 

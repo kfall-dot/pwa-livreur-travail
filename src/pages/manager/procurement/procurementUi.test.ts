@@ -1,6 +1,27 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { approvalDecisionLabel, canReviseRequest, chainHighlightMatches, chainReferencesLabel } from './procurementUi.tsx'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { approvalDecisionLabel, canEditDraft, canReviseRequest, chainHighlightMatches, chainReferencesLabel, ProcurementRoleOptions } from './procurementUi.tsx'
+
+it('propose tous les espaces métier, notamment comptabilité, trésorerie et équipe SA', () => {
+  const html = renderToStaticMarkup(createElement(ProcurementRoleOptions))
+  for (const role of ['site_controller', 'technical_director', 'purchasing', 'controle_gestion', 'daf', 'pdg', 'site_manager', 'accountant', 'treasury']) {
+    assert.ok(html.includes(`value="${role}"`), `${role} doit être proposé`)
+  }
+  assert.ok(html.includes('Chef SA / Ressource SA'))
+  assert.ok(!html.includes('value="admin"'), 'les droits d’accès restent distincts du profil métier')
+})
+
+it('autorise le SA à préparer des brouillons, sans ouvrir ce droit aux valideurs financiers', () => {
+  assert.equal(canEditDraft('purchasing'), true)
+  assert.equal(canEditDraft('technical_director'), true)
+  assert.equal(canEditDraft('site_manager'), true)
+  assert.equal(canEditDraft('daf'), false)
+  assert.equal(canEditDraft('controle_gestion'), false)
+  assert.equal(canEditDraft('pdg'), false)
+  assert.equal(canEditDraft(null), false)
+})
 
 /**
  * Historique des approbations (page Achats chantier) : la révision PDG des

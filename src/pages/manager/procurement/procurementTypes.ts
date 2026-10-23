@@ -16,6 +16,9 @@ export type PurchaseRequestStatus =
   | 'whatsapp_ingested'
   | 'draft_parsed'
   | 'draft_review'
+  | 'dt_review'
+  | 'sa_head_review'
+  | 'bc_head_review'
   | 'submitted'
   | 'cdg_review'
   | 'daf_review'
@@ -128,6 +131,7 @@ export interface ApprovalStepRow {
 }
 
 export interface PurchaseRequestRow {
+  saReviewerId?: string | null
   id: string
   companyId: string
   siteId: string
@@ -295,6 +299,7 @@ export interface BcRegisterRecapGroup {
 }
 
 export interface BcRegisterRow {
+  status?: PurchaseRequestStatus
   purchaseOrderId: string
   purchaseRequestId: string
   siteName: string

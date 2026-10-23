@@ -1,7 +1,9 @@
+import { inAccountingDateRange } from './accountingFilters'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '../../../lib/toast'
 import { useProcurementStore } from '../../../stores/procurementStore'
 import { fetchBcInvoiceFile, patchBcRegisterFollowup } from './procurementApi'
+import { ProcurementStatusBadge } from './procurementUi'
 import type { BcRegisterRow } from './procurementTypes'
 
 /**
@@ -128,12 +130,6 @@ function fcfa(n: number | null | undefined): string {
   return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n)
 }
 
-/** Normalise une date (jj/mm/aaaa → aaaa-mm-jj) pour la comparaison des filtres. */
-function isoDate(d: string): string {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(d.trim())
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : d.trim()
-}
-
 export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) => boolean }) {
   const [subTab, setSubTab] = useState<SubTab>('dashboard')
   // Registre BC partagé (store Zustand) : même source que SuiviBcTab (SA).
@@ -151,8 +147,8 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
   const [fDateEnd, setFDateEnd] = useState('')
 
   useEffect(() => {
-    void load(handleAuth)
-  }, [load, handleAuth])
+    void load(handleAuth, fDateStart || fDateEnd ? 'all' : undefined)
+  }, [load, handleAuth, fDateStart, fDateEnd])
 
   const filteredRows = useMemo(
     () =>
@@ -160,10 +156,7 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
         if (fPayment && (r.paymentMode.trim() || '—').toUpperCase() !== fPayment) return false
         if (fSupplier && r.supplierName.trim() !== fSupplier) return false
         if (fSite && r.siteName.trim() !== fSite) return false
-        const iso = isoDate(r.date)
-        if (fDateStart && iso < fDateStart) return false
-        if (fDateEnd && iso > fDateEnd) return false
-        return true
+        return inAccountingDateRange(r.date, fDateStart, fDateEnd)
       }),
     [rows, fPayment, fSupplier, fSite, fDateStart, fDateEnd],
   )
@@ -173,15 +166,15 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
 
   const supplierTotals = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const s = r.supplierName.trim()
       map[s] = (map[s] ?? 0) + (r.amountFcfa ?? 0)
     }
     return Object.entries(map).sort((a, b) => b[1] - a[1])
-  }, [rows])
+  }, [filteredRows])
 
   // Factures = lignes du registre avec un n° de facture saisi.
-  const invoicedRows = useMemo(() => rows.filter((r) => r.invoice.trim()), [rows])
+  const invoicedRows = useMemo(() => filteredRows.filter((r) => r.invoice.trim()), [filteredRows])
 
   // KPI factures : total, payées (vérifiées), en attente, montant cumulé.
   const invoiceKpi = useMemo(() => {
@@ -225,9 +218,9 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
 
   // KPI du mois : total BC, montant total, répartition par mode de paiement.
   const kpi = useMemo(() => {
-    const totalAmount = rows.reduce((s, r) => s + (r.amountFcfa ?? 0), 0)
+    const totalAmount = filteredRows.reduce((s, r) => s + (r.amountFcfa ?? 0), 0)
     const byMode: Record<string, { count: number; amount: number }> = {}
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const mode = (r.paymentMode || '').trim().toUpperCase()
       const key = mode || '—'
       const bucket = (byMode[key] ??= { count: 0, amount: 0 })
@@ -235,11 +228,11 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
       bucket.amount += r.amountFcfa ?? 0
     }
     return { totalAmount, byMode }
-  }, [rows])
+  }, [filteredRows])
 
   const monthLabel = useMemo(() => {
     const m = months.find((x) => x.key === month)
-    return m?.label ?? month ?? '—'
+    return month === 'all' ? 'Période sélectionnée' : m?.label ?? month ?? '—'
   }, [months, month])
 
   const monthIndex = useMemo(() => months.findIndex((m) => m.key === month), [months, month])
@@ -317,7 +310,7 @@ export function ComptabiliteTab({ handleAuth }: { handleAuth: (status: number) =
       toast.show(`Factures exportées (${invoicedRows.length})`)
     } else if (kind === 'recap-fournisseur') {
       const counts: Record<string, number> = {}
-      for (const r of rows) counts[r.supplierName.trim()] = (counts[r.supplierName.trim()] ?? 0) + 1
+      for (const r of filteredRows) counts[r.supplierName.trim()] = (counts[r.supplierName.trim()] ?? 0) + 1
       downloadXls(
         `cmpt-recap-fournisseur-${suffix}.xls`,
         ['Fournisseur', 'Nombre de BC', 'Montant total (XOF)'],
@@ -378,13 +371,13 @@ return (
                 <div className="kpis two">
                   <div className="kpi" data-testid="cmpt-kpi-total-bc">
                     <div className="lbl">Total BC émis</div>
-                    <div className="val">{rows.length}</div>
-                    <div className="det">BC ce mois</div>
+                    <div className="val">{filteredRows.length}</div>
+                    <div className="det">BC sur la période</div>
                   </div>
                   <div className="kpi" data-testid="cmpt-kpi-total-invoices">
                     <div className="lbl">Total factures</div>
                     <div className="val">{invoicedRows.length}</div>
-                    <div className="det">factures saisies ce mois</div>
+                    <div className="det">factures sur la période</div>
                   </div>
                 </div>
 
@@ -423,14 +416,14 @@ return (
                     </select>
                   </div>
                   <div className="filter-group">
-                    <label>Date début</label>
+                    <label>Date de livraison — début</label>
                     <input type="date" value={fDateStart} onChange={(e) => setFDateStart(e.target.value)} />
                   </div>
                   <div className="filter-group">
-                    <label>Date fin</label>
+                    <label>Date de livraison — fin</label>
                     <input type="date" value={fDateEnd} onChange={(e) => setFDateEnd(e.target.value)} />
                   </div>
-                  <button type="button" className="btn-apply" onClick={() => toast.show('Filtres appliqués')}>
+                  <button type="button" className="btn-apply" onClick={() => { if (fDateStart && fDateEnd && fDateStart > fDateEnd) toast.error('La date de début doit précéder la date de fin'); else toast.show('Filtres appliqués') }}>
                     Appliquer
                   </button>
                 </div>
@@ -467,11 +460,7 @@ return (
                             <td className="mono">{r.amountLabel}</td>
                             <td>{r.invoice.trim() ? r.invoice : <span style={{ color: '#b45309' }}>—</span>}</td>
                             <td>
-                              {r.verification.trim() ? (
-                                <span className="cmpt-badge comptant">Validé</span>
-                              ) : (
-                                <span className="cmpt-badge cheque">En attente</span>
-                              )}
+                              {r.status ? <ProcurementStatusBadge status={r.status} /> : '—'}
                             </td>
                           </tr>
                         ))}
@@ -539,8 +528,8 @@ return (
                 <div className="kpis">
                   <div className="kpi">
                     <div className="lbl">Total BC</div>
-                    <div className="val">{rows.length}</div>
-                    <div className="det">BC ce mois</div>
+                    <div className="val">{filteredRows.length}</div>
+                    <div className="det">BC sur la période</div>
                   </div>
                   <div className="kpi credit">
                     <div className="lbl">Crédit</div>
@@ -744,7 +733,7 @@ return (
                     <h4>Répartition par fournisseur</h4>
                     {(() => {
                       const bySupplier: Record<string, number> = {}
-                      for (const r of rows) {
+                      for (const r of filteredRows) {
                         bySupplier[r.supplierName.trim()] = (bySupplier[r.supplierName.trim()] ?? 0) + (r.amountFcfa ?? 0)
                       }
                       const entries = Object.entries(bySupplier).sort((a, b) => b[1] - a[1])

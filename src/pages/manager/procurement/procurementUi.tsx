@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { createElement, type CSSProperties } from 'react'
 import { css as managerCss } from '../managerUi'
 import type { ProcurementRole, PurchaseRequestStatus } from './procurementTypes'
 
@@ -169,6 +169,13 @@ export const PROCUREMENT_ROLE_LABELS: Record<ProcurementRole, string> = {
   treasury: 'Trésorerie',
 }
 
+/** Même catalogue dans l'invitation et dans tous les formulaires de modification. */
+export function ProcurementRoleOptions() {
+  return Object.entries(PROCUREMENT_ROLE_LABELS).map(([value, label]) => (
+    createElement('option', { key: value, value }, value === 'purchasing' ? 'Service achats (Chef SA / Ressource SA)' : label)
+  ))
+}
+
 export function approvalDecisionLabel(role: ProcurementRole, decision: string): string {
   // La révision PDG des quantités est un acte de validation (visa), pas un rejet.
   if (decision === 'revised') return 'Modifié'
@@ -265,6 +272,9 @@ export const STATUS_LABELS: Record<PurchaseRequestStatus, string> = {
   whatsapp_ingested: 'WhatsApp reçu',
   draft_parsed: 'Brouillon parsé',
   draft_review: 'À réviser',
+  dt_review: 'Validation DT',
+  sa_head_review: 'Chiffrage — validation chef SA',
+  bc_head_review: 'BC — signature chef SA',
   submitted: 'Transmis SA',
   cdg_review: 'Validation CdG',
   daf_review: 'Validation DAF',
@@ -283,6 +293,7 @@ export const STATUS_LABELS: Record<PurchaseRequestStatus, string> = {
 
 const STATUS_COLORS: Partial<Record<PurchaseRequestStatus, { color: string; bg: string }>> = {
   draft_review: { color: '#92400e', bg: '#fef3c7' },
+  dt_review: { color: '#b45309', bg: '#fef3c7' },
   cdg_review: { color: '#0f766e', bg: '#ccfbf1' },
   daf_review: { color: '#1d4ed8', bg: '#dbeafe' },
   sa_review: { color: '#6d28d9', bg: '#ede9fe' },
@@ -396,6 +407,7 @@ export function canApproveRequest(
 ): boolean {
   if (!role) return false
   if (role === 'daf' && (status === 'daf_review' || status === 'daf_bt_review')) return true
+  if (role === 'technical_director' && status === 'dt_review') return true
   if (role === 'pdg' && status === 'pdg_review') return true
   if (role === 'controle_gestion' && status === 'cdg_review') return true
   return false
@@ -421,7 +433,7 @@ export function canCreatePo(
   status: PurchaseRequestStatus,
   role: ProcurementRole | null | undefined,
 ): boolean {
-  return role === 'purchasing' && (status === 'sa_review' || status === 'bt_pending' || status === 'po_ready')
+  return role === 'purchasing' && (status === 'sa_review' || status === 'bt_pending' || status === 'po_ready' || status === 'bc_head_review')
 }
 
 export function canScheduleDelivery(
@@ -436,7 +448,7 @@ export function canScheduleDelivery(
 }
 
 export function canEditDraft(role: ProcurementRole | null | undefined): boolean {
-  return role === 'technical_director' || role === 'site_controller'
+  return role === 'technical_director' || role === 'site_controller' || role === 'site_manager' || role === 'purchasing'
 }
 
 export function canPriceRequest(

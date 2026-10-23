@@ -27,12 +27,18 @@ export function saFinanceIncompleteMessage(lines: SaFinanceLine[]): string | nul
   if (priced.some((l) => Number(l.unitPriceFcfa ?? 0) <= 0)) {
     return 'Saisissez le prix unitaire de chaque produit'
   }
-  const incomplete = priced.some(
-    (l) =>
-      !(l.supplierName ?? '').trim() ||
-      !(l.paymentMode ?? '').trim() ||
-      (!(l.attachmentFileName ?? '').trim() && !(l.attachmentBlobKey ?? '').trim()),
-  )
-  if (incomplete) return SA_FINANCE_REQUIRED_MESSAGE
+  const incomplete = lines.flatMap((line, index) => {
+    if (!(line.label ?? '').trim()) return []
+    const missing: string[] = []
+    if (!(line.supplierName ?? '').trim()) missing.push('fournisseur')
+    if (!(line.paymentMode ?? '').trim()) missing.push('mode de paiement')
+    if (!(line.attachmentFileName ?? '').trim() && !(line.attachmentBlobKey ?? '').trim()) missing.push('pièce jointe')
+    return missing.length ? [`ligne ${index + 1} « ${line.label?.trim()} » : ${missing.join(', ')}`] : []
+  })
+  if (incomplete.length) {
+    const detail = incomplete.slice(0, 3).join(' ; ')
+    const more = incomplete.length > 3 ? ` ; ${incomplete.length - 3} autre(s) ligne(s) à compléter` : ''
+    return `${SA_FINANCE_REQUIRED_MESSAGE} À compléter : ${detail}${more}.`
+  }
   return null
 }

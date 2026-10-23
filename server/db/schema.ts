@@ -50,6 +50,9 @@ export const purchaseRequestStatusEnum = pgEnum('purchase_request_status', [
   'whatsapp_ingested',
   'draft_parsed',
   'draft_review',
+  'dt_review',
+  'sa_head_review',
+  'bc_head_review',
   'submitted',
   'cdg_review',
   'daf_review',
@@ -387,6 +390,8 @@ export const managers = pgTable('managers', {
   phone: text('phone'),
   role: managerRoleEnum('role').notNull().default('manager'),
   procurementRole: procurementRoleEnum('procurement_role'),
+  /** Un SA rattaché à un chef prépare les actions soumises à son visa. */
+  saSupervisorId: text('sa_supervisor_id'),
   totpSecret: text('totp_secret'),
   totpEnabled: boolean('totp_enabled').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -640,6 +645,7 @@ export type Supplier = typeof suppliers.$inferSelect
 export type NewSupplier = typeof suppliers.$inferInsert
 
 export const purchaseRequests = pgTable('purchase_requests', {
+  saReviewerId: text('sa_reviewer_id').references(() => managers.id),
   id: text('id').primaryKey(),
   companyId: text('company_id')
     .notNull()
@@ -728,6 +734,8 @@ export type ApprovalStep = typeof approvalSteps.$inferSelect
 export type NewApprovalStep = typeof approvalSteps.$inferInsert
 
 export const purchaseOrders = pgTable('purchase_orders', {
+  saApprovalRequired: boolean('sa_approval_required').notNull().default(false),
+  saHeadSignature: text('sa_head_signature'),
   id: text('id').primaryKey(),
   companyId: text('company_id')
     .notNull()
@@ -863,6 +871,7 @@ export type NewWhatsappMessage = typeof whatsappMessages.$inferInsert
 
 export const purchaseRequestDrafts = pgTable('purchase_request_drafts', {
   id: text('id').primaryKey(),
+  createdByManagerId: text('created_by_manager_id').references(() => managers.id),
   companyId: text('company_id')
     .notNull()
     .references(() => companies.id),

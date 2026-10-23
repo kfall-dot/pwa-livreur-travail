@@ -32,6 +32,8 @@ interface ProcurementState {
   patchRow: (purchaseOrderId: string, patch: Partial<BcRegisterRow>) => void
 }
 
+let loadSequence = 0
+
 export const useProcurementStore = create<ProcurementState>((set) => ({
   rows: [],
   recap: [],
@@ -41,6 +43,7 @@ export const useProcurementStore = create<ProcurementState>((set) => ({
   error: null,
 
   load: async (handleAuth, selectedMonth) => {
+    const sequence = ++loadSequence
     set({ loading: true, error: null })
     try {
       const q = selectedMonth ? `?month=${encodeURIComponent(selectedMonth)}` : ''
@@ -53,6 +56,7 @@ export const useProcurementStore = create<ProcurementState>((set) => ({
         months?: BcRegisterMonth[]
         month?: string | null
       }
+      if (sequence !== loadSequence) return
       set({
         rows: data.rows ?? [],
         recap: data.recap ?? [],
@@ -60,13 +64,14 @@ export const useProcurementStore = create<ProcurementState>((set) => ({
         month: data.month ?? null,
       })
     } catch (err) {
+      if (sequence !== loadSequence) return
       set({
         rows: [],
         recap: [],
         error: err instanceof Error ? err.message : 'Registre indisponible',
       })
     } finally {
-      set({ loading: false })
+      if (sequence === loadSequence) set({ loading: false })
     }
   },
 

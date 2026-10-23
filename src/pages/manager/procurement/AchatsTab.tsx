@@ -4,6 +4,7 @@ import { toast } from '../../../lib/toast'
 import { defaultReplanDate } from '../../../lib/dates'
 import {
   approveRequest,
+  approveSaBc,
   createPurchaseOrder,
   createTreasuryAdvance,
   documentHtmlUrl,
@@ -14,9 +15,10 @@ import {
   fetchRequest,
   fetchRequests,
   fetchSuppliers,
+  fetchSites,
   pasteWhatsappDraft,
   createBlankEbFiche,
-    archiveDraft,
+  archiveDraft,
   rejectRequest,
   resolveDocumentChain,
   reviseRequestQuantities,
@@ -41,6 +43,7 @@ import type {
   PurchaseRequestRow,
   RequestDetailResponse,
   SiteBudget,
+  SiteRow,
   ProcurementTourPrefill,
 } from './procurementTypes'
 import { catalogUnitFromEb } from '../../../../shared/ebCatalog'
@@ -70,6 +73,7 @@ import {
   StatCard,
 } from './procurementUi'
 import { SaOverview } from './SaOverview'
+import { useProcurementEditLock } from './useProcurementEditLock'
 import { saFinanceIncompleteMessage } from '../../../../shared/saFinanceGate'
 
 type AchatsView = 'inbox' | 'requests'
@@ -92,6 +96,8 @@ const tdStyle: React.CSSProperties = {
 }
 
 const PRE_BC_STATUSES = new Set([
+  'sa_head_review',
+  'bc_head_review',
   'submitted',
   'cdg_review',
   'daf_review',
@@ -302,7 +308,27 @@ export function AchatsTab({
   onFocusConsumed?: () => void
 }) {
   const [view, setView] = useState<AchatsView>('inbox')
+  const [saActor, setSaActor] = useState<{ id: string; supervisorId: string | null }>({ id: '', supervisorId: null })
+  useEffect(() => {
+    if (procurementRole !== 'purchasing') return
+    let cancelled = false
+    const loadSaActor = async () => {
+      try {
+        const res = await authFetch('/auth/me')
+        if (!res.ok) throw new Error('Profil SA indisponible')
+        const data = await res.json() as { manager: { id: string; saSupervisorId?: string | null } }
+        if (!cancelled) setSaActor({ id: data.manager.id, supervisorId: data.manager.saSupervisorId ?? null })
+      } catch {
+        if (!cancelled) setSaActor({ id: '', supervisorId: null })
+      }
+    }
+    void loadSaActor()
+    window.addEventListener('focus', loadSaActor)
+    return () => { cancelled = true; window.removeEventListener('focus', loadSaActor) }
+  }, [procurementRole])
   const [drafts, setDrafts] = useState<PurchaseRequestDraftRow[]>([])
+  const [requesterSites, setRequesterSites] = useState<SiteRow[]>([])
+  const [createSiteId, setCreateSiteId] = useState('')
   const [requests, setRequests] = useState<PurchaseRequestRow[]>([])
   const [cdgBudgets, setCdgBudgets] = useState<SiteBudget[]>([])
   const [cdgFocus, setCdgFocus] = useState<'all' | 'validate' | 'pipeline'>('all')
@@ -378,9 +404,26 @@ export function AchatsTab({
   }
 
   useEffect(() => {
-    if (procurementRole && procurementRole !== 'technical_director') {
+    if (procurementRole === 'site_manager') {
+      setView('inbox')
+    } else if (procurementRole && procurementRole !== 'technical_director') {
       setView('requests')
     }
+  }, [procurementRole])
+
+  useEffect(() => {
+    if (procurementRole !== 'site_manager') return
+    let cancelled = false
+    void fetchSites().then((rows) => {
+      if (cancelled) return
+      setRequesterSites(rows)
+      setCreateSiteId((current) => current && rows.some((site) => site.id === current)
+        ? current
+        : rows.length === 1 ? rows[0].id : '')
+    }).catch(() => {
+      if (!cancelled) setRequesterSites([])
+    })
+    return () => { cancelled = true }
   }, [procurementRole])
 
   const draftLoadGen = useRef(0)
@@ -452,7 +495,7 @@ export function AchatsTab({
       setEditUrgency(detail.draft.parsedUrgency ?? 'normal')
       setEditSiteId(detail.draft.siteId ?? '')
       const hintName = detail.parseHints?.requesterName
-      setEditRequester(hintName && hintName !== 'À identifier' ? hintName : '')
+      setEditRequester(hintName && hintName !== 'À identifier' ? hintName : (procurementRole === 'site_manager' || procurementRole === 'purchasing') ? managerName ?? '' : '')
       setEditObjet(
         detail.parseHints?.objet || objetFromLines(linesFromDraft(detail.draft), detail.parseHints?.destination),
       )
@@ -468,7 +511,7 @@ export function AchatsTab({
       setSelectedDraftId(null)
       setDraftDetail(null)
     }
-  }, [])
+  }, [managerName, procurementRole])
 
   const loadRequestDetail = useCallback(async (id: string) => {
     // Réactivité : pas de spinner global — voir loadDraftDetail.
@@ -546,7 +589,7 @@ export function AchatsTab({
     if (!window.confirm('Supprimer ce brouillon d’EB ? Cette action est irréversible.')) return
     setActionLoading(true)
     try {
-            await archiveDraft(draftId)
+      await archiveDraft(draftId)
       toast.success('Brouillon supprimé.')
       if (selectedDraftId === draftId) {
         setSelectedDraftId(null)
@@ -602,6 +645,10 @@ export function AchatsTab({
       toast.error('Sélectionnez le chantier (SITE).')
       return
     }
+    if (procurementRole === 'site_manager' && !editRequester.trim()) {
+      toast.error('Saisissez le nom du chef de chantier demandeur.')
+      return
+    }
     if (procurementRole === 'technical_director' && !editPin.trim()) {
       toast.error('Saisissez le NIP de signature.')
       return
@@ -623,12 +670,17 @@ export function AchatsTab({
         neededBy: editNeededBy.trim() || undefined,
       })
       toast.success(
-        request.status === 'cdg_review'
+        procurementRole === 'purchasing'
+          ? `EB ${request.reference} créée — complétez les factures puis soumettez au Contrôle de gestion.`
+          : request.status === 'dt_review'
+          ? `EB ${request.reference} soumise au DT pour approbation.`
+          : request.status === 'cdg_review'
           ? `EB ${request.reference} transmise directement au Contrôle de gestion.`
           : `EB ${request.reference} transmise au Service achats.`,
       )
       setSelectedDraftId(null)
-      setSelectedRequestId(null)
+      if (procurementRole === 'purchasing') setRequestDetail(null)
+      setSelectedRequestId(procurementRole === 'purchasing' ? request.id : null)
       setView('requests')
       refreshInbox()
       void loadRequests()
@@ -700,8 +752,12 @@ export function AchatsTab({
 
   const handleSubmitFinance = async () => {
     if (!selectedRequestId || !requestDetail) return
+    if (!saActor.id) {
+      toast.error('Le profil SA doit être chargé avant la soumission. Actualisez la page.')
+      return
+    }
     // Garde : EB déjà partie au CdG (statut périmé dans l'UI, double-clic…) → rien à faire
-    if (requestDetail.request.status !== 'submitted') {
+    if (requestDetail.request.status !== 'submitted' && requestDetail.request.status !== 'sa_head_review') {
       toast.info('Cette EB a déjà été envoyée au Contrôle de gestion — aucune action nécessaire.')
       return
     }
@@ -712,9 +768,10 @@ export function AchatsTab({
     }
     setActionLoading(true)
     try {
-      await updateRequestPricing(selectedRequestId, pricingLinesFromDetail(requestDetail.lines))
-      const result = await submitRequestFinance(selectedRequestId)
-      toast.success(`EB envoyée au Contrôle de gestion (${result.finance.totalAmountFcfa.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} XOF).`)
+      if (requestDetail.request.status === 'submitted') await updateRequestPricing(selectedRequestId, pricingLinesFromDetail(requestDetail.lines))
+      const result = await submitRequestFinance(selectedRequestId, approvalPin || undefined)
+      setApprovalPin('')
+      toast.success(result.request.status === 'sa_head_review' ? 'Chiffrage transmis au chef SA pour validation.' : `EB envoyée au Contrôle de gestion (${result.finance.totalAmountFcfa.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} XOF).`)
       const detail = await fetchRequest(selectedRequestId)
       setRequestDetail(detail)
       void loadRequests()
@@ -727,6 +784,21 @@ export function AchatsTab({
       } else {
         toast.error(msg || 'Soumission au CdG échouée')
       }
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleApproveSaBc = async () => {
+    if (!selectedRequestId) return
+    setActionLoading(true)
+    try {
+      setRequestDetail(await approveSaBc(selectedRequestId, approvalPin))
+      setApprovalPin('')
+      toast.success('BC validés et signés par le chef SA.')
+      refreshInbox()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Validation du BC impossible')
     } finally {
       setActionLoading(false)
     }
@@ -1006,7 +1078,7 @@ export function AchatsTab({
     setEditUrgency(detail.draft.parsedUrgency ?? 'normal')
     setEditSiteId(detail.draft.siteId ?? '')
     const hintName = detail.parseHints?.requesterName
-    setEditRequester(hintName && hintName !== 'À identifier' ? hintName : '')
+    setEditRequester(hintName && hintName !== 'À identifier' ? hintName : (procurementRole === 'site_manager' || procurementRole === 'purchasing') ? managerName ?? '' : '')
     setEditObjet(detail.parseHints?.objet || objetFromLines(linesFromDraft(detail.draft), detail.parseHints?.destination))
     setEditNeededBy(
       detail.parseHints?.neededBy && detail.parseHints.neededBy !== 'À préciser'
@@ -1015,6 +1087,8 @@ export function AchatsTab({
     )
     setEditPin('')
     setSelectedDraftId(draftId)
+    setSelectedRequestId(null)
+    setView('inbox')
   }
 
   const handlePasteWhatsapp = async () => {
@@ -1023,10 +1097,14 @@ export function AchatsTab({
       toast.error('Collez d’abord le message WhatsApp.')
       return
     }
+    if (procurementRole === 'site_manager' && !createSiteId) {
+      toast.error('Sélectionnez le chantier avant de créer l’EB.')
+      return
+    }
     setPasteLoading(true)
     setError(null)
     try {
-      const result = await pasteWhatsappDraft({ bodyText })
+      const result = await pasteWhatsappDraft({ bodyText, siteId: createSiteId || undefined })
       setPasteText('')
       await openDraftInReview(result.draftId)
       toast.success(
@@ -1044,10 +1122,14 @@ export function AchatsTab({
   }
 
   const handleBlankFiche = async () => {
+    if (procurementRole === 'site_manager' && !createSiteId) {
+      toast.error('Sélectionnez le chantier avant de créer l’EB.')
+      return
+    }
     setBlankLoading(true)
     setError(null)
     try {
-      const result = await createBlankEbFiche()
+      const result = await createBlankEbFiche({ siteId: createSiteId || undefined })
       await openDraftInReview(result.draftId)
       toast.success('Fiche EB vierge créée — à compléter.')
       refreshInbox()
@@ -1086,6 +1168,11 @@ export function AchatsTab({
 
   const showDraftReview = view === 'inbox' && selectedDraftId && draftDetail
   const showRequestDetail = view === 'requests' && selectedRequestId && requestDetail
+  const editLock = useProcurementEditLock(
+    view === 'inbox' ? 'drafts' : 'requests',
+    view === 'inbox' ? selectedDraftId : selectedRequestId,
+    view === 'inbox' ? draftDetail?.draft.status ?? '' : requestDetail?.request.status ?? '',
+  )
 
   return (
     <div data-testid="mgr-achats-tab">
@@ -1100,13 +1187,26 @@ export function AchatsTab({
                 ? 'Espace PDG'
                 : procurementRole === 'controle_gestion'
                   ? 'Espace Contrôle de gestion'
-                : 'Achats chantier'}
+                : procurementRole === 'site_manager' ? 'EB de mon chantier' : 'Achats chantier'}
       </h2>
+      {procurementRole === 'purchasing' && (
+        <button
+          type="button"
+          data-testid="mgr-achats-create-eb"
+          disabled={blankLoading || pasteLoading || actionLoading}
+          onClick={() => void handleBlankFiche()}
+          style={{ ...css.btnGold, margin: '0.5rem 0 1rem' }}
+        >
+          {blankLoading ? 'Création…' : '+ Créer une EB'}
+        </button>
+      )}
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        {procurementRole === 'technical_director'
+        {procurementRole === 'site_manager'
+          ? 'Créez une EB pour un chantier qui vous est affecté, vérifiez les lignes et soumettez-la au DT pour approbation. Vous pourrez suivre son avancement ensuite.'
+          : procurementRole === 'technical_director'
           ? 'Coller un besoin WhatsApp, réviser les lignes, puis soumettre l’EB au Service achats.'
           : procurementRole === 'purchasing'
-            ? 'Chiffrer les produits, joindre les pièces, puis envoyer l’EB au Contrôle de gestion. Après validation CdG, le dossier part au DAF (et au PDG dès 500 000 XOF).'
+            ? 'Créez vos EB sans validation du DT, ou chiffrez les EB reçues. Renseignez les fournisseurs et paiements, joignez les factures, puis soumettez au Contrôle de gestion. Le circuit DAF / PDG reste inchangé.'
             : procurementRole === 'daf'
               ? 'Instruisez le dossier (chiffrage SA + pièces jointes, déjà validé par le CdG) puis approuvez. Le SA émet le BC ensuite.'
               : procurementRole === 'pdg'
@@ -1118,9 +1218,20 @@ export function AchatsTab({
       </p>
 
       {/* Dashboard SA (maquette sa-dashboard) — uniquement pour le Service achats. */}
+      {procurementRole === 'purchasing' && !saActor.supervisorId && requests.some((r) => r.saReviewerId === saActor.id && (r.status === 'sa_head_review' || r.status === 'bc_head_review')) && (
+        <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-sa-head-queue">
+          <h3>Préparations de l’équipe à valider</h3>
+          {requests.filter((r) => r.saReviewerId === saActor.id && (r.status === 'sa_head_review' || r.status === 'bc_head_review')).map((r) => (
+            <button key={r.id} type="button" style={{ ...css.btnOutline, margin: 4 }} onClick={() => { setView('requests'); setSelectedDraftId(null); setSelectedRequestId(r.id); scrollToChiffrageZone() }}>
+              {r.reference} — {r.status === 'sa_head_review' ? 'Valider le chiffrage' : 'Signer les BC'}
+            </button>
+          ))}
+        </div>
+      )}
       {procurementRole === 'purchasing' && (
         <SaOverview
           requests={requests}
+          currentManagerId={saActor.id}
           onOpenRequest={(id) => {
             setView('requests')
             setSelectedRequestId(id)
@@ -1175,7 +1286,7 @@ export function AchatsTab({
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 12, marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-          <StatCard label="Brouillons à réviser" value={drafts.length} testId="mgr-achats-stat-drafts" />
+          <StatCard label={procurementRole === 'site_manager' ? 'Mes brouillons' : 'Brouillons à réviser'} value={drafts.length} testId="mgr-achats-stat-drafts" />
           <StatCard
             label="Demandes actives"
             value={requests.filter((r) => !['delivered', 'rejected'].includes(r.status)).length}
@@ -1185,14 +1296,14 @@ export function AchatsTab({
       )}
 
       <div style={{ display: 'flex', gap: 4, marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-        {procurementRole === 'technical_director' && (
+        {(procurementRole === 'technical_director' || procurementRole === 'site_manager' || procurementRole === 'purchasing') && (
         <button
           type="button"
           data-testid="mgr-achats-inbox"
           onClick={() => { setView('inbox'); setSelectedRequestId(null) }}
           style={view === 'inbox' ? css.tabActive : css.tab}
         >
-          Boîte EB{drafts.length > 0 ? ` (${drafts.length})` : ''}
+          {procurementRole === 'site_manager' || procurementRole === 'purchasing' ? 'Mes brouillons' : 'Boîte EB'}{drafts.length > 0 ? ` (${drafts.length})` : ''}
         </button>
         )}
         <button
@@ -1201,7 +1312,7 @@ export function AchatsTab({
           onClick={() => { setView('requests'); setSelectedDraftId(null) }}
           style={view === 'requests' ? css.tabActive : css.tab}
         >
-          Demandes d&apos;achat
+          {procurementRole === 'site_manager' ? 'Mes EB en validation' : 'Demandes d\'achat'}
         </button>
       </div>
 
@@ -1249,9 +1360,25 @@ export function AchatsTab({
       </div>
 
       {error && <AlertBox>{error}</AlertBox>}
+      {(showDraftReview || showRequestDetail) && (
+        <div style={{ ...css.card, marginBottom: 16 }} data-testid="mgr-eb-edit-lock" role="status">
+          <strong>{editLock.ownedByMe ? 'Vous prenez en charge cette demande.' : editLock.ownerName ? `Demande prise en charge par ${editLock.ownerName} — lecture seule.` : 'Demande en lecture seule.'}</strong>
+          <div style={{ ...css.actionRow, marginTop: 8 }}>
+            {editLock.ownedByMe ? (
+              <button type="button" style={css.btnOutline} disabled={editLock.busy || actionLoading} onClick={() => void editLock.release()} data-testid="mgr-eb-release-lock">Libérer la demande</button>
+            ) : editLock.canClaim && !editLock.ownerName ? (
+              <button type="button" style={css.btnGold} disabled={editLock.busy} onClick={() => void editLock.acquire()} data-testid="mgr-eb-acquire-lock">{editLock.busy ? 'Prise en charge…' : 'Prendre en charge'}</button>
+            ) : null}
+            <button type="button" style={css.btnGhost} disabled={actionLoading} onClick={() => { setSelectedDraftId(null); setSelectedRequestId(null) }}>Fermer la fiche</button>
+          </div>
+          <p style={css.meta}>Une seule personne peut modifier la demande à la fois. Le verrou expire après deux minutes sans renouvellement et se libère à la fermeture de la fiche.</p>
+          {editLock.error && <p style={{ ...css.meta, color: '#b45309' }}>{editLock.error}</p>}
+        </div>
+      )}
 
       {showDraftReview ? (
         <DraftReviewPanel
+          key={draftDetail.draft.id}
           detail={draftDetail}
           editLines={editLines}
           editUrgency={editUrgency}
@@ -1262,7 +1389,7 @@ export function AchatsTab({
           editPin={editPin}
           managerName={managerName ?? ''}
           procurementRole={procurementRole}
-          canEdit={canEditDraft(procurementRole)}
+          canEdit={canEditDraft(procurementRole) && editLock.ownedByMe}
           actionLoading={actionLoading}
           onBack={() => setSelectedDraftId(null)}
           onLineChange={updateLine}
@@ -1280,6 +1407,10 @@ export function AchatsTab({
       ) : showRequestDetail ? (
         <RequestDetailPanel
           detail={requestDetail}
+          readOnly={!editLock.ownedByMe}
+          currentManagerId={saActor.id}
+          saSupervisorId={saActor.supervisorId}
+          onApproveSaBc={() => void handleApproveSaBc()}
           procurementRole={procurementRole}
           highlight={chainLookup}
           approvalComment={approvalComment}
@@ -1323,6 +1454,23 @@ export function AchatsTab({
         <>
           {canPaste && view === 'inbox' && (
             <div data-testid="mgr-achats-paste" style={{ ...css.card, marginBottom: '1rem' }}>
+              {procurementRole === 'purchasing' && (
+                <p style={css.meta}>Créez une EB, renseignez les prix, fournisseurs et modes de paiement, puis ajoutez les factures avant de soumettre au Contrôle de gestion. Ces EB ne nécessitent pas de validation du DT.</p>
+              )}
+              {procurementRole === 'site_manager' && (
+                <>
+                  <p style={css.meta}>Vous pouvez créer une EB uniquement pour un chantier qui vous est affecté.</p>
+                  <Field label="Chantier">
+                    <select value={createSiteId} onChange={(e) => setCreateSiteId(e.target.value)} style={css.input} data-testid="mgr-achats-create-site">
+                      <option value="">Choisir un chantier…</option>
+                      {requesterSites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
+                    </select>
+                  </Field>
+                  {requesterSites.length === 0 && (
+                    <p style={{ ...css.meta, color: '#b45309' }}>Aucun chantier ne vous est affecté. Demandez au DT de vous affecter à un chantier avant de créer une EB.</p>
+                  )}
+                </>
+              )}
               <h3 style={{ ...css.sectionTitle, fontSize: 15, marginBottom: 8 }}>Coller un message WhatsApp</h3>
               <p style={css.meta}>
                 Copiez le besoin depuis le groupe (plusieurs produits possibles, ex. 50 sacs ciment, 20 barres fer).
@@ -1692,7 +1840,7 @@ function EbFicheSignoff({
   )
 }
 
-function DraftReviewPanel({
+export function DraftReviewPanel({
   detail,
   editLines,
   editUrgency,
@@ -1744,6 +1892,32 @@ function DraftReviewPanel({
   onSubmit: () => void
 }) {
   const { draft, messages, parseHints } = detail
+  const [selectedDraftLines, setSelectedDraftLines] = useState<number[]>([])
+  const [draftBulkSupplier, setDraftBulkSupplier] = useState('')
+  const [draftBulkPayment, setDraftBulkPayment] = useState('')
+  const draftSelected = editLines.map((line, index) => ({ line, index }))
+    .filter(({ index }) => selectedDraftLines.includes(index))
+  const applyDraftSupplier = () => {
+    if (!draftBulkSupplier) return
+    for (const { index } of draftSelected) onLineChange(index, { supplierName: draftBulkSupplier })
+  }
+  const applyDraftPayment = () => {
+    if (!draftBulkPayment) return
+    for (const { line, index } of draftSelected) {
+      onLineChange(index, { paymentMode: isLaborLine(line.spendCategory) ? 'COMPTANT' : draftBulkPayment })
+    }
+  }
+  const editorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const editor = editorRef.current
+      if (!editor) return
+      editor.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      editor.querySelector<HTMLSelectElement>('[data-testid="mgr-achats-draft-site"]')
+        ?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [draft.id])
   const isBlankFiche = parseHints?.source === 'blank_fiche'
 
   // Catalogue produits pour la liste déroulante de désignation.
@@ -1769,7 +1943,7 @@ function DraftReviewPanel({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [managerName, procurementRole])
 
   const showParseHints = Boolean(
     !isBlankFiche &&
@@ -1851,6 +2025,17 @@ function DraftReviewPanel({
 
   const renderLineRow = (line: ParsedEbLine, i: number, labor: boolean) => (
     <tr key={i} style={labor ? { background: '#faf6ec' } : undefined}>
+      {procurementRole === 'purchasing' && canEdit && (
+        <td style={css.lineTd}>
+          <input
+            type="checkbox"
+            checked={selectedDraftLines.includes(i)}
+            onChange={() => setSelectedDraftLines((current) => current.includes(i) ? current.filter((index) => index !== i) : [...current, i])}
+            aria-label={`Sélectionner la ligne ${i + 1}`}
+            data-testid={`mgr-achats-draft-line-select-${i}`}
+          />
+        </td>
+      )}
       <td style={labor ? { ...css.lineTd, borderLeft: '3px solid var(--action)' } : css.lineTd}>{i + 1}</td>
       <td style={css.lineTd}>
         <input
@@ -2006,16 +2191,31 @@ function DraftReviewPanel({
           />
         )}
       </td>
+      {procurementRole === 'purchasing' && (
+        <td style={css.lineTd}>
+          <select
+            value={labor ? 'COMPTANT' : line.paymentMode ?? ''}
+            disabled={!canEdit || labor}
+            onChange={(e) => onLineChange(i, { paymentMode: e.target.value })}
+            style={css.input}
+            aria-label="Mode de paiement"
+            data-testid={`mgr-achats-draft-line-payment-${i}`}
+          >
+            <option value="">À préciser</option>
+            {PAYMENT_MODES.map((mode) => <option key={mode} value={mode}>{PAYMENT_MODE_LABELS[mode]}</option>)}
+          </select>
+        </td>
+      )}
       {canEdit && (
         <td style={css.lineTd}>
-          <button type="button" onClick={() => onRemoveLine(i)} style={css.btnDanger}>×</button>
+          <button type="button" onClick={() => { setSelectedDraftLines([]); onRemoveLine(i) }} style={css.btnDanger}>×</button>
         </td>
       )}
     </tr>
   )
 
   return (
-    <div data-testid="mgr-achats-draft-review" style={css.section}>
+    <div ref={editorRef} data-testid="mgr-achats-draft-review" style={{ ...css.section, scrollMarginTop: 24 }}>
       <button type="button" onClick={onBack} style={{ ...css.btnGhost, marginBottom: '1rem' }}>
         ← Retour à la boîte EB
       </button>
@@ -2176,6 +2376,43 @@ function DraftReviewPanel({
           </tbody>
         </table>
 
+        {procurementRole === 'purchasing' && canEdit && (
+          <div data-testid="mgr-achats-draft-bulk-commercial" style={{ ...css.card, margin: '1rem 0', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={editLines.length > 0 && draftSelected.length === editLines.length}
+                onChange={() => setSelectedDraftLines(draftSelected.length === editLines.length ? [] : editLines.map((_, index) => index))}
+                data-testid="mgr-achats-draft-select-all"
+              />
+              Tout sélectionner
+            </label>
+            <label>
+              Fournisseur
+              <SupplierSelect
+                value={draftBulkSupplier}
+                suppliers={detail.suppliers ?? []}
+                onChange={setDraftBulkSupplier}
+                testId="mgr-achats-draft-bulk-supplier-select"
+                placeholder="Choisir…"
+              />
+            </label>
+            <button type="button" style={css.btnOutline} disabled={!draftBulkSupplier || draftSelected.length === 0 || actionLoading} onClick={applyDraftSupplier} data-testid="mgr-achats-draft-bulk-supplier-assign">
+              Affecter le fournisseur ({draftSelected.length})
+            </button>
+            <label>
+              Mode de paiement
+              <select value={draftBulkPayment} onChange={(e) => setDraftBulkPayment(e.target.value)} style={css.input} data-testid="mgr-achats-draft-bulk-payment-select">
+                <option value="">Choisir…</option>
+                {PAYMENT_MODES.map((mode) => <option key={mode} value={mode}>{PAYMENT_MODE_LABELS[mode]}</option>)}
+              </select>
+            </label>
+            <button type="button" style={css.btnOutline} disabled={!draftBulkPayment || draftSelected.length === 0 || actionLoading} onClick={applyDraftPayment} data-testid="mgr-achats-draft-bulk-payment-assign">
+              Affecter le paiement ({draftSelected.length})
+            </button>
+            <p style={{ ...css.meta, flexBasis: '100%', margin: 0 }}>Cochez les lignes d’un même groupe, puis affectez le fournisseur et le paiement. La sélection est conservée entre les deux actions. Enregistrez ensuite le brouillon. La main d’œuvre reste payable comptant.</p>
+          </div>
+        )}
         {mixedEb && (
           <div
             data-testid="mgr-achats-mixed-eb-warning"
@@ -2201,6 +2438,7 @@ function DraftReviewPanel({
               <table style={lineTableFixed}>
                 <thead>
                   <tr>
+                    {procurementRole === 'purchasing' && canEdit && <th style={lineColWidth(48)}>Choix</th>}
                     <th style={lineColWidth(56)}>Réf</th>
                     <th style={lineColWidth(240)}>Désignations</th>
                     <th style={lineColWidth(190)}>Catégorie</th>
@@ -2209,6 +2447,7 @@ function DraftReviewPanel({
                     <th style={lineColWidth(110)}>PU</th>
                     <th style={lineColWidth(120)}>Montant</th>
                     <th style={lineColWidth(210)}>Fournisseur</th>
+                    {procurementRole === 'purchasing' && <th style={lineColWidth(150)}>Paiement</th>}
                     {canEdit && <th style={lineColWidth(40)} />}
                   </tr>
                 </thead>
@@ -2232,6 +2471,7 @@ function DraftReviewPanel({
               <table style={lineTableFixed}>
                 <thead>
                   <tr>
+                    {procurementRole === 'purchasing' && canEdit && <th style={lineColWidth(48)}>Choix</th>}
                     <th style={lineColWidth(56)}>Réf</th>
                     <th style={lineColWidth(240)}>Désignations</th>
                     <th style={lineColWidth(190)}>Catégorie</th>
@@ -2240,6 +2480,7 @@ function DraftReviewPanel({
                     <th style={lineColWidth(110)}>PU</th>
                     <th style={lineColWidth(120)}>Montant</th>
                     <th style={lineColWidth(210)}>Bénéficiaire</th>
+                    {procurementRole === 'purchasing' && <th style={lineColWidth(150)}>Paiement</th>}
                     {canEdit && <th style={lineColWidth(40)} />}
                   </tr>
                 </thead>
@@ -2344,20 +2585,28 @@ function DraftReviewPanel({
             disabled={actionLoading || mixedEb}
             style={{ ...css.btnGold, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
           >
-            {actionLoading ? 'Transmission…' : 'Valider'}
+            {actionLoading ? 'Transmission…' : procurementRole === 'site_manager' ? 'Soumettre au DT' : procurementRole === 'purchasing' ? 'Continuer vers validation' : 'Valider'}
           </button>
         </div>
       )}
       {canEdit && (
         <p style={{ ...css.meta, marginTop: 8 }} data-testid="mgr-achats-draft-actions-hint">
-          Enregistrer le brouillon sauvegarde sans signer. Valider vérifie le NIP et transmet l’EB au Service achats.
+          {procurementRole === 'site_manager'
+            ? 'Enregistrer le brouillon sauvegarde vos modifications. La soumission transmet l’EB au DT pour approbation.'
+            : procurementRole === 'purchasing'
+            ? 'Créez l’EB pour ajouter les factures et finaliser le chiffrage, puis soumettez-la au Contrôle de gestion.'
+            : 'Enregistrer le brouillon sauvegarde sans signer. Valider vérifie le NIP et transmet l’EB au Service achats.'}
         </p>
       )}
     </div>
   )
 }
 
-function RequestDetailPanel({
+export function RequestDetailPanel({
+  readOnly = false,
+  currentManagerId,
+  saSupervisorId,
+  onApproveSaBc,
   detail,
   procurementRole,
   highlight,
@@ -2396,6 +2645,10 @@ function RequestDetailPanel({
   onReviseModalClose,
   onReviseConfirm,
 }: {
+  readOnly?: boolean
+  currentManagerId?: string
+  saSupervisorId?: string | null
+  onApproveSaBc?: () => void
   detail: RequestDetailResponse
   procurementRole: ProcurementRole | null
   /** Pièce retrouvée par le résolveur d'identifiants : son maillon est surligné. */
@@ -2445,6 +2698,21 @@ function RequestDetailPanel({
   onReviseConfirm: () => void
 }) {
   const { request, lines, approvalSteps, site, supplier, purchaseOrder, purchaseOrders = [], treasuryOrders = [], suppliers = [] } = detail
+  const editorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (procurementRole !== 'purchasing') return
+    const frame = requestAnimationFrame(() => {
+      const editor = editorRef.current
+      if (!editor) return
+      editor.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const heading = editor.querySelector<HTMLHeadingElement>('h3')
+      if (heading) {
+        heading.tabIndex = -1
+        heading.focus({ preventScroll: true })
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [request.id, procurementRole])
   const [siteBudget, setSiteBudget] = useState<SiteBudget | null>(null)
   useEffect(() => {
     const siteId = request.siteId ?? site?.id
@@ -2468,17 +2736,17 @@ function RequestDetailPanel({
   const ebSuppliers = suppliers.filter((s) =>
     lines.some((l) => (l.supplierName ?? '').trim().toLowerCase() === s.name.trim().toLowerCase()),
   )
-  const showApprove = canApproveRequest(request.status, procurementRole)
-  const showReject = canRejectRequest(request.status, procurementRole)
-  const showCreatePo = canCreatePo(request.status, procurementRole)
+  const showApprove = !readOnly && canApproveRequest(request.status, procurementRole)
+  const showReject = !readOnly && canRejectRequest(request.status, procurementRole)
+  const showCreatePo = !readOnly && canCreatePo(request.status, procurementRole)
   const allPosCreated =
     ebSuppliers.length > 0 && ebSuppliers.every((s) => orders.some((po) => po.supplierId === s.id))
-  const showSchedule = canScheduleDelivery(request.status, procurementRole, orders)
-  const showRevise = canReviseRequest(request.status, procurementRole)
+  const showSchedule = !readOnly && canScheduleDelivery(request.status, procurementRole, orders)
+  const showRevise = !readOnly && canReviseRequest(request.status, procurementRole)
   const nextVersion = (request.version ?? 1) + 1
   const pendingOrders = orders.filter((po) => !po.tourId)
   const showTreasury = Boolean(treasuryOrders?.[0]) && hasComptantLines(lines)
-  const canPrice = canPriceRequest(request.status, procurementRole)
+  const canPrice = !readOnly && canPriceRequest(request.status, procurementRole)
   const total = lines.reduce((s, l) => s + Number(l.amountFcfa ?? 0), 0)
   const wouldExceedBudget =
     Boolean(showCreatePo) &&
@@ -2501,7 +2769,7 @@ function RequestDetailPanel({
   /** Lignes encore sans mode de paiement (le contrôle SA l'exige sur chaque ligne). */
   const linesWithoutPaymentMode = lines.filter((l) => !(l.paymentMode ?? '').trim())
   const applyPaymentModeToLines = (targets: typeof lines) => {
-    for (const l of targets) onLineCommercial(l.id, { paymentMode: bulkPaymentMode })
+    for (const l of targets) onLineCommercial(l.id, { paymentMode: isLaborLine(l.spendCategory) ? 'COMPTANT' : bulkPaymentMode })
   }
   /** Complète uniquement les lignes vides : n'écrase aucune saisie existante. */
   const handleBulkPaymentFillEmpty = () => {
@@ -2525,7 +2793,6 @@ function RequestDetailPanel({
       if (!ok) return
     }
     applyPaymentModeToLines(selectedLines)
-    setSelectedLineIds([])
   }
 
   // Même mécanique que le mode de paiement, mais SANS écrasement global : le
@@ -2595,7 +2862,6 @@ function RequestDetailPanel({
           : {}),
       })
     }
-    setSelectedLineIds([])
   }
 
   /** Avertit avant de réaffecter une ligne qui porte une pièce jointe, puis retire la PJ immédiatement. */
@@ -2690,7 +2956,7 @@ function RequestDetailPanel({
   }, [preview, previewLoading, closePreview])
 
   return (
-    <div data-testid="mgr-achats-request-detail" style={css.section}>
+    <div ref={editorRef} data-testid="mgr-achats-request-detail" style={{ ...css.section, scrollMarginTop: 24 }}>
       <button type="button" onClick={onBack} style={{ ...css.btnGhost, marginBottom: '1rem' }}>
         ← Retour aux demandes
       </button>
@@ -3409,7 +3675,7 @@ function RequestDetailPanel({
 
       <DocumentChain
         requestId={request.id}
-        canAttachBl={procurementRole === 'purchasing'}
+        canAttachBl={!readOnly && procurementRole === 'purchasing'}
         highlight={highlight}
       />
 
@@ -3451,15 +3717,30 @@ function RequestDetailPanel({
               type="button"
               data-testid="mgr-achats-submit-finance"
               onClick={onSubmitFinance}
-              disabled={actionLoading}
+              disabled={actionLoading || !currentManagerId}
               style={{ ...css.btnGold, ...(actionLoading ? { opacity: 0.6, cursor: 'wait' } : {}) }}
             >
-              {actionLoading ? 'Envoi…' : 'Soumettre au CdG'}
+              {actionLoading ? 'Envoi…' : !currentManagerId ? 'Vérification du profil SA…' : saSupervisorId ? 'Soumettre au chef SA' : 'Soumettre au CdG'}
             </button>
           </div>
         </div>
       )}
 
+      {(request.status === 'sa_head_review' || request.status === 'bc_head_review') && (
+        <div style={{ ...css.card, margin: '1rem 0' }} data-testid="mgr-sa-head-review">
+          <strong>{request.status === 'sa_head_review' ? 'Chiffrage en attente de validation du chef SA' : 'BC en attente de signature du chef SA'}</strong>
+          {!readOnly && procurementRole === 'purchasing' && currentManagerId === request.saReviewerId && !saSupervisorId ? (
+            <div style={{ ...css.actionRow, marginTop: 12 }}>
+              <label>NIP du chef SA
+                <input type="password" inputMode="numeric" autoComplete="one-time-code" value={approvalPin} onChange={(e) => onPinChange(e.target.value)} style={css.input} data-testid="mgr-sa-head-pin" />
+              </label>
+              <button type="button" style={css.btnGold} disabled={actionLoading || !approvalPin.trim()} onClick={request.status === 'sa_head_review' ? onSubmitFinance : onApproveSaBc} data-testid="mgr-sa-head-approve">
+                {actionLoading ? 'Validation…' : request.status === 'sa_head_review' ? 'Valider le chiffrage et transmettre au CdG' : 'Valider et signer les BC'}
+              </button>
+            </div>
+          ) : <p style={css.meta}>Seul le chef SA désigné peut valider cette préparation. La poursuite du circuit reste bloquée jusqu’à son visa.</p>}
+        </div>
+      )}
       {showCreatePo && (
         <div
           data-testid="mgr-achats-create-po-block"

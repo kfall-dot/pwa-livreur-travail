@@ -56,6 +56,7 @@ export async function createDraftFromPastedText(input: PasteEbInput): Promise<Pa
 
   const draft = await createDraftFromParse({
     companyId: input.companyId,
+    createdByManagerId: input.pastedByManagerId,
     siteId: site?.id ?? null,
     sourceMessageIds: [message.id],
     parsedLines: parsed.lines,
@@ -102,6 +103,7 @@ export async function createBlankEbDraft(input: {
 
   const draft = await createDraftFromParse({
     companyId: input.companyId,
+    createdByManagerId: input.createdByManagerId,
     siteId: site?.id ?? null,
     sourceMessageIds: [],
     parsedLines: blankLines,

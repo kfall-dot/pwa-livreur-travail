@@ -12,6 +12,8 @@ import { withPrintBar } from '../lib/htmlPrint.js'
 import { versionSuffix } from '../../shared/requestVersion.js'
 
 export type BcTemplateData = {
+  saHeadSignature?: string | null
+  pendingSaHeadReview?: boolean
   reference: string
   companyName: string
   siteName: string
@@ -169,7 +171,7 @@ const DEFAULT_BC_TEMPLATE = `<!DOCTYPE html>
       <p>Chantier : {{siteName}} — {{siteAddress}}</p>
     </div>
     <div class="sign">
-      <div class="sign-box tall">Autorisation</div>
+      <div class="sign-box tall">Autorisation — Chef SA<br><span style="white-space:pre-wrap">{{saHeadSignature}}</span></div>
       <div class="sign-box">Autorisé par / Comptabilité<br>Date {{dateBc}}</div>
     </div>
   </div>
@@ -273,6 +275,7 @@ export function generateBcHtml(
     DEFAULT_BC_TEMPLATE,
     {
       reference: data.reference,
+      saHeadSignature: data.saHeadSignature || (data.pendingSaHeadReview ? 'BROUILLON — en attente de validation du chef SA' : ''),
       companyName: data.companyName,
       siteName: data.siteName,
       siteAddress: data.siteAddress,

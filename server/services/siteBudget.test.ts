@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildDirectBudgetEntries,
   amendmentWouldUndercutEngaged,
   computeBudgetKpis,
   computeBudgetTotals,
@@ -172,3 +173,25 @@ describe('siteBudget F01', () => {
   })
 })
 
+
+it('enveloppe : main-d’œuvre engagée par BT, réalisée au déboursé, sans doubler les matériaux', () => {
+  const date = new Date('2026-10-20T12:00:00Z')
+  const orders = [
+    { requestId: 'labor', siteId: 'site', amount: '100000', paidAmount: '60000', createdAt: date },
+    { requestId: 'labor-unpaid', siteId: 'site', amount: '25000', paidAmount: null, createdAt: date },
+    { requestId: 'materials', siteId: 'site', amount: '50000', paidAmount: '50000', createdAt: date },
+    { requestId: 'mixed', siteId: 'site', amount: '20000', paidAmount: '20000', createdAt: date },
+  ]
+  const lines = [
+    { requestId: 'labor', label: 'Maçon', spendCategory: 'main_oeuvre' },
+    { requestId: 'labor-unpaid', label: 'Ouvrier', spendCategory: 'main_oeuvre' },
+    { requestId: 'materials', label: 'Ciment', spendCategory: 'autres_materiaux' },
+    { requestId: 'mixed', label: 'Ciment', spendCategory: 'autres_materiaux' },
+    { requestId: 'mixed', label: 'Ouvrier', spendCategory: 'main_oeuvre' },
+  ]
+  const entries = buildDirectBudgetEntries(orders, lines,
+    [{ siteId: 'site', amount: '10000', date: '2026-09-01' }])
+  assert.equal(entries.reduce((s, r) => s + r.engaged, 0), 135000)
+  assert.equal(entries.reduce((s, r) => s + r.realized, 0), 70000)
+  assert.equal(entries.length, 3)
+})

@@ -2,6 +2,9 @@
 // Extrait de routes/dashboard.ts lors de son decoupage en modules — aucun
 // changement de comportement (memes chemins, memes middlewares).
 import { Router } from 'express'
+import { procurementEditLock } from '../../middleware/procurementEditLock.js'
+import { canReleaseSaPurchaseOrders } from '../../../shared/saTeamPolicy.js'
+import { listPurchaseOrdersForRequest } from '../../db/procurementQueries.js'
 import { expectedProductLabelKey, validateStopProducts } from '../../../shared/expectedProducts.js'
 import { generateOrderRef } from '../../../shared/orderRef.js'
 import { getPurchaseRequestById, getPurchaseRequestLines } from '../../db/procurementQueries.js'
@@ -43,7 +46,7 @@ toursRoutes.get('/dashboard/tours', requireManager, async (req, res) => {
   }
 })
 
-toursRoutes.post('/dashboard/tours', requireManager, async (req, res) => {
+toursRoutes.post('/dashboard/tours', requireManager, procurementEditLock('requests', (req) => typeof req.body?.purchaseRequestId === 'string' ? req.body.purchaseRequestId : ''), async (req, res) => {
   const { manager } = req as ManagerRequest
   const body = req.body as Record<string, unknown>
   const { driverId, deliverySource, date, depotName, depotAddress, depotLat, depotLng, stops, replannedFromTourId } = body
@@ -80,6 +83,11 @@ toursRoutes.post('/dashboard/tours', requireManager, async (req, res) => {
     const bc = await getPurchaseRequestById(manager.companyId, purchaseRequestId)
     if (!bc) {
       res.status(404).json({ message: 'Bon de commande introuvable pour votre entreprise' })
+      return
+    }
+    const orders = await listPurchaseOrdersForRequest(manager.companyId, purchaseRequestId)
+    if (!canReleaseSaPurchaseOrders(bc.status, orders)) {
+      res.status(409).json({ message: 'Validation des BC requise avant de créer la tournée' })
       return
     }
     const bcLines = await getPurchaseRequestLines(purchaseRequestId)

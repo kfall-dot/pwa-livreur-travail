@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { authFetch } from '../managerApi'
 import { css, Field } from '../managerUi'
 import type { ManagerRow } from '../managerTypes'
+import { ProcurementRoleOptions } from '../procurement/procurementUi'
 
 export function EditManagerModal({
   id,
@@ -19,6 +20,7 @@ export function EditManagerModal({
     password: '',
     role: (row?.role ?? 'manager') as 'admin' | 'manager',
     procurementRole: row?.procurementRole ?? '',
+    saSupervisorId: row?.saSupervisorId ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,6 +36,7 @@ export function EditManagerModal({
       if (form.password) body.password = form.password
       body.role = form.role
       body.procurementRole = form.procurementRole
+      body.saSupervisorId = form.procurementRole === 'purchasing' ? form.saSupervisorId : ''
       const res = await authFetch(`/dashboard/managers/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -72,7 +75,7 @@ export function EditManagerModal({
             />
           </Field>
           <div style={{ marginBottom: 8 }} />
-          <Field label="Rôle">
+          <Field label="Rôle d’accès">
             <select
               value={form.role}
               style={css.input}
@@ -83,23 +86,25 @@ export function EditManagerModal({
             </select>
           </Field>
           <div style={{ marginBottom: 8 }} />
-          <Field label="Profil chantiers (dossier quotidien)">
+          <Field label="Espace de travail">
             <select
               value={form.procurementRole}
               style={css.input}
               onChange={(e) => setForm((p) => ({ ...p, procurementRole: e.target.value }))}
             >
               <option value="">Aucun</option>
-              <option value="site_manager">Chef de chantier</option>
-              <option value="technical_director">Directeur technique</option>
-              <option value="site_controller">Conducteur de travaux</option>
-              <option value="purchasing">Service achats</option>
-              <option value="controle_gestion">Contrôle de gestion</option>
-              <option value="daf">DAF</option>
-              <option value="pdg">PDG</option>
+              <ProcurementRoleOptions />
             </select>
           </Field>
           <div style={{ marginBottom: 8 }} />
+          {form.procurementRole === 'purchasing' && (
+            <Field label="Chef SA de cette ressource">
+              <select value={form.saSupervisorId} onChange={(e) => setForm((p) => ({ ...p, saSupervisorId: e.target.value }))} style={css.input}>
+                <option value="">Aucun — compte dirigeant SA</option>
+                {managers.filter((m) => m.id !== id && m.procurementRole === 'purchasing' && !m.saSupervisorId).map((m) => <option key={m.id} value={m.id}>{m.name} — {m.email}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Mot de passe (laisser vide pour ne pas changer)">
             <input
               type="password"

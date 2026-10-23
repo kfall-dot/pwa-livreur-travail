@@ -218,7 +218,8 @@ export function ManagerDashboardPage() {
   }, [procurementRole, searchParams])
 
   useEffect(() => {
-    if (isSiteManagerRole(procurementRole) && tab !== 'maJournee' && tab !== 'suiviChantier') {
+    if (managerRole === 'admin' && (tab === 'livreurs' || tab === 'gestionnaires')) return
+    if (isSiteManagerRole(procurementRole) && tab !== 'maJournee' && tab !== 'suiviChantier' && tab !== 'achats') {
       setTab('maJournee')
       return
     }
@@ -237,7 +238,7 @@ export function ManagerDashboardPage() {
       return
     }
     if (LOGISTICS_ONLY_TABS.has(tab)) setTab('achats')
-  }, [procurementRole, tab])
+  }, [procurementRole, tab, managerRole])
 
   const logout = () => {
     void authFetch('/auth/logout-dashboard', { method: 'POST' }).finally(() => {
@@ -273,6 +274,7 @@ export function ManagerDashboardPage() {
     ? [
         { id: 'maJournee', label: 'Ma journée', tab: 'maJournee' },
         { id: 'suiviChantier' as const, label: 'Suivi chantier', tab: 'suiviChantier' as Tab },
+        { id: 'achats', label: 'Mes EB', tab: 'achats', badge: procurementInboxCount },
       ]
     : procurementRole === 'accountant'
     ? [{ id: 'comptabilite' as const, label: 'Comptabilité', tab: 'comptabilite' as Tab }]
@@ -308,6 +310,9 @@ export function ManagerDashboardPage() {
   const isCatalogueTab = tab === 'points' || tab === 'produits' || tab === 'unites' || tab === 'fournisseurs'
   const isEquipeTab = tab === 'livreurs' || tab === 'gestionnaires'
   const isAdmin = managerRole === 'admin'
+  if (isAdmin && !sidebarItems.some((item) => item.id === 'livreurs')) {
+    sidebarItems.push({ id: 'livreurs', label: 'Équipe', tab: 'gestionnaires' })
+  }
 
   useEffect(() => {
     if (!isAdmin && tab === 'gestionnaires') setTab('livreurs')

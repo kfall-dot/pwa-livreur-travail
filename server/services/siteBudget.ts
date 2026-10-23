@@ -1,3 +1,4 @@
+import { isHorsSaFlow, type ChargeFlowLine } from '../../shared/chargeFlow.js'
 /** Formules F01 — une seule source pour budget total / engagé / reste. */
 
 import {
@@ -150,4 +151,22 @@ export function computeBudgetKpis(input: {
     overrunSinceAt,
     overrunDays,
   }
+}
+
+/** Même source hors SA pour les totaux individuels, les listes et les dépassements. */
+export function buildDirectBudgetEntries(
+  orders: Array<{ requestId: string; siteId: string | null; amount: string | number | null;
+    paidAmount: string | number | null; createdAt: Date }>,
+  lines: Array<ChargeFlowLine & { requestId: string }>,
+  history: Array<{ siteId: string | null; amount: string | number | null; date: string }>,
+) {
+  const byRequest = new Map<string, typeof lines>()
+  for (const line of lines) byRequest.set(line.requestId, [...(byRequest.get(line.requestId) ?? []), line])
+  return [
+    ...orders.filter(r => r.siteId && isHorsSaFlow(byRequest.get(r.requestId) ?? [])).map(r => ({
+      siteId: r.siteId!, engaged: toFcfaInt(r.amount), realized: toFcfaInt(r.paidAmount), createdAt: r.createdAt,
+    })),
+    ...history.filter(r => r.siteId).map(r => ({ siteId: r.siteId!, engaged: toFcfaInt(r.amount),
+      realized: toFcfaInt(r.amount), createdAt: new Date(r.date + 'T12:00:00') })),
+  ]
 }
