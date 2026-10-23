@@ -111,6 +111,25 @@ type DriverOption = { id: string; name: string }
 /** Nature par défaut d'une ligne main d'œuvre — fourre-tout de la famille (miroir d'`autres_materiaux`). */
 const DEFAULT_LABOR_NATURE = 'mo_divers'
 
+const LABOR_DESIGNATIONS = [
+  "CONFECTION DE VOLET",
+  "DEPOSE GRANITE",
+  "FRAIS DE CHARGEMENT/DECHARGEMENT",
+  "LIVRAISON MATERIELS",
+  "MAIN D'ŒUVRE ALUCOBOND",
+  "MAIN D'ŒUVRE CARRELAGE",
+  "MAIN D'ŒUVRE ETANCHEITE",
+  "MAIN D'ŒUVRE FERRAILLE",
+  "MAIN D'ŒUVRE MACON",
+  "MAIN D'ŒUVRE MENUISIER",
+  "MAIN D'ŒUVRE PEINTRE",
+  "RAMASSAGE/DEMOLITION ET DECAPAGE",
+  "MAIN D'ŒUVRE PONCEUR",
+  "POSE MARBRE/PLINTH",
+  "SALAIRES TECHNICIEN",
+  "MAIN D'ŒUVRE ET AIDES",
+] as const
+
 function emptyLine(kind: 'material' | 'labor' = 'material'): ParsedEbLine {
   if (kind === 'labor') {
     // Un salaire ne démarre JAMAIS en matériaux : nature MO et paiement comptant d'office.
@@ -2058,7 +2077,7 @@ export function DraftReviewPanel({
           }}
           style={css.input}
           data-testid={`mgr-achats-line-label-${i}`}
-          list="eb-designations"
+          list={labor ? 'eb-labor-designations' : 'eb-designations'}
           autoComplete="off"
         />
       </td>
@@ -2510,6 +2529,9 @@ export function DraftReviewPanel({
 
 
 
+        <datalist id="eb-labor-designations">
+          {LABOR_DESIGNATIONS.map((label) => <option key={label} value={label} />)}
+        </datalist>
         <datalist id="eb-designations">
           {designations.map((label) => (
             <option key={label} value={label} />
