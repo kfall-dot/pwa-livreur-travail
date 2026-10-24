@@ -368,6 +368,18 @@ export async function listSiteRecentPhotos(
 
 export type ConsumedRow = { productLabel: string; unit: string; consumed: number }
 
+/** Déduit la consommation du stock qui a fourni le matériau, y compris un autre chantier. */
+export async function listStockConsumptionForSites(companyId: string, siteIds: string[]) {
+  if (!siteIds.length) return []
+  const stockSiteId = sql<string>`coalesce(${siteMaterialUsages.sourceSiteId}, ${siteMaterialUsages.siteId})`
+  const rows = await db.select({ siteId: stockSiteId, productLabel: siteMaterialUsages.productLabel,
+    unit: siteMaterialUsages.unit, consumed: sql<string>`sum(${siteMaterialUsages.quantity})`,
+  }).from(siteMaterialUsages)
+    .where(and(eq(siteMaterialUsages.companyId, companyId), inArray(stockSiteId, siteIds)))
+    .groupBy(stockSiteId, siteMaterialUsages.productLabel, siteMaterialUsages.unit)
+  return rows.map(row => ({ ...row, consumed: Number(row.consumed) || 0 }))
+}
+
 /** Consommations cumulées par chantier (toutes dates — le stock se déduit en continu). */
 export async function listSiteConsumption(companyId: string, siteId?: string): Promise<Map<string, ConsumedRow>> {
   const conds = [eq(siteMaterialUsages.companyId, companyId)]

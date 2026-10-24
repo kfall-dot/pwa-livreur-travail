@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import express from 'express'
 import { eq } from 'drizzle-orm'
 import { db, getPool } from '../db/index.js'
-import { companies, managers, drivers, tours, deliveryPoints, sites, supermarkets, suppliers, purchaseRequests, purchaseRequestLines, purchaseOrders, declarations } from '../db/schema.js'
+import { companies, managers, drivers, tours, deliveryPoints, sites, supermarkets, suppliers, purchaseRequests, purchaseRequestLines, purchaseOrders, declarations, siteDailyReports, siteDailyTasks, siteMaterialUsages } from '../db/schema.js'
 import { listSiteStock } from '../db/procurementQueries.js'
 import { procurementRouter } from '../routes/procurement.js'
 import { dailyReportsRouter } from '../routes/dailyReports.js'
@@ -17,6 +17,7 @@ test('stock CdC : réception acceptée seulement, prévisions séparées et pér
   const address = server.address() as { port: number }
   const token = signManagerToken(chefId, `${id}@example.invalid`, id, 'manager', 'site_manager')
   const get = (path: string) => fetch(`http://127.0.0.1:${address.port}${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  const changeUsage = (path: string, method: string, body?: object) => fetch(`http://127.0.0.1:${address.port}/daily-reports${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })
   try {
     await db.insert(companies).values({ id, name: 'Stock test isolé', slug: id })
     for (const managerId of [chefId, otherId]) await db.insert(managers).values({ id: managerId, companyId: id, email: `${managerId}@example.invalid`, name: managerId, passwordHash: 'test', procurementRole: 'site_manager' })
@@ -50,9 +51,10 @@ test('stock CdC : réception acceptée seulement, prévisions séparées et pér
     assert.equal(material?.unit, 'sacs')
     const response = await get(`/procurement/site-stock?siteId=${id}-site-a`)
     assert.equal(response.status, 200, await response.clone().text())
-    const body = await response.json() as { rows: Array<{ siteId: string; onHand: number }>; deliveries: Array<{ id: string; supplierName: string; date: string }> }
+    const body = await response.json() as { rows: Array<{ siteId: string; onHand: number; consumed: number; available: number }>; deliveries: Array<{ id: string; supplierName: string; date: string }> }
     assert.equal(body.rows.length, 1)
     assert.equal(body.rows[0].onHand, 10)
+    assert.equal(body.rows[0].available, 10)
     assert.deepEqual(body.deliveries.map(delivery => delivery.id), [`${id}-stop-planned`])
     assert.equal(body.deliveries[0].supplierName, 'Fournisseur test')
     assert.equal(body.deliveries[0].date, '2026-11-01')
@@ -60,12 +62,30 @@ test('stock CdC : réception acceptée seulement, prévisions séparées et pér
     const mySites = await get('/daily-reports/my-sites')
     assert.equal(mySites.status, 200)
     assert.deepEqual((await mySites.json() as { sites: Array<{ id: string }> }).sites.map(site => site.id).sort(), [`${id}-site-a`, `${id}-site-b`])
+    for (const suffix of ['a', 'b']) {
+      await db.insert(siteDailyReports).values({ id: `${id}-report-${suffix}`, companyId: id, siteId: `${id}-site-${suffix}`, reportDate: '2026-10-24', authorManagerId: chefId })
+      await db.insert(siteDailyTasks).values({ id: `${id}-task-${suffix}`, reportId: `${id}-report-${suffix}`, label: 'Maçonnerie test' })
+    }
+    const consumed = await changeUsage(`/reports/${id}-report-a/usages`, 'POST', { taskId: `${id}-task-a`, productLabel: ' ciment ', unit: 'sac', quantity: 3 })
+    assert.equal(consumed.status, 200, await consumed.clone().text())
+    const current = async (suffix: string) => (await (await get(`/procurement/site-stock?siteId=${id}-site-${suffix}`)).json() as typeof body).rows[0]
+    const afterUsage = await current('a')
+    assert.deepEqual([afterUsage.onHand, afterUsage.consumed, afterUsage.available], [10, 3, 7], 'une saisie de Ma journée déduit immédiatement le disponible, même en brouillon')
+    const transferred = await changeUsage(`/reports/${id}-report-b/usages`, 'POST', { taskId: `${id}-task-b`, productLabel: 'Ciment', unit: 'sacs', quantity: 2, sourceSiteId: `${id}-site-a` })
+    assert.equal(transferred.status, 200, await transferred.clone().text())
+    assert.equal((await current('a')).available, 5, 'un apport d’un autre chantier réduit son stock d’origine')
+    assert.equal((await current('b')).available, 50, 'le chantier utilisateur ne perd pas une seconde fois ce stock')
+    const usages = await db.select().from(siteMaterialUsages).where(eq(siteMaterialUsages.companyId, id))
+    for (const usage of usages) assert.equal((await changeUsage(`/usages/${usage.id}`, 'DELETE')).status, 200)
+    assert.equal((await current('a')).available, 10, 'supprimer une consommation rétablit le disponible')
     await db.update(purchaseOrders).set({ correctionPending: true }).where(eq(purchaseOrders.id, `${id}-po-a`))
     const archived = await get(`/procurement/site-stock?siteId=${id}-site-a`)
     const excluded = await archived.json() as { rows: unknown[]; deliveries: unknown[] }
     assert.deepEqual(excluded, { rows: [], deliveries: [] }, 'un BC archivé ne gonfle pas le stock ni les prévisions')
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()))
+    await db.delete(siteMaterialUsages).where(eq(siteMaterialUsages.companyId, id))
+    await db.delete(siteDailyReports).where(eq(siteDailyReports.companyId, id))
     const stops = await db.select({ id: deliveryPoints.id }).from(deliveryPoints).where(eq(deliveryPoints.tourId, `${id}-tour`))
     for (const stop of stops) await db.delete(declarations).where(eq(declarations.deliveryId, stop.id))
     await db.delete(deliveryPoints).where(eq(deliveryPoints.tourId, `${id}-tour`))

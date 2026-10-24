@@ -17,10 +17,13 @@ test('les EB créées par le SA et reçues du DT offrent les mêmes commandes co
     assert.ok(chefStockHtml.includes('mgr-chef-stock-site'), 'le CdC choisit son chantier')
     for (const financialText of ['Dépenses', 'Total engagé', 'Enveloppe', 'FCFA']) assert.ok(!chefStockHtml.includes(financialText), `pas de ${financialText} sur cette vue CdC`)
     const confirmedHtml = renderToStaticMarkup(createElement(ConfirmedMaterialsTable, { rows: [
-      { siteId: 'site-a', productLabel: 'Ciment reçu', unit: 'sac', onHand: 10 },
-      { siteId: 'site-a', productLabel: 'Fer seulement commandé', unit: 'botte', onHand: 0 },
+      { siteId: 'site-a', productLabel: 'Ciment reçu', unit: 'sac', onHand: 10, consumed: 3, available: 7 },
+      { siteId: 'site-a', productLabel: 'Fer seulement commandé', unit: 'botte', onHand: 0, consumed: 0, available: 0 },
+      { siteId: 'site-a', productLabel: 'Bois épuisé', unit: 'u', onHand: 5, consumed: 5, available: 0 },
     ] }))
     assert.ok(confirmedHtml.includes('Ciment reçu'))
+    for (const label of ['Réceptionné', 'Consommé', 'Disponible', 'Épuisé', 'Bois épuisé']) assert.ok(confirmedHtml.includes(label), `le suivi conserve ${label}`)
+    assert.ok(confirmedHtml.includes('7 sacs'), 'le disponible déduit les consommations')
     assert.ok(!confirmedHtml.includes('Fer seulement commandé'), 'une commande ne devient pas un matériau disponible')
     const plannedHtml = renderToStaticMarkup(createElement(PlannedDeliveriesTable, { deliveries: [{ id: 'planned', date: '2026-11-01', supplierName: 'Fournisseur prévu', reference: 'BC-TEST', status: 'pending', products: [{ label: 'Fer attendu', qty: 8, unit: 'botte' }] }] }))
     assert.ok(plannedHtml.includes('01/11/2026') && plannedHtml.includes('Fournisseur prévu') && plannedHtml.includes('Fer attendu'), 'date, fournisseur et matériaux attendus restent dans une section séparée')

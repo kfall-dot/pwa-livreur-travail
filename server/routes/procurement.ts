@@ -1,6 +1,8 @@
 import { parseJsonAttachment } from '../lib/jsonAttachment.js'
 import { procurementCorrectionsRouter } from './procurementCorrections.js'
 import { CorrectionError } from '../services/procurementCorrections.js'
+import { listStockConsumptionForSites } from '../db/dailyReportQueries.js'
+import { buildSiteStockBalances } from '../../shared/siteStockBalance.js'
 import { MaterialInvoiceError, transmitMaterialInvoice, materialPaymentStatuses } from '../services/materialInvoicePayment.js'
 import { Router } from 'express'
 import { procurementEditLock } from '../middleware/procurementEditLock.js'
@@ -611,11 +613,13 @@ procurementRouter.get(
     const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
     try {
       let rows = await listSiteStock(manager.companyId)
+      let chefSiteIds: string[] = []
       // DT : uniquement le stock de ses chantiers assignés.
       if (procurementRole === 'site_manager') {
         const assigned = new Set(await siteManagerSiteIds(manager.companyId, manager.sub))
         if (req.query.siteId && !assigned.has(String(req.query.siteId))) { res.status(403).json({ message: 'Ce chantier ne vous est pas affecté.' }); return }
         rows = rows.filter(row => assigned.has(row.siteId))
+        chefSiteIds = req.query.siteId ? [String(req.query.siteId)] : [...assigned]
       } else if (procurementRole === 'technical_director') {
         const supervised = new Set(await listSupervisedSiteIds(manager.companyId, manager.sub))
         if (req.query.siteId && !supervised.has(String(req.query.siteId))) { res.status(403).json({ message: 'Ce chantier ne vous est pas affecté.' }); return }
@@ -623,7 +627,8 @@ procurementRouter.get(
       }
       if (req.query.siteId) rows = rows.filter(row => row.siteId === String(req.query.siteId))
       const deliveries = req.query.siteId ? await listPlannedSiteDeliveries(manager.companyId, String(req.query.siteId)) : []
-      res.json({ rows, deliveries })
+      const stock = procurementRole === 'site_manager' ? buildSiteStockBalances(rows, await listStockConsumptionForSites(manager.companyId, chefSiteIds)) : rows
+      res.json({ rows: stock, deliveries })
     } catch (err) {
       console.error('[procurement] site-stock error', err)
       res.status(500).json({ message: 'Erreur stock chantier' })

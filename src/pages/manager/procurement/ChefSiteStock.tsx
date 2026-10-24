@@ -5,7 +5,7 @@ import { formatQuantityWithUnit } from '../../../lib/deliveryUnits'
 import { css } from './procurementUi'
 
 type Site = { id: string; name: string }
-export type ConfirmedSiteMaterial = { siteId: string; productLabel: string; unit: string; onHand: number }
+export type ConfirmedSiteMaterial = { siteId: string; productLabel: string; unit: string; onHand: number; consumed: number; available: number }
 export type PlannedSiteDelivery = { id: string; date: string; supplierName: string; reference: string; status: string; products: Array<{ label: string; qty: number; unit: string }> | null; units: number; unit: string }
 
 export function PlannedDeliveriesTable({ deliveries }: { deliveries: PlannedSiteDelivery[] }) {
@@ -22,11 +22,17 @@ export function PlannedDeliveriesTable({ deliveries }: { deliveries: PlannedSite
 }
 
 export function ConfirmedMaterialsTable({ rows }: { rows: ConfirmedSiteMaterial[] }) {
-  const available = rows.filter(row => row.onHand > 0)
-  if (!available.length) return <p data-testid="mgr-chef-stock-empty">Aucun matériau réceptionné sur ce chantier pour le moment.</p>
+  const available = rows.filter(row => row.onHand > 0 || row.consumed > 0)
+  if (!available.length) return <p data-testid="mgr-chef-stock-empty">Aucun matériau réceptionné ou consommé sur ce chantier pour le moment.</p>
   return <table style={{ ...css.lineTable, width: '100%' }} data-testid="mgr-chef-stock-table">
-    <thead><tr><th style={css.lineTh}>Matériau</th><th style={css.lineTh}>Quantité disponible</th></tr></thead>
-    <tbody>{available.map(row => <tr key={`${row.productLabel}|${row.unit}`}><td style={css.lineTd}>{row.productLabel}</td><td style={{ ...css.lineTd, fontWeight: 700 }}>{formatQuantityWithUnit(row.onHand, row.unit)}</td></tr>)}</tbody>
+    <thead><tr>{['Matériau', 'Réceptionné', 'Consommé', 'Disponible'].map(label => <th key={label} style={css.lineTh}>{label}</th>)}</tr></thead>
+    <tbody>{available.map(row => <tr key={`${row.productLabel}|${row.unit}`}><td style={css.lineTd}>{row.productLabel}</td>
+      <td style={css.lineTd}>{formatQuantityWithUnit(row.onHand, row.unit)}</td>
+      <td style={css.lineTd}>{formatQuantityWithUnit(row.consumed, row.unit)}</td>
+      <td style={{ ...css.lineTd, fontWeight: 700, color: row.available < 0 ? '#b91c1c' : undefined }}>{formatQuantityWithUnit(row.available, row.unit)}
+        {row.available === 0 && <span style={css.meta}> · Épuisé</span>}
+        {row.available < 0 && <div style={css.meta}>Consommation supérieure aux réceptions enregistrées.</div>}
+      </td></tr>)}</tbody>
   </table>
 }
 
@@ -87,7 +93,7 @@ export function ChefSiteStock({ handleAuth, refreshKey }: { handleAuth: (status:
 
   return <section data-testid="mgr-chef-site-stock">
     <h2 style={css.sectionTitle}>Matériaux disponibles sur chantier</h2>
-    <p>Quantités réceptionnées et acceptées lors des livraisons confirmées.</p>
+    <p>Disponible = quantités réceptionnées et acceptées − consommations enregistrées dans « Ma journée ».</p>
     <div style={{ ...css.actionRow, marginBottom: 16 }}>
       <label htmlFor="chef-stock-site">Chantier</label>
       <select id="chef-stock-site" value={siteId} disabled={loadingSites || !sites.length} onChange={event => setSiteId(event.target.value)} style={css.input} data-testid="mgr-chef-stock-site">
