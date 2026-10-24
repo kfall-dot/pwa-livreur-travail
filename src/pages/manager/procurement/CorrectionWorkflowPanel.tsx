@@ -94,7 +94,7 @@ export function CorrectionWorkflowPanel({ detail, readOnly, onChanged }: { detai
       <p>Total corrigé : {formatFcfa(lines.reduce((sum, l) => sum + Math.round(l.quantity * l.unitPriceFcfa), 0))} FCFA</p>
       <label>Corrections effectuées<textarea value={comment} onChange={e => setComment(e.target.value)} style={css.input} data-testid="mgr-correction-response" /></label>
     </>}
-    {info.requiresPin && (info.canAsk || info.canEdit || info.canApprove) && <label>NIP de signature<input type="password" value={pin} autoComplete="off" onChange={e => setPin(e.target.value)} style={css.input} data-testid="mgr-correction-pin" /></label>}
+    {info.requiresPin && (info.canAsk || info.canEdit || info.canApprove) && <label>NIP de signature<input type="password" value={pin} autoComplete="one-time-code" data-lpignore="true" data-1p-ignore="true" onChange={e => setPin(e.target.value)} style={css.input} data-testid="mgr-correction-pin" /></label>}
     <div style={css.actionRow}>
       {info.canAsk && <button type="button" disabled={readOnly || busy || !reason.trim() || !target || info.requiresPin && !pin} onClick={() => void send('request')} style={css.btnOutline} data-testid="mgr-request-correction">Demander une correction</button>}
       {info.canEdit && <button type="button" disabled={!editable || busy || !comment.trim() || info.requiresPin && !pin} onClick={() => void send('resubmit')} style={css.btnGold} data-testid="mgr-resubmit-correction">Soumettre à nouveau</button>}

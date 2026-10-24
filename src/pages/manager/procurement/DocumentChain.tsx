@@ -103,6 +103,9 @@ export function DocumentChain({
   highlight = null,
   onError,
   onNotice,
+  treasuryOrders,
+  refreshKey = '',
+  onPrintTreasury,
 }: {
   requestId: string
   /** SA (rôle purchasing) : affiche « Joindre le BL fournisseur » sur chaque BC. */
@@ -111,6 +114,9 @@ export function DocumentChain({
   highlight?: DocumentChainMatch | null
   onError?: (message: string) => void
   onNotice?: (message: string) => void
+  treasuryOrders?: Array<{ id: string; reference: string; amountFcfa?: string | number | null; purchaseOrderId?: string | null }>
+  refreshKey?: string
+  onPrintTreasury?: (id: string) => void
 }) {
   const [chain, setChain] = useState<DocumentChainData | null>(null)
   const [disbursements, setDisbursements] = useState<RequestDisbursement[]>([])
@@ -144,7 +150,7 @@ export function DocumentChain({
 
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, refreshKey])
 
   const pickBlFile = (purchaseOrderId: string) => {
     blTargetRef.current = purchaseOrderId
@@ -177,6 +183,7 @@ export function DocumentChain({
     )
   }
   if (!chain) return null
+  const bts = treasuryOrders ? treasuryOrders.map(bt => ({ ...bt, amountFcfa: Number(bt.amountFcfa), bcReference: chain.bcs.find(bc => bc.id === bt.purchaseOrderId)?.reference ?? null })) : chain.bts
 
   return (
     <div style={{ marginTop: '1rem' }} data-testid="mgr-document-chain">
@@ -200,7 +207,7 @@ export function DocumentChain({
         </p>
       ) : null}
       <p style={css.meta} data-testid="mgr-chain-refs">
-        {chainReferencesLabel(chain.references)}
+        {chainReferencesLabel({ ...chain.references, bt: bts.map(bt => bt.reference).join(', ') })}
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <ChainBlock
@@ -217,10 +224,10 @@ export function DocumentChain({
           />
         </ChainBlock>
 
-        {chain.bts.length === 0 ? (
+        {bts.length === 0 ? (
           <ChainBlock kind="bt" title="Aucun bon de trésorerie" subtitle="Mode crédit : pas d’avance à financer." />
         ) : (
-          chain.bts.map((bt) => (
+          bts.map((bt) => (
             <ChainBlock
               key={bt.id}
               kind="bt"
@@ -231,6 +238,7 @@ export function DocumentChain({
               highlighted={chainHighlightMatches(highlight, 'bt', bt.id)}
             >
               <Link href={treasuryHtmlUrl(bt.id)} label="Voir la fiche trésorerie" testId={`mgr-chain-bt-link-${bt.id}`} />
+              {onPrintTreasury && <button type="button" style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }} onClick={() => onPrintTreasury(bt.id)} data-testid={`mgr-chain-bt-print-${bt.id}`}>Imprimer</button>}
             </ChainBlock>
           ))
         )}

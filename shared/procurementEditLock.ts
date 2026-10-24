@@ -24,8 +24,8 @@ export function canTakeProcurementEditLock(input: {
   return false
 }
 
-/** Le CdG valide seul : pas de réservation manuelle avant lecture/visa.
+/** CdG et DAF : pas de réservation manuelle avant lecture/visa.
  * Les mutations restent sérialisées par le middleware serveur. */
 export function usesManualProcurementClaim(role: string | null | undefined): boolean {
-  return role !== 'controle_gestion'
+  return role !== 'controle_gestion' && role !== 'daf'
 }

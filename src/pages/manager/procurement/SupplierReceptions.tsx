@@ -37,6 +37,8 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [uploaded, setUploaded] = useState(new Set<File>())
+  const [uploadedCount, setUploadedCount] = useState(0)
 
   const flash = (m: string) => {
     setMessage(m)
@@ -65,6 +67,8 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
     setExpanded(r.id)
     setOutcome('full')
     setPhotos([])
+    setUploaded(new Set<File>())
+    setUploadedCount(0)
     const init: Record<string, LineDraft> = {}
     for (const p of r.products ?? []) {
       init[`${p.label}|${p.unit}`] = { accepted: String(p.qty ?? 0), refused: '0', justification: '' }
@@ -83,6 +87,7 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
     setSubmitting(true)
     try {
       for (const f of photos) {
+        if (uploaded.has(f)) continue
         const fd = new FormData()
         fd.append('photo', f)
         const res = await authFetch(`/dashboard/deliveries/${encodeURIComponent(r.id)}/chef-photo`, { method: 'POST', body: fd })
@@ -91,6 +96,9 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
           const b = (await res.json()) as { message?: string }
           throw new Error(b.message ?? 'Photo refusée')
         }
+        const saved = await res.json() as { photosCount: number }
+        setUploaded(current => new Set([...current, f]))
+        setUploadedCount(saved.photosCount)
       }
       const payloadLines = (r.products ?? []).map((p) => {
         const key = `${p.label}|${p.unit}`
@@ -139,7 +147,7 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
                 {r.siteName} · {new Date(r.tourDate + 'T12:00:00').toLocaleDateString('fr-FR')}
               </div>
             </div>
-            <button type="button" onClick={() => open(r)}>Confirmer la réception</button>
+            <button type="button" disabled={submitting} onClick={() => open(r)}>Confirmer la réception</button>
           </div>
           {expanded === r.id && (
             <div style={{ marginTop: '0.75rem' }}>
@@ -191,12 +199,19 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
                   accept="image/*"
                   multiple
                   hidden
-                  onChange={(e) => setPhotos(Array.from(e.target.files ?? []))}
+                  disabled={submitting}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? [])
+                    setPhotos(previous => [...previous, ...selected.filter(file => !previous.some(old => old.name === file.name && old.size === file.size && old.lastModified === file.lastModified))])
+                    e.target.value = ''
+                  }}
                 />
-                <button type="button" onClick={() => fileRef.current?.click()}>
+                <button type="button" disabled={submitting} onClick={() => fileRef.current?.click()}>
                   📷 Ajouter les photos ({r.requiredPhotos} requises : matériel + BL)
                 </button>
                 {photos.length > 0 && <span style={{ fontSize: 12, marginLeft: 8 }}>{photos.length} photo(s)</span>}
+                {uploadedCount > 0 && <span role="status" style={{ fontSize: 12, marginLeft: 8 }}>{uploadedCount} photo(s) enregistrée(s)</span>}
+                <ul>{photos.map((file, index) => <li key={`${file.name}-${index}`}>{file.name} {uploaded.has(file) ? '— enregistrée' : <button type="button" disabled={submitting} onClick={() => setPhotos(current => current.filter(f => f !== file))}>Retirer de la sélection</button>}</li>)}</ul>
               </div>
               <button
                 type="button"

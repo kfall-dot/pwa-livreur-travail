@@ -3,7 +3,7 @@
 // changement de comportement (memes chemins, memes middlewares).
 import { Router } from 'express'
 import multer from 'multer'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { checkAndAddPhotoHash, clearOtp, createOtpManagerAssistTask, expectedDeclarationLinesFromStop, getDashboardDeliveries, getDeclaration, getDeliveryDetail, getDeliveryStopForCompany, getPhotoCount, getSupplierReceptionForManager, getTourById, listSupplierReceptions, removePhotoHash, setDeclaration } from '../../db/queries.js'
 import { getDeliveryPhotosStore, isBlobsEnabled } from '../../lib/blobs.js'
 import { isLocalPhotoStorageEnabled, listPhotosLocal, readPhotoLocal, savePhotoLocal } from '../../lib/deliveryPhotoLocal.js'
@@ -356,6 +356,17 @@ function supplierReceptionScope(req: import('express').Request): string | null {
   return role === 'site_manager' ? manager.sub : null
 }
 
+async function supplierReceptionPhotoCount(deliveryId: string): Promise<number> {
+  const indexed = await getPhotoCount(deliveryId)
+  // Récupère aussi les fichiers envoyés avant la correction du compteur.
+  if (isBlobsEnabled()) {
+    const { blobs } = await getDeliveryPhotosStore().list({ prefix: `${deliveryId}/` })
+    return Math.max(indexed, blobs.length)
+  }
+  if (isLocalPhotoStorageEnabled()) return Math.max(indexed, listPhotosLocal(deliveryId).length)
+  return indexed
+}
+
 // GET /dashboard/supplier-receptions
 deliveriesRoutes.get('/dashboard/supplier-receptions', requireProcurementRole('site_manager', 'technical_director'), async (req, res) => {
   const { manager } = req as ManagerRequest
@@ -376,20 +387,23 @@ deliveriesRoutes.post('/dashboard/deliveries/:id/chef-photo', requireProcurement
     res.status(400).json({ message: 'Photo requise' })
     return
   }
+  let registeredHash: string | null = null
   try {
     const reception = await getSupplierReceptionForManager(deliveryId, manager.companyId, supplierReceptionScope(req))
     if (!reception) {
       res.status(404).json({ message: 'Réception fournisseur introuvable' })
       return
     }
-    const hash = typeof req.body.hash === 'string' ? req.body.hash : ''
-    if (hash) {
-      const added = await checkAndAddPhotoHash(deliveryId, hash)
-      if (!added) {
-        res.status(409).json({ message: 'Photo en doublon détectée' })
-        return
-      }
+    if (reception.status === 'delivered' || reception.status === 'failed') { res.status(422).json({ message: 'Réception déjà terminée.' }); return }
+    // Le compteur est basé sur photo_hashes : le formulaire chef n'envoyait
+    // aucun hash et les fichiers stockés n'étaient donc jamais comptabilisés.
+    const hash = createHash('sha256').update(deliveryId).update(req.file.buffer).digest('hex')
+    const added = await checkAndAddPhotoHash(deliveryId, hash)
+    if (!added) {
+      res.status(409).json({ message: 'Photo en doublon détectée' })
+      return
     }
+    registeredHash = hash
     const photoId = `${deliveryId}/${randomUUID()}`
     const arrayBuffer = req.file.buffer.buffer.slice(
       req.file.buffer.byteOffset,
@@ -405,13 +419,15 @@ deliveriesRoutes.post('/dashboard/deliveries/:id/chef-photo', requireProcurement
     } else if (isLocalPhotoStorageEnabled()) {
       savePhotoLocal(photoId, req.file.buffer, meta)
     } else {
-      if (hash) await removePhotoHash(deliveryId, hash)
+      await removePhotoHash(deliveryId, hash)
+      registeredHash = null
       res.status(503).json({ message: 'Stockage photo indisponible, réessayez.' })
       return
     }
-    const photosCount = await getPhotoCount(deliveryId)
+    const photosCount = await supplierReceptionPhotoCount(deliveryId)
     res.json({ ok: true, photoId, size: req.file.size, photosCount })
   } catch (err) {
+    if (registeredHash) await removePhotoHash(deliveryId, registeredHash).catch(() => {})
     console.error('[dashboard] chef-photo error', err)
     res.status(500).json({ message: 'Erreur serveur' })
   }
@@ -451,7 +467,7 @@ deliveriesRoutes.post('/dashboard/deliveries/:id/chef-confirm', requireProcureme
       res.status(400).json({ message: validationError })
       return
     }
-    const photoCount = await getPhotoCount(deliveryId)
+    const photoCount = await supplierReceptionPhotoCount(deliveryId)
     if (photoCount < reception.requiredPhotos) {
       res.status(422).json({
         message: `Photos insuffisantes (${photoCount}/${reception.requiredPhotos}) — photo(s) matériel + bon de livraison requises.`,

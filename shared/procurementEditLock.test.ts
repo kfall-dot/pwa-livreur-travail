@@ -28,3 +28,10 @@ test('CdG : validation directe sans prise en charge manuelle, protection serveur
   assert.equal(canTakeProcurementEditLock({ ...base, status: 'cdg_review', role: 'controle_gestion' }), true)
   assert.equal(canTakeProcurementEditLock({ ...base, status: 'daf_review', role: 'controle_gestion' }), false)
 })
+
+test('DAF : validation directe, NIP et contrôle serveur conservés', () => {
+  assert.equal(usesManualProcurementClaim('daf'), false)
+  assert.equal(canTakeProcurementEditLock({ ...base, status: 'daf_review', role: 'daf' }), true)
+  assert.equal(canTakeProcurementEditLock({ ...base, status: 'daf_bt_review', role: 'daf' }), true)
+  assert.equal(canTakeProcurementEditLock({ ...base, status: 'cdg_review', role: 'daf' }), false)
+})

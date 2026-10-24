@@ -1352,7 +1352,11 @@ export function AchatsTab({
         data-testid="mgr-chain-lookup"
       >
         <input
-          type="text"
+          type="search"
+          name="procurement-document-reference"
+          autoComplete="off"
+          data-lpignore="true"
+          data-1p-ignore="true"
           value={chainRef}
           onChange={(e) => setChainRef(e.target.value)}
           onKeyDown={(e) => {
@@ -1588,6 +1592,10 @@ export function AchatsTab({
                 <div style={{ flex: 1, minWidth: 220, position: 'relative' }}>
                   <input
                     type="search"
+                    name="procurement-request-search"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Recherche par référence, chantier…"
@@ -3056,31 +3064,7 @@ export function RequestDetailPanel({
                 : 'Le bon de trésorerie joint sera également approuvé : le DAF puis le PDG y apposeront leur signature.'}
             </p>
           )}
-           {showTreasury &&
-             treasuryOrders!.map((b) => (
-               <p key={b.id} style={{ fontSize: 13, marginTop: 8 }}>
-                 Bon de trésorerie {b.reference}
-                 {' · '}
-                 <a
-                   href={treasuryHtmlUrl(b.id)}
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   data-testid={`mgr-achats-treasury-link-${b.id}`}
-                 >
-                   Voir la fiche trésorerie
-                 </a>
-                 {' · '}
-                 <button
-                   type="button"
-                   data-testid={`mgr-achats-treasury-print-${b.id}`}
-                   onClick={() => printHtml(treasuryHtmlUrl(b.id))}
-                   style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
-                 >
-                   Imprimer
-                 </button>
-               </p>
-             ))
-           }
+
         </div>
       )}
 
@@ -3691,35 +3675,12 @@ export function RequestDetailPanel({
         </div>
       )}
 
-      {showTreasury && !showApprove &&
-        treasuryOrders!.map((b) => (
-          <div key={b.id} style={{ marginTop: '1rem' }}>
-            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Bon de trésorerie {b.reference}</h4>
-            <p style={{ fontSize: 13 }}>
-              <a
-                href={treasuryHtmlUrl(b.id)}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid={`mgr-achats-treasury-link-${b.id}`}
-              >
-                Voir la fiche trésorerie
-              </a>
-              {' · '}
-              <button
-                type="button"
-                data-testid={`mgr-achats-treasury-print-${b.id}`}
-                onClick={() => printHtml(treasuryHtmlUrl(b.id))}
-                style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
-              >
-                Imprimer
-              </button>
-            </p>
-          </div>
-        ))}
-
       <CorrectionWorkflowPanel detail={detail} readOnly={procurementRole === 'treasury' ? false : readOnly} onChanged={onCorrectionChanged} />
       <DocumentChain
         requestId={request.id}
+        treasuryOrders={treasuryOrders ?? undefined}
+        refreshKey={request.updatedAt ?? String(request.version)}
+        onPrintTreasury={(id) => printHtml(treasuryHtmlUrl(id))}
         canAttachBl={!readOnly && procurementRole === 'purchasing' && (!request.correctionTargetId || request.correctionTargetId === currentManagerId)}
         highlight={highlight}
       />
