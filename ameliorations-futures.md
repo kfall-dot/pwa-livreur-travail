@@ -73,45 +73,73 @@ Table `bc_documents` : `id · purchase_order_id · kind (facture|bon_livraison|j
 
 ## Holding multi-compagnies — EB centralisées au SA, rôles transverses
 
-### Contexte
+> Cadrage actualisé le 24 octobre 2026. Le mode holding reste à implémenter ; cette section décrit la cible, pas les capacités actuellement disponibles. Les choix restant à confirmer sont signalés ci-dessous.
 
-L'application va servir une holding à 4 filiales : BTP, hôtellerie, sécurité, agriculture — chacune avec sa **raison sociale propre**. Chaque compagnie émet des EB via le **formulaire vierge existant** (pas de nouveau canal : le BTP garde en plus l'entrée WhatsApp/chantier). Toutes les EB convergent vers un **SA unique central**. Le processus aval est **identique** quelle que soit la provenance : SA → CdG → DAF → PDG → livraison → facture → paiement. Les rôles **SA, CdG, DAF, PDG, CmPT sont uniques** pour tout le holding ; les opérationnels (chefs de site, DT, contrôleurs, livreurs) restent cloisonnés à leur compagnie. Tout le fonctionnel existant (Livraisons, Suivi BC, Suivi chantier, Comptabilité, Rapports) doit devenir multi-compagnies.
+### Contexte et périmètre
 
-État actuel incompatible : isolation mono-compagnie stricte (`managers.companyId` unique signé dans le JWT, filtres `eq(companyId)` partout), table `companies` sans niveau groupe ni identité légale, un transverse ne peut voir qu'une seule compagnie.
+La holding comprend 4 filiales : BTP, hôtellerie, sécurité et agriculture, chacune avec sa raison sociale propre. Les compagnies émettent leurs EB avec le formulaire existant ; le BTP conserve aussi son entrée WhatsApp/chantier. Les demandes convergent vers un SA central et suivent les circuits de validation applicables à leur origine.
 
-### Décisions validées
+Les fonctions centrales couvrent le SA, le CdG, le DAF, le PDG, la Comptabilité (CmPT) et la **Trésorerie**. Les opérationnels restent limités à leur compagnie et à leurs chantiers autorisés. Les vues Achats, Livraisons, Suivi BC, Suivi chantier, Comptabilité, Trésorerie et Rapports doivent respecter ce périmètre.
 
-- La `company` devient une **provenance**, pas un silo : EB, BC, BT, tournée, livraison, facture, paiement portent le `companyId` de l'émetteur, hérité sur tout l'aval.
-- **Périmètre par famille de rôles** (pas de matrice par utilisateur au jour 1) : SA/CdG/DAF/PDG/CmPT = tout le holding ; opérationnels = leur compagnie uniquement.
-- Émission hors BTP : formulaire vierge + **compagnie émettrice** (menu restreint aux compagnies autorisées).
-- Enveloppes budgétaires **toujours par compagnie** (pas de pot commun inter-filiales).
-- Table d'exceptions `manager_company_scopes` prévue mais non nécessaire au jour 1 (ex. futur DT sur BTP + Sécurité).
+Le socle actuel isole les entreprises avec un `companyId` de session et des filtres par compagnie. La cible ajoute un périmètre de groupe explicitement autorisé, sans supprimer cette séparation.
 
-### Socle technique
+### Règles métier à conserver
 
-- `holdings` (1 ligne : le groupe) + `companies.holding_id` ; enrichir `companies` : raison sociale, sigle, adresse, contacts, logo, **préfixe de numérotation** (`BTP/HOT/SEC/AGR`) pour éviter les collisions de références EB/BC/BT.
-- Auth : JWT avec `allowedCompanyIds[]` calculé **côté serveur** ; bascule des requêtes `eq → inArray` pour les 5 rôles centraux ; extension de `manager-multitenant-authz.spec.ts`.
-- Migration : rattacher `co-demo` / `co-btp-pilote` au holding + backfill sans élargissement silencieux des opérationnels.
-- Sécurité : `security_audit_events.companyId` = compagnie de l'objet, pas du lecteur.
+- Chaque EB porte une **compagnie émettrice explicite**, distincte de son auteur. Le SA central peut créer une demande pour une filiale autorisée ; la compagnie du compte connecté ne détermine pas automatiquement celle de la dépense.
+- Le `companyId` de l'EB est conservé sur ses BC, BT, livraisons, factures et paiements. Les liens entre ces objets doivent appartenir à la même compagnie. Aucun changement silencieux de compagnie après engagement des documents aval.
+- Les enveloppes, dépenses, engagements, règlements et soldes fournisseurs restent **séparés par compagnie**. Une vue consolidée ne constitue pas un budget commun ni une autorisation de financement entre filiales.
+- Le SA central conserve son **chef et ses adjoints**. Le chef valide les montants et les BC préparés par ses ressources ; son NIP et sa signature s'appliquent à l'étape prévue pour le BC. Ses propres actions ne passent pas par cette validation d'équipe. Les verrous de prise en charge restent applicables à l'équipe SA.
+- Les EB créées par le SA conservent leur parcours sans validation DT ; les EB issues des opérationnels conservent leur circuit applicable. Le mode holding ne remet pas toutes les demandes dans un circuit unique indifférencié.
+- Les règles de retour pour correction et de refus sont conservées : **seuls le DAF et le PDG peuvent prononcer un refus définitif** à ce stade ; celui du CdG reste à confirmer avec le client.
+- La transmission des demandes de matériaux alimente la Comptabilité et la Trésorerie. Cette dernière accède au dossier EB et à sa chaîne documentaire, avec toutes les pièces jointes autorisées, avant paiement, comme pour la main d'œuvre.
+- **Seule la Trésorerie marque une facture payée**, via l'action de paiement « À payer ». Le statut doit être identique dans toutes les vues ; aucun indicateur modifiable par le SA ne doit contourner cette règle.
+- Le stock et les consommations restent rattachés au chantier et à sa compagnie : disponible = quantités réceptionnées acceptées − consommations enregistrées. Les livraisons prévues sont séparées du disponible. Les transferts entre filiales ne sont pas implicitement autorisés par le mode holding.
 
-### UI
+### Accès et sécurité
 
-- **Sélecteur global** `Toutes (holding)` + chaque raison sociale (défaut `Toutes` pour les centraux) ; **colonne « Compagnie »** dans file Achats, Livraisons, Suivi BC, Suivi chantier, Comptabilité, Rapports/exports.
-- **KPIs sur le périmètre sélectionné** ; catalogues (chantiers, fournisseurs) rattachés à leur compagnie, visibles au SA central via le sélecteur.
-- Mentions légales de l'émetteur sur BC/BT/documents/exports du CmPT (obligation fiscale).
+- Les rôles centraux disposent d'un périmètre couvrant les compagnies autorisées de **leur holding**, pas toutes les entreprises de la plateforme. Les opérationnels conservent leur périmètre de compagnie et de chantier.
+- Une politique serveur commune résout les compagnies autorisées à partir de l'identité, du rôle et du rattachement au groupe. Un sélecteur de compagnie, un identifiant d'objet ou un paramètre envoyé par le navigateur ne constitue jamais une autorisation.
+- Le remplacement de `eq(companyId)` par `inArray(...)` ne suffit pas : vérifier le périmètre et les droits métier pour chaque liste, détail, création, modification, validation, document, pièce jointe, téléchargement et export.
+- Vérifier aussi les relations entre objets : un fournisseur, un chantier ou une facture d'une autre compagnie ne peut pas être associé simplement parce que le rôle central voit les deux compagnies.
+- Les changements de rôle ou de périmètre doivent invalider ou faire réévaluer les droits de session ; un JWT ancien ne doit pas conserver indéfiniment des accès révoqués.
+- L'audit conserve l'auteur, son rôle, la compagnie de l'objet et l'action. `security_audit_events.companyId` désigne la compagnie de l'objet, pas celle du lecteur.
 
-### Chiffrage
+### Données, documents et numérotation
 
-| Lot | Contenu |
-|---|---|
-| 1 | `holdings` + `holding_id` + identité légale + préfixes + backfill (+ compagnie émettrice sur formulaire EB vierge) |
-| 2 | Auth périmètre par rôles + `eq → inArray` + tests authz |
-| 3 | Sélecteur + colonne Compagnie + KPIs périmètre + mentions légales |
-| 4 | e2e multi-filières (EB Hôtellerie visible SA/CdG/DAF/PDG/CMPT, invisible au chantier BTP) + INVARIANTS |
+- Ajouter `holdings` et `companies.holding_id`. Enrichir chaque compagnie : raison sociale, sigle, adresse, contacts, logo, informations légales nécessaires et préfixe de numérotation (`BTP/HOT/SEC/AGR` à confirmer).
+- Les documents EB/BC/BT et exports portent l'identité de la compagnie émettrice ; la signature du responsable central ne remplace pas cette identité.
+- Sécuriser la numérotation avant remise au client : allocation atomique et contrainte d'unicité, avec périmètre explicite compagnie/type de document/exercice. Le nettoyage final des données de test est un moment adapté pour initialiser les séries définitives ; aucun numéro déjà émis ne doit être réattribué ensuite.
+- Préparer une migration et une vérification des données existantes, sans élargissement silencieux des accès. Le rattachement des compagnies de démonstration et de pilote au groupe de test doit être explicite ; elles ne sont pas automatiquement reprises dans la holding du client.
+- Une table d'exceptions telle que `manager_company_scopes` peut être prévue pour les besoins futurs (ex. DT intervenant dans deux filiales), sans rendre ces exceptions obligatoires au premier lot.
 
-### Décision
+### Interface
 
-**Statut : spécifié (24 septembre 2026) — en attente de réalisation, lot 1 prêt.**
+- Sélecteur global « Toutes (holding) » et raisons sociales autorisées pour les rôles centraux ; les opérationnels restent limités à leur périmètre.
+- Compagnie émettrice obligatoire à la création d'une EB ; affiche clairement cette identité dans le dossier, ses documents et les étapes de validation/paiement.
+- Colonne « Compagnie » dans les files et exports concernés, y compris Trésorerie ; indicateurs calculés sur le périmètre sélectionné.
+- Chantiers, stocks, budgets et données financières filtrés par compagnie. Le changement de sélection recharge les listes et évite de conserver des choix de formulaires incompatibles avec la nouvelle compagnie.
+
+### Points à confirmer avec le client
+
+- **Fournisseurs** : annuaire commun à la holding ou fiches séparées ? Recommandation : identité fournisseur partageable avec rattachements par compagnie ; factures, règlements et soldes restent séparés dans tous les cas.
+- Raisons sociales et mentions documentaires définitives, préfixes et format de numérotation.
+- Comptes centraux autorisés, éventuelles restrictions de certains adjoints à certaines filiales, et rattachement des opérationnels.
+- Besoin éventuel de transferts de matériaux ou de financements entre filiales : hors périmètre initial tant que leurs règles ne sont pas définies.
+
+### Réalisation progressive et critères de validation
+
+| Lot | Contenu | Validation attendue |
+|---|---|---|
+| 1 | Groupe, compagnies, identité légale, compagnie émettrice, numérotation et migration préparée | Les données existantes restent rattachées à leur compagnie ; aucune ouverture d'accès implicite |
+| 2 | Politique d'autorisation commune, périmètres centraux/opérationnels, contrôle des relations et audit | Tests positifs et négatifs sur API, pièces jointes, documents, exports et actions ; isolation entre holdings |
+| 3 | Sélecteur, colonnes, indicateurs, documents et adaptations des circuits SA/Trésorerie | Parcours complet avec **une deuxième compagnie pilote** : EB → validations applicables → BC → réception → facture → paiement |
+| 4 | Régression et ouverture progressive aux autres filiales | Visibilité centrale correcte, invisibilité pour les opérationnels des autres filiales, budgets/stock/soldes séparés et statut payé uniforme |
+
+Étendre les tests d'autorisation multi-entreprises et `e2e/INVARIANTS.md` pour couvrir aussi les téléchargements directs, les accès par identifiant, les relations entre compagnies, les droits révoqués, la concurrence de numérotation et les validations du chef SA. Vérifier que seuls les paiements de Trésorerie mettent à jour les factures comme payées.
+
+### Statut
+
+**Cadrage initial : 24 septembre 2026. Actualisation : 24 octobre 2026. Non implémenté.** Commencer par une deuxième compagnie pilote et son parcours complet avant d'ouvrir les quatre filiales. Les points à confirmer ci-dessus ne sont pas des décisions client déjà acquises.
 
 ---
 

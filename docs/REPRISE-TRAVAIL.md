@@ -234,13 +234,13 @@ vérification manuelle. Ne pas les réintroduire.
 
 | Sujet | Statut | Enjeu |
 |---|---|---|
-| **Holding multi-compagnies** | consigné | Les rôles PDG/DAF/CdG/CMPT doivent voir **toutes** les sociétés de la holding ; les EB sont centralisées au SA, une compagnie = un département SA. **Non implémenté** — chantier structurel le plus lourd. |
+| **Holding multi-compagnies** | consigné | Cadrage actualisé le 24/10/2026 dans `ameliorations-futures.md` : SA (chef/adjoints), CdG, DAF, PDG, CmPT et Trésorerie transverses ; compagnie émettrice explicite, budgets et paiements séparés, droits contrôlés sur les objets/documents. **Non implémenté** — démarrer par une deuxième compagnie pilote. |
 | **Dossier BC** (BL + refonte saisie facture) | proposé, maquette validée | Le BL papier n'a nulle part où être joint ; la saisie est saturée. ~2-3 j en 4 lots, table `bc_documents`. |
 
 > ⚠️ Le besoin « holding » est **différent** du multi-entreprise déjà implémenté.
 > Aujourd'hui une société = un client de l'application, isolé (invariant de
 > sécurité §3.2). Le besoin holding impose de **lire au travers** de cette
-> isolation pour 4 rôles — c'est une évolution d'architecture, pas un réglage.
+> isolation pour les fonctions centrales autorisées de la même holding — c'est une évolution d'architecture, pas un réglage.
 > **Ne pas traiter à la légère.**
 
 ---
