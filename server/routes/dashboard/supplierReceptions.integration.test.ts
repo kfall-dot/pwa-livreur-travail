@@ -7,11 +7,12 @@ import path from 'node:path'
 import express from 'express'
 import { eq } from 'drizzle-orm'
 import { db, getPool } from '../../db/index.js'
-import { companies, managers, drivers, tours, deliveryPoints, sites, supermarkets, photoHashes } from '../../db/schema.js'
+import { companies, managers, drivers, tours, deliveryPoints, sites, supermarkets, photoHashes, certificates, declarations, managerTasks } from '../../db/schema.js'
 import { getPhotoCount } from '../../db/queries.js'
 import { deliveriesRoutes } from './deliveries.routes.js'
 import { signManagerToken } from '../../middleware/managerAuth.js'
 import { savePhotoLocal } from '../../lib/deliveryPhotoLocal.js'
+import { emailConfig } from '../../config/email.js'
 
 test('réception fournisseur : fichiers sans hash comptés, doublons, reprise et erreur stockage', { skip: process.env.RUN_SUPPLIER_RECEPTION_INTEGRATION !== '1' }, async () => {
   const id = `test-reception-${randomUUID()}`, managerId = `${id}-chef`, stopId = `${id}-stop`
@@ -55,8 +56,22 @@ test('réception fournisseur : fichiers sans hash comptés, doublons, reprise et
     const failed = await upload(new Uint8Array([...bytes, 2]))
     assert.equal(failed.status, 500)
     assert.equal(await getPhotoCount(stopId), 2, 'une erreur de stockage ne crée pas de fausse photo')
+    process.env.PHOTOS_DIR = path.join(folder, 'photos')
+    await db.update(deliveryPoints).set({ requiredPhotos: 2 }).where(eq(deliveryPoints.id, stopId))
+    // Aucun e-mail réel : la finalisation complète utilise exclusivement le mock.
+    const originalProvider = emailConfig.provider, originalLog = console.log
+    let complete: Response
+    try { emailConfig.provider = 'mock'; console.log = () => {}; complete = await confirm() }
+    finally { emailConfig.provider = originalProvider; console.log = originalLog }
+    assert.equal(complete!.status, 200, await complete!.clone().text())
+    const confirmed = await complete!.json() as { receiptId: string }
+    assert.match(confirmed.receiptId, /^RCT-/)
+    assert.equal((await db.select().from(deliveryPoints).where(eq(deliveryPoints.id, stopId)))[0].status, 'delivered')
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()))
+    await db.delete(managerTasks).where(eq(managerTasks.companyId, id))
+    await db.delete(certificates).where(eq(certificates.deliveryId, stopId))
+    await db.delete(declarations).where(eq(declarations.deliveryId, stopId))
     await db.delete(photoHashes).where(eq(photoHashes.deliveryId, stopId))
     await db.delete(deliveryPoints).where(eq(deliveryPoints.tourId, `${id}-tour`))
     await db.delete(tours).where(eq(tours.companyId, id))

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '../managerApi'
 import { css } from './procurementUi'
+import { apiErrorMessage } from '../../../lib/apiError'
 
 type ReceptionProduct = { label: string; qty: number; unit: string }
 type Reception = {
@@ -21,6 +22,7 @@ const outcomeLabels: Record<'full' | 'partial' | 'rejected', string> = {
   partial: 'Partielle',
   rejected: 'Refusée',
 }
+const receptionProducts = (r: Reception): ReceptionProduct[] => r.products?.length ? r.products : [{ label: 'Produit commandé', qty: r.units, unit: r.unitType }]
 
 /**
  * Réceptions fournisseur à confirmer par le chef de chantier.
@@ -39,10 +41,10 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploaded, setUploaded] = useState(new Set<File>())
   const [uploadedCount, setUploadedCount] = useState(0)
+  const [receipt, setReceipt] = useState<{ receiptId: string; certificateUrl: string } | null>(null)
 
   const flash = (m: string) => {
     setMessage(m)
-    window.setTimeout(() => setMessage(null), 4000)
   }
 
   const load = useCallback(async () => {
@@ -50,10 +52,11 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
     try {
       const res = await authFetch('/dashboard/supplier-receptions')
       if (handleAuth(res.status)) return
-      if (res.ok) {
-        const body = (await res.json()) as { receptions?: Reception[] }
-        setReceptions(body.receptions ?? [])
-      }
+      if (!res.ok) throw await apiErrorMessage(res, 'Chargement des réceptions impossible')
+      const body = (await res.json()) as { receptions?: Reception[] }
+      setReceptions(body.receptions ?? [])
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Chargement des réceptions impossible')
     } finally {
       setLoading(false)
     }
@@ -64,13 +67,16 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
   }, [load])
 
   const open = (r: Reception) => {
+    if (expanded === r.id || submitting) return
     setExpanded(r.id)
     setOutcome('full')
     setPhotos([])
     setUploaded(new Set<File>())
     setUploadedCount(0)
+    setMessage(null)
+    setReceipt(null)
     const init: Record<string, LineDraft> = {}
-    for (const p of r.products ?? []) {
+    for (const p of receptionProducts(r)) {
       init[`${p.label}|${p.unit}`] = { accepted: String(p.qty ?? 0), refused: '0', justification: '' }
     }
     setLines(init)
@@ -85,6 +91,7 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
 
   const confirm = async (r: Reception) => {
     setSubmitting(true)
+    setMessage(null)
     try {
       for (const f of photos) {
         if (uploaded.has(f)) continue
@@ -92,15 +99,12 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
         fd.append('photo', f)
         const res = await authFetch(`/dashboard/deliveries/${encodeURIComponent(r.id)}/chef-photo`, { method: 'POST', body: fd })
         if (handleAuth(res.status)) return
-        if (!res.ok) {
-          const b = (await res.json()) as { message?: string }
-          throw new Error(b.message ?? 'Photo refusée')
-        }
+        if (!res.ok) throw await apiErrorMessage(res, `Enregistrement de la photo « ${f.name} » impossible`)
         const saved = await res.json() as { photosCount: number }
         setUploaded(current => new Set([...current, f]))
         setUploadedCount(saved.photosCount)
       }
-      const payloadLines = (r.products ?? []).map((p) => {
+      const payloadLines = receptionProducts(r).map((p) => {
         const key = `${p.label}|${p.unit}`
         const v = lines[key] ?? { accepted: String(p.qty ?? 0), refused: '0', justification: '' }
         return {
@@ -117,12 +121,10 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
         body: JSON.stringify({ outcome, lines: payloadLines }),
       })
       if (handleAuth(res.status)) return
-      const b = (await res.json()) as { message?: string }
-      if (!res.ok) {
-        flash(b.message ?? 'Erreur')
-        return
-      }
-      flash('Réception confirmée ✅')
+      if (!res.ok) throw await apiErrorMessage(res, 'La réception n’a pas pu être confirmée')
+      const result = await res.json() as { receiptId: string; certificateUrl: string }
+      setReceipt(result)
+      flash(`Réception confirmée — bon ${result.receiptId}`)
       setExpanded(null)
       await load()
     } catch (err) {
@@ -132,12 +134,14 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
     }
   }
 
-  if (loading || receptions.length === 0) return null
+  if (!loading && receptions.length === 0 && !message) return null
 
   return (
-    <div style={css.card}>
+    <div style={css.card} data-testid="mgr-supplier-receptions" aria-busy={submitting}>
       <h3 style={{ marginTop: 0 }}>🚚 Réceptions fournisseur</h3>
-      {message && <div style={css.messageBox}>{message}</div>}
+      {message && <div style={css.messageBox} role={receipt ? 'status' : 'alert'} data-testid="mgr-supplier-reception-message">{message}</div>}
+      {receipt && <p><a href={receipt.certificateUrl} target="_blank" rel="noreferrer">Voir le bon de réception {receipt.receiptId}</a></p>}
+      {loading && <p>Chargement des réceptions…</p>}
       {receptions.map((r) => (
         <div key={r.id} style={{ borderTop: '1px solid var(--border, #e2e8f0)', padding: '0.75rem 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
@@ -147,10 +151,11 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
                 {r.siteName} · {new Date(r.tourDate + 'T12:00:00').toLocaleDateString('fr-FR')}
               </div>
             </div>
-            <button type="button" disabled={submitting} onClick={() => open(r)}>Confirmer la réception</button>
+            <button type="button" disabled={submitting || expanded === r.id} onClick={() => open(r)}>{expanded === r.id ? 'Réception ouverte' : 'Ouvrir la réception'}</button>
           </div>
           {expanded === r.id && (
             <div style={{ marginTop: '0.75rem' }}>
+              <p>Renseignez les quantités, ajoutez les photos du matériel et du BL, puis cliquez sur « Valider la réception » pour enregistrer la réception et mettre à jour les matériaux du chantier.</p>
               <div style={{ display: 'flex', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
                 {(['full', 'partial', 'rejected'] as const).map((o) => (
                   <label key={o} style={{ fontSize: 13 }}>
@@ -158,7 +163,7 @@ export function SupplierReceptions({ handleAuth }: { handleAuth: (status: number
                   </label>
                 ))}
               </div>
-              {(r.products ?? []).map((p) => {
+              {receptionProducts(r).map((p) => {
                 const key = `${p.label}|${p.unit}`
                 const v = lines[key] ?? { accepted: String(p.qty ?? 0), refused: '0', justification: '' }
                 return (
