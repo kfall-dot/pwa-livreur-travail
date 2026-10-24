@@ -1,7 +1,9 @@
+import { applyCompanyDocumentIdentity } from './companyDocumentIdentity.js'
 import type { Certificate } from '../db/schema.js'
 import { DEFAULT_FULL_JUSTIFICATION } from '../../shared/declarationValidation.js'
 
 export type CertificateHtmlInput = {
+  companyId?: string
   receiptId: string
   deliveryName: string
   deliveryAddress: string
@@ -65,7 +67,7 @@ function outcomeClass(input: CertificateHtmlInput): string {
 export function renderCertificateHtml(input: CertificateHtmlInput): string {
   const title = outcomeLabel(input)
   const klass = outcomeClass(input)
-  return `<!DOCTYPE html>
+  return applyCompanyDocumentIdentity(`<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
@@ -158,7 +160,7 @@ export function renderCertificateHtml(input: CertificateHtmlInput): string {
     </div>
   </main>
 </body>
-</html>`
+</html>`, input.companyId)
 }
 
 export function certificateFlags(cert: Pick<Certificate, 'isPartial' | 'isRejected'>): {

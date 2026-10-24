@@ -1,3 +1,4 @@
+import { EfpcLoginShell } from './EfpcLoginShell'
 import type { ReactNode } from 'react'
 import { BRAND_FOOTER } from '../brand'
 import { TraceOMark } from './brand/TraceOMark'
@@ -6,6 +7,7 @@ type AuthShellProps = {
   roleTitle: string
   roleSubtitle: string
   children: ReactNode
+  clientIdentity?: boolean
   variant?: 'default' | 'driver-hero'
 }
 
@@ -31,8 +33,10 @@ export function AuthShell({
   roleSubtitle,
   children,
   variant = 'default',
+  clientIdentity = false,
 }: AuthShellProps) {
   const isHero = variant === 'driver-hero'
+  if (clientIdentity) return <EfpcLoginShell title={roleTitle} subtitle={roleSubtitle}>{children}</EfpcLoginShell>
 
   if (!isHero) {
     return (

@@ -104,7 +104,7 @@ export function ManagerLoginPage() {
 
   if (totpToken) {
     return (
-      <AuthShell roleTitle="Vérification 2FA" roleSubtitle="Code à 6 chiffres depuis votre application d’authentification">
+      <AuthShell clientIdentity roleTitle="Vérification 2FA" roleSubtitle="Code à 6 chiffres depuis votre application d’authentification">
         <form onSubmit={(e) => void handleTotpSubmit(e)} className="auth-form">
           <label htmlFor="totp-code">Code 2FA</label>
           <input
@@ -141,7 +141,7 @@ export function ManagerLoginPage() {
   }
 
   return (
-    <AuthShell roleTitle="Gestionnaire" roleSubtitle="Tournées, preuves et achats chantier">
+    <AuthShell clientIdentity roleTitle="Connectez-vous." roleSubtitle="Votre espace de gestion des achats et des opérations.">
       <form onSubmit={(e) => void handleSubmit(e)} className="auth-form">
         <label htmlFor="email">Email</label>
         <input

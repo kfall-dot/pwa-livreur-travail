@@ -1,3 +1,4 @@
+import { applyCompanyDocumentIdentity } from '../services/companyDocumentIdentity.js'
 import { verifyBcRegister } from '../db/procurementQueries.js'
 import { parseJsonAttachment } from '../lib/jsonAttachment.js'
 import { procurementCorrectionsRouter } from './procurementCorrections.js'
@@ -1424,6 +1425,7 @@ procurementRouter.get('/drafts/:id/html', async (req, res) => {
       ? await currentManagerName(manager.sub, manager.email)
       : stored?.approbateur ?? ''
   const html = generateEbFicheHtml({
+    companyId: manager.companyId,
     reference: `Brouillon ${detail.draft.id.slice(-8)}`,
     siteName: detail.site?.name ?? detail.parseHints?.destination ?? '',
     service: EB_FICHE_SERVICE,
@@ -2175,6 +2177,7 @@ procurementRouter.get('/requests/:id/eb-html', async (req, res) => {
   // Le visa PDG conditionne l'affichage de la case PDG (cf. shouldDisplayPdgSignature).
   const signoff = signoffFromApprovalSteps(detail.approvalSteps)
   const html = generateEbFicheHtml({
+    companyId: manager.companyId,
     reference: detail.request.reference,
     siteName: detail.site?.name ?? '',
     service: EB_FICHE_SERVICE,
@@ -2559,7 +2562,7 @@ procurementRouter.get('/documents/treasury/:id/html', async (req, res) => {
     return
   }
   if (row.status === 'cancelled') { res.status(409).json({ message: 'BT archivé : consultez l’historique de l’EB.' }); return }
-  res.type('html').send(row.pdfHtml)
+  res.type('html').send(applyCompanyDocumentIdentity(row.pdfHtml, row.companyId))
 })
 
 procurementRouter.get('/documents/:poId/html', async (req, res) => {
@@ -2571,7 +2574,7 @@ procurementRouter.get('/documents/:poId/html', async (req, res) => {
   }
   if (po.correctionPending) { res.status(409).json({ message: 'BC archivé après correction : consultez l’historique de l’EB.' }); return }
   if (po.pdfHtml) {
-    res.type('html').send(po.pdfHtml)
+    res.type('html').send(applyCompanyDocumentIdentity(po.pdfHtml, po.companyId))
     return
   }
   res.json(wrapPoDocument(po))

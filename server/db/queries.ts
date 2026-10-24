@@ -2059,6 +2059,7 @@ export async function canReplanManagerTask(
 }
 
 export interface StopWithDriverContext extends StopWithTourDate {
+  companyId?: string
   tourId: string
   driverId: string
   driverName: string
@@ -2070,6 +2071,7 @@ export async function getStopWithDriverContext(deliveryId: string): Promise<Stop
       stop: deliveryPoints,
       tourDate: tours.date,
       tourId: tours.id,
+      companyId: tours.companyId,
       driverId: drivers.id,
       driverName: drivers.name,
     })
@@ -2079,7 +2081,7 @@ export async function getStopWithDriverContext(deliveryId: string): Promise<Stop
     .where(eq(deliveryPoints.id, deliveryId))
     .limit(1)
   if (!row) return null
-  return { ...row.stop, tourDate: row.tourDate, tourId: row.tourId, driverId: row.driverId, driverName: row.driverName }
+  return { companyId: row.companyId, ...row.stop, tourDate: row.tourDate, tourId: row.tourId, driverId: row.driverId, driverName: row.driverName }
 }
 
 function todayIsoDate(): string {

@@ -1,3 +1,4 @@
+import { applyCompanyDocumentIdentity } from './companyDocumentIdentity.js'
 /**
  * Fiche « Expression du besoin » calquée sur
  * `docs/originaux/FICHE DE BESOIN ACHAT - Copie.xlsx`
@@ -34,6 +35,7 @@ export type EbFicheLine = {
 }
 
 export type EbFicheData = {
+  companyId?: string
   reference: string
   siteName: string
   service?: string
@@ -96,7 +98,7 @@ export function generateEbFicheHtml(data: EbFicheData): string {
     ? `<div class="revision-banner">VERSION MODIFIÉE n° ${escapeHtml(String(data.version))} — révisée${revisedDate ? ` le ${escapeHtml(revisedDate)}` : ''}${data.revisionComment ? ` — Motif : ${escapeHtml(data.revisionComment)}` : ''}</div>`
     : ''
 
-  return withPrintBar(`<!DOCTYPE html>
+  return withPrintBar(applyCompanyDocumentIdentity(`<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
@@ -219,7 +221,7 @@ export function generateEbFicheHtml(data: EbFicheData): string {
     <div class="ref-foot">Réf. ${escapeHtml(data.reference)}${escapeHtml(vSuffix)} — TraceO BTP</div>
   </div>
 </body>
-</html>`)
+</html>`, data.companyId))
 }
 
 export function ficheLinesFromParsed(

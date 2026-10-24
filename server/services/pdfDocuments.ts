@@ -1,3 +1,5 @@
+import { applyCompanyDocumentIdentity } from './companyDocumentIdentity.js'
+import { companyIdentity } from '../../shared/companyIdentity.js'
 import type {
   DocumentTemplate,
   PurchaseOrder,
@@ -12,6 +14,7 @@ import { withPrintBar } from '../lib/htmlPrint.js'
 import { versionSuffix } from '../../shared/requestVersion.js'
 
 export type BcTemplateData = {
+  companyId?: string
   saHeadSignature?: string | null
   pendingSaHeadReview?: boolean
   reference: string
@@ -40,6 +43,7 @@ export type BcTemplateData = {
 }
 
 export type BtTemplateData = {
+  companyId?: string
   reference: string
   siteName: string
   amountFcfa: number
@@ -271,12 +275,12 @@ export function generateBcHtml(
   data: BcTemplateData,
 ): string {
   const total = data.amountFcfa || data.lines.reduce((s, l) => s + l.amountFcfa, 0)
-  return withPrintBar(renderTemplate(
+  return withPrintBar(applyCompanyDocumentIdentity(renderTemplate(
     DEFAULT_BC_TEMPLATE,
     {
       reference: data.reference,
       saHeadSignature: data.saHeadSignature || (data.pendingSaHeadReview ? 'BROUILLON — en attente de validation du chef SA' : ''),
-      companyName: data.companyName,
+      companyName: companyIdentity(data.companyId)?.legalName ?? data.companyName,
       siteName: data.siteName,
       siteAddress: data.siteAddress,
       receveur: data.receveur,
@@ -291,7 +295,7 @@ export function generateBcHtml(
       linesRows: linesToRows(data.lines, total),
     },
     ['linesRows'],
-  ))
+  ), data.companyId))
 }
 
 /** « · BT : BT-2026-0003, BT-2026-0004 » — vide si aucun BT (mode crédit). */
@@ -340,7 +344,7 @@ export function generateBtHtml(
   const revisionBanner = isRevised
     ? `<div class="revision-banner">VERSION MODIFIÉE n° ${escapeHtml(String(data.version))} — révisée${revisedDate ? ` le ${escapeHtml(revisedDate)}` : ''}${data.revisionComment ? ` — Motif : ${escapeHtml(data.revisionComment)}` : ''}</div>`
     : ''
-  return withPrintBar(renderTemplate(
+  return withPrintBar(applyCompanyDocumentIdentity(renderTemplate(
     DEFAULT_BT_TEMPLATE,
     {
       reference: data.reference,
@@ -362,7 +366,7 @@ export function generateBtHtml(
       pdgBox: btValidationBox('VALIDATION PDG', data.pdgName, data.pdgDate, data.pdgSignature),
     },
     ['linesRows', 'dafBox', 'pdgBox', 'revisionBanner'],
-  ))
+  ), data.companyId))
 }
 
 const PAYMENT_MODE_LABELS: Record<string, string> = {
@@ -404,6 +408,7 @@ export function buildBcDataFromRequest(
   }))
   const amountFcfa = mapped.reduce((s, l) => s + l.amountFcfa, 0) || Number(request.totalAmountFcfa ?? 0)
   return {
+    companyId: request.companyId,
     reference: request.reference,
     companyName,
     siteName: site.name,
@@ -443,6 +448,7 @@ export function buildBtDataFromRequest(
     }))
   const amountFcfa = mapped.reduce((s, l) => s + l.amountFcfa, 0) || Number(treasury.amountFcfa)
   return {
+    companyId: request.companyId,
     reference: treasury.reference,
     siteName: site.name,
     amountFcfa,

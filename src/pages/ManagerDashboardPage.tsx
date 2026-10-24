@@ -1,6 +1,10 @@
+import '../components/brand/EfpcWorkspace.css'
+import { WorkspaceIcon } from '../components/WorkspaceIcon'
+import { companyIdentity } from '../../shared/companyIdentity'
+import { TraceOMark } from '../components/brand/TraceOMark'
+import { EfpcMark } from '../components/brand/EfpcMark'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { TraceOMark } from '../components/brand/TraceOMark'
 import { DemoBanner } from '../components/DemoBanner'
 import { toast } from '../lib/toast'
 import { authFetch } from './manager/managerApi'
@@ -118,6 +122,8 @@ export function ManagerDashboardPage() {
     }
   }, [tab])
   const [managerName, setManagerName] = useState('')
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const clientIdentity = companyIdentity(companyId)
   const [currentManagerId, setCurrentManagerId] = useState('')
   const [managerRole, setManagerRole] = useState<'admin' | 'manager'>('manager')
   const [procurementRole, setProcurementRole] = useState<ProcurementRole | null>(null)
@@ -177,12 +183,14 @@ export function ManagerDashboardPage() {
       const data = await res.json() as {
         manager?: {
           email?: string
+          companyId?: string
           name?: string
           id?: string
           role?: 'admin' | 'manager'
           procurementRole?: ProcurementRole | null
         }
       }
+      setCompanyId(data.manager?.companyId ?? null)
       setManagerName(data.manager?.name || data.manager?.email || '')
       setCurrentManagerId(data.manager?.id ?? '')
       setManagerRole(data.manager?.role === 'admin' ? 'admin' : 'manager')
@@ -397,7 +405,7 @@ export function ManagerDashboardPage() {
   const bumpTasks = () => { void loadPendingTaskCount() }
 
   return (
-    <div className="manager-shell" style={css.layout}>
+    <div className={clientIdentity ? "manager-shell manager-shell--efpc" : "manager-shell"} style={css.layout}>
       <DemoBanner role="manager" />
       {import.meta.env.VITE_E2E_DB_WARNING === '1' && !hideE2eDbWarning && (
         <div
@@ -440,8 +448,8 @@ export function ManagerDashboardPage() {
         aria-label="Navigation gestionnaire"
       >
         <div className="manager-sidebar__brand" style={css.sidebarBrand}>
-          <TraceOMark onBrand layout="badge" withMotto={false} />
-          <div className="manager-sidebar__subtitle" style={css.sidebarSubtitle}>Gestion de chantier</div>
+          {clientIdentity ? <EfpcMark compact /> : <TraceOMark onBrand layout="badge" withMotto={false} />}
+          <div className="manager-sidebar__subtitle" style={css.sidebarSubtitle}>{clientIdentity ? 'Portail collaborateurs' : 'Gestion de chantier'}</div>
         </div>
         <nav style={css.sidebarNav}>
           {SIDEBAR_SECTIONS.map((section) => {
@@ -466,14 +474,15 @@ export function ManagerDashboardPage() {
                               : 'mgr-tab-catalogue'
                       }
                       onClick={() => { setNavOpen(false); openSidebarItem(item) }}
+                      aria-current={active ? 'page' : undefined}
                       className={active ? 'manager-sidebar__item manager-sidebar__item--active' : 'manager-sidebar__item'}
                       style={active ? css.sidebarItemActive : css.sidebarItem}
                     >
                       <span className="manager-sidebar__icon" style={css.sidebarIcon} aria-hidden="true">
-                        {SIDEBAR_ICONS[item.id] ?? '•'}
+                        {clientIdentity ? <WorkspaceIcon name={item.id} /> : (SIDEBAR_ICONS[item.id] ?? '•')}
                       </span>
                       <span className="manager-sidebar__item-label">{item.label}</span>
-                      {item.badge && item.badge > 0 && (
+                      {item.badge != null && item.badge > 0 && (
                         <span className="manager-sidebar__badge" style={css.sidebarBadge}>{item.badge}</span>
                       )}
                     </button>
@@ -504,15 +513,17 @@ export function ManagerDashboardPage() {
           >
             ☰
           </button>
+          {clientIdentity && <img className="manager-header__mobile-logo" src={clientIdentity.logoUrl} alt="EFPC" width="46" height="40" />}
           <div className="manager-header__titles">
             <p className="manager-header__eyebrow">
-              TraceO® · {procurementRole ? PROCUREMENT_ROLE_LABELS[procurementRole] : 'Gestionnaire'}
+              {clientIdentity?.shortName ?? 'TraceO®'} · {procurementRole ? PROCUREMENT_ROLE_LABELS[procurementRole] : 'Gestionnaire'}
             </p>
             <h1 className="manager-header__title">
               {isEquipeTab ? 'Équipe' : (tabs.find((t) => t.id === tab)?.label ?? 'Tableau de bord')}
             </h1>
+            {clientIdentity && <p className="manager-header__description">{isEquipeTab ? 'Comptes, rôles et affectations de votre équipe.' : ({ achats: 'Vos expressions de besoin et leurs étapes de validation.', suiviBc: 'Commandes, pièces justificatives et suivi des factures.', comptabilite: 'Factures transmises et suivi des règlements.', tresorerie: 'Dossiers à financer et paiements à effectuer.', maJournee: 'Réceptions, tâches et consommations du chantier.', suiviChantier: isSiteManagerRole(procurementRole) ? 'Matériaux disponibles et livraisons prévues sur vos chantiers.' : 'Indicateurs et suivi de vos chantiers.', suivi: 'Livraisons, avancement et justificatifs de réception.', planifier: 'Organisation et programmation des livraisons.', fournisseurs: 'Répertoire et coordonnées des fournisseurs.', taches: 'Actions et demandes en attente.' } as Partial<Record<Tab, string>>)[tab] ?? 'Vos référentiels et vos opérations.'}</p>}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="manager-header__actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <NotificationBell />
             {isAdmin && (
               <Link to="/manager/security" style={{ ...css.btnGhost, textDecoration: 'none' }}>

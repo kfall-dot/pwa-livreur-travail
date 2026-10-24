@@ -90,6 +90,7 @@ certificatesRouter.get('/:receiptId', async (req, res) => {
 
     if (wantsHtml) {
       const html = renderCertificateHtml({
+        companyId: ctx?.companyId,
         receiptId: cert.receiptId,
         deliveryName: ctx?.name ?? 'Livraison',
         deliveryAddress: ctx?.address ?? '—',
