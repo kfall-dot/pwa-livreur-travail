@@ -46,7 +46,8 @@ export function MaJourneeTab({ handleAuth }: { handleAuth: (status: number) => b
     sourceSiteId: '',
     provenance: '',
   })
-  const [siteStock, setSiteStock] = useState<{ productLabel: string; unit: string }[]>([])
+  const [siteStock, setSiteStock] = useState<{ productLabel: string; unit: string; available: number }[]>([])
+  const [stockRefreshKey, setStockRefreshKey] = useState(0)
   const [progress, setProgress] = useState('')
   const [comment, setComment] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -111,20 +112,22 @@ const localToday = (): string => {
     if (siteId) void loadReport()
   }, [siteId, loadReport])
 
-  // Matériaux livrés sur le chantier (liste déroulante des consommations).
+  // Stock disponible du chantier de provenance, actualisé après chaque consommation.
   useEffect(() => {
     if (!siteId) return
     let cancelled = false
+    setSiteStock([])
+    const stockSiteId = usage.sourceSiteId || siteId
     void (async () => {
-      const res = await authFetch(`/daily-reports/dt/stock?siteId=${encodeURIComponent(siteId)}`)
+      const res = await authFetch(`/daily-reports/dt/stock?siteId=${encodeURIComponent(stockSiteId)}`)
       if (handleAuth(res.status) || !res.ok) return
-      const body = (await res.json()) as { stock?: { productLabel: string; unit: string }[] }
+      const body = (await res.json()) as { stock?: { productLabel: string; unit: string; available: number }[] }
       if (!cancelled) setSiteStock(body.stock ?? [])
     })()
     return () => {
       cancelled = true
     }
-  }, [siteId, handleAuth])
+  }, [siteId, usage.sourceSiteId, stockRefreshKey, handleAuth])
 
   const [calMonth, setCalMonth] = useState(() => localToday().slice(0, 7))
   const [calReports, setCalReports] = useState<CalReport[]>([])
@@ -243,6 +246,7 @@ const localToday = (): string => {
     }
     setUsage({ taskId: '', productLabel: '', customLabel: '', unit: '', quantity: '', sourceSiteId: '', provenance: '' })
     await loadReport()
+    setStockRefreshKey(key => key + 1)
     flash('Consommation enregistrée')
   }
 
@@ -250,6 +254,7 @@ const localToday = (): string => {
     if (!isDraft) return
     await authFetch(`/daily-reports/usages/${usageId}`, { method: 'DELETE' })
     await loadReport()
+    setStockRefreshKey(key => key + 1)
   }
 
   const saveProgress = async () => {
@@ -472,7 +477,7 @@ const localToday = (): string => {
                   <option value="">Matériau livré sur le chantier…</option>
                   {siteStock.map((s) => (
                     <option key={`${s.productLabel}|${s.unit}`} value={`${s.productLabel}|${s.unit}`}>
-                      {s.productLabel} ({s.unit})
+                      {s.productLabel} ({formatQuantityWithUnit(s.available, s.unit)})
                     </option>
                   ))}
                   <option value="__autre__">Autre matériau (préciser)…</option>
