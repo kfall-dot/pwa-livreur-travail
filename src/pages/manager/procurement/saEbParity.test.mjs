@@ -10,6 +10,20 @@ test('les EB créées par le SA et reçues du DT offrent les mêmes commandes co
     const { RequestDetailPanel, DraftReviewPanel } = await server.ssrLoadModule('/src/pages/manager/procurement/AchatsTab.tsx')
     const { fetchRequest } = await server.ssrLoadModule('/src/pages/manager/procurement/procurementApi.ts')
     const { TreasuryEbContent } = await server.ssrLoadModule('/src/pages/manager/procurement/TreasuryEbDossier.tsx')
+    const { SuiviChantierTab } = await server.ssrLoadModule('/src/pages/manager/procurement/SuiviChantierTab.tsx')
+    const { ConfirmedMaterialsTable, PlannedDeliveriesTable } = await server.ssrLoadModule('/src/pages/manager/procurement/ChefSiteStock.tsx')
+    const chefStockHtml = renderToStaticMarkup(createElement(SuiviChantierTab, { procurementRole: 'site_manager', handleAuth: () => false }))
+    assert.ok(chefStockHtml.includes('mgr-chef-site-stock'), 'le CdC reçoit la page de quantités par chantier')
+    assert.ok(chefStockHtml.includes('mgr-chef-stock-site'), 'le CdC choisit son chantier')
+    for (const financialText of ['Dépenses', 'Total engagé', 'Enveloppe', 'FCFA']) assert.ok(!chefStockHtml.includes(financialText), `pas de ${financialText} sur cette vue CdC`)
+    const confirmedHtml = renderToStaticMarkup(createElement(ConfirmedMaterialsTable, { rows: [
+      { siteId: 'site-a', productLabel: 'Ciment reçu', unit: 'sac', onHand: 10 },
+      { siteId: 'site-a', productLabel: 'Fer seulement commandé', unit: 'botte', onHand: 0 },
+    ] }))
+    assert.ok(confirmedHtml.includes('Ciment reçu'))
+    assert.ok(!confirmedHtml.includes('Fer seulement commandé'), 'une commande ne devient pas un matériau disponible')
+    const plannedHtml = renderToStaticMarkup(createElement(PlannedDeliveriesTable, { deliveries: [{ id: 'planned', date: '2026-11-01', supplierName: 'Fournisseur prévu', reference: 'BC-TEST', status: 'pending', products: [{ label: 'Fer attendu', qty: 8, unit: 'botte' }] }] }))
+    assert.ok(plannedHtml.includes('01/11/2026') && plannedHtml.includes('Fournisseur prévu') && plannedHtml.includes('Fer attendu'), 'date, fournisseur et matériaux attendus restent dans une section séparée')
     const previousFetch = globalThis.fetch
     try {
       globalThis.fetch = async () => new Response(JSON.stringify({ message: 'Erreur interne du serveur' }), { status: 500, headers: { 'Content-Type': 'application/json' } })

@@ -2840,6 +2840,25 @@ export type SiteStockRow = {
   onOrder: number
 }
 
+/** Livraisons planifiées du chantier, distinctes des quantités réceptionnées. */
+export async function listPlannedSiteDeliveries(companyId: string, siteId: string) {
+  const rows = await db.select({ id: deliveryPoints.id, date: tours.date, supplierName: suppliers.name,
+    source: tours.deliverySource, status: deliveryPoints.status, products: deliveryPoints.products,
+    units: deliveryPoints.units, unit: deliveryPoints.unitType, reference: purchaseOrders.reference,
+  }).from(deliveryPoints)
+    .innerJoin(tours, eq(tours.id, deliveryPoints.tourId))
+    .innerJoin(purchaseOrders, or(eq(deliveryPoints.purchaseOrderId, purchaseOrders.id), and(isNull(deliveryPoints.purchaseOrderId), eq(purchaseOrders.tourId, tours.id))))
+    .innerJoin(purchaseRequests, eq(purchaseRequests.id, purchaseOrders.purchaseRequestId))
+    .innerJoin(sites, eq(sites.id, purchaseRequests.siteId))
+    .innerJoin(suppliers, eq(suppliers.id, purchaseOrders.supplierId))
+    .where(and(eq(tours.companyId, companyId), eq(purchaseOrders.companyId, companyId), eq(purchaseRequests.siteId, siteId),
+      or(eq(deliveryPoints.purchaseOrderId, purchaseOrders.id), eq(deliveryPoints.supermarketId, sites.supermarketId)),
+      eq(purchaseOrders.docType, 'bc'), eq(purchaseOrders.correctionPending, false), ne(purchaseRequests.status, 'rejected'),
+      inArray(deliveryPoints.status, ['pending', 'in_progress', 'otp_sent'])))
+    .orderBy(tours.date, deliveryPoints.sequence)
+  return [...new Map(rows.map(row => [row.id, row])).values()]
+}
+
 function bumpSiteStock(
   map: Map<string, SiteStockRow>,
   siteId: string,
@@ -2876,6 +2895,8 @@ export async function listSiteStock(companyId: string): Promise<SiteStockRow[]> 
       supplierName: suppliers.name,
       tourId: purchaseOrders.tourId,
       deliveryStatus: deliveryPoints.status,
+      deliveryId: deliveryPoints.id,
+      deliveryProducts: deliveryPoints.products,
       declarationOutcome: declarations.outcome,
       declarationLines: declarations.lines,
     })
@@ -2883,9 +2904,9 @@ export async function listSiteStock(companyId: string): Promise<SiteStockRow[]> 
     .innerJoin(purchaseRequests, eq(purchaseOrders.purchaseRequestId, purchaseRequests.id))
     .innerJoin(sites, eq(purchaseRequests.siteId, sites.id))
     .innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
-    .leftJoin(deliveryPoints, eq(deliveryPoints.tourId, purchaseOrders.tourId))
+    .leftJoin(deliveryPoints, or(eq(deliveryPoints.purchaseOrderId, purchaseOrders.id), and(isNull(deliveryPoints.purchaseOrderId), eq(deliveryPoints.tourId, purchaseOrders.tourId), eq(deliveryPoints.supermarketId, sites.supermarketId))))
     .leftJoin(declarations, eq(declarations.deliveryId, deliveryPoints.id))
-    .where(and(eq(purchaseOrders.companyId, companyId), eq(purchaseOrders.docType, 'bc')))
+    .where(and(eq(purchaseOrders.companyId, companyId), eq(purchaseOrders.docType, 'bc'), eq(purchaseOrders.correctionPending, false), ne(purchaseRequests.status, 'rejected')))
     .orderBy(sites.name)
 
   if (pos.length === 0) return []
@@ -2903,36 +2924,43 @@ export async function listSiteStock(companyId: string): Promise<SiteStockRow[]> 
     linesByRequest.set(line.purchaseRequestId, list)
   }
 
-  const deliveredPoIds = new Set(
-    pos.filter((r) => r.deliveryStatus === 'delivered').map((r) => r.poId),
-  )
-  const byPo = new Map<string, (typeof pos)[number]>()
-  for (const row of pos) {
-    const prev = byPo.get(row.poId)
-    if (!prev || row.deliveryStatus === 'delivered') byPo.set(row.poId, row)
-  }
+  const byPo = new Map<string, typeof pos>()
+  for (const row of pos) byPo.set(row.poId, [...(byPo.get(row.poId) ?? []), row])
   const map = new Map<string, SiteStockRow>()
-
-  for (const row of byPo.values()) {
-    const requestLines = linesByRequest.get(row.requestId) ?? []
-    const supplierLines = linesForSupplier(requestLines, row.supplierName)
-    if (deliveredPoIds.has(row.poId)) {
-      const declared = parseDeclaredQuantities({
-        outcome: row.declarationOutcome,
-        lines: row.declarationLines,
-      })
-      if (declared.length > 0) {
-        for (const d of declared) {
-          bumpSiteStock(map, row.siteId, row.siteName, d.productLabel, d.unit, 'onHand', d.quantityAccepted)
-        }
-      } else {
-        for (const l of supplierLines) {
-          bumpSiteStock(map, row.siteId, row.siteName, l.label, l.unit, 'onHand', Number(l.quantity))
-        }
+  for (const deliveries of byPo.values()) {
+    const first = deliveries[0]
+    const supplierLines = linesForSupplier(linesByRequest.get(first.requestId) ?? [], first.supplierName)
+      .filter(line => chargeNatureFamily(normalizeEbSpendCategory(line.spendCategory)) === 'materiaux')
+    const labelKey = (label: string) => label.trim().toLocaleLowerCase('fr')
+    const materials = new Set(supplierLines.map(line => labelKey(line.label)))
+    const stops = [...new Map(deliveries.map(row => [row.deliveryId, row])).values()]
+    const hasDelivered = stops.some(row => row.deliveryStatus === 'delivered')
+    let legacyDeliveredUsed = false, legacyPendingUsed = false
+    for (const row of stops) {
+      const add = (label: string, unit: string, field: 'onHand' | 'onOrder', quantity: number) => {
+        if (materials.has(labelKey(label))) bumpSiteStock(map, row.siteId, row.siteName, label, unit, field, quantity)
       }
-    } else {
-      for (const l of supplierLines) {
-        bumpSiteStock(map, row.siteId, row.siteName, l.label, l.unit, 'onOrder', Number(l.quantity))
+      if (row.deliveryStatus === 'delivered') {
+        if (row.declarationOutcome === 'rejected') continue
+        // Une déclaration vide ou entièrement refusée ne devient jamais une
+        // réception complète par repli sur les quantités commandées.
+        if (Array.isArray(row.declarationLines)) {
+          for (const line of parseDeclaredQuantities({ outcome: row.declarationOutcome, lines: row.declarationLines })) add(line.productLabel, line.unit, 'onHand', line.quantityAccepted)
+        } else if (row.declarationOutcome !== 'partial') {
+          if (Array.isArray(row.deliveryProducts) && row.deliveryProducts.length) {
+            for (const line of row.deliveryProducts as Array<{ label: string; unit: string; qty: number }>) add(line.label, line.unit, 'onHand', Number(line.qty))
+          } else if (!legacyDeliveredUsed) {
+            for (const line of supplierLines) add(line.label, line.unit, 'onHand', Number(line.quantity))
+            legacyDeliveredUsed = true
+          }
+        }
+      } else if (row.deliveryStatus !== 'failed') {
+        if (Array.isArray(row.deliveryProducts) && row.deliveryProducts.length) {
+          for (const line of row.deliveryProducts as Array<{ label: string; unit: string; qty: number }>) add(line.label, line.unit, 'onOrder', Number(line.qty))
+        } else if (!hasDelivered && !legacyPendingUsed) {
+          for (const line of supplierLines) add(line.label, line.unit, 'onOrder', Number(line.quantity))
+          legacyPendingUsed = true
+        }
       }
     }
   }

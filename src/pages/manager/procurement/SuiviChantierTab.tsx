@@ -16,6 +16,7 @@ import { CdgIndicateurPage, CdgSyntheseTable } from './CdgIndicateurs'
 import { CdgCategoriesCard, CdgFamilyVarianceCard, CdgOverviewHeader, catEmoji } from './CdgOverview'
 import { CdgHistoricalCard } from './CdgHistoricalCard'
 import { CHARGE_FAMILIES, chargeNatureFamily, chargeNaturesByFamily } from '../../../../shared/chargeNatures'
+import { ChefSiteStock } from './ChefSiteStock'
 
 /** Revalidation douce des tuiles du suivi (voir l'effet focus/intervalle) : 60 s. */
 const SUIVI_SOFT_REFRESH_MS = 60_000
@@ -74,7 +75,12 @@ export type SiteStockRow = {
 }
 
 
-export function SuiviChantierTab({
+export function SuiviChantierTab(props: { handleAuth: (status: number) => boolean; procurementRole: ProcurementRole | null; refreshKey?: number }) {
+  if (props.procurementRole === 'site_manager') return <ChefSiteStock handleAuth={props.handleAuth} refreshKey={props.refreshKey} />
+  return <FinancialSuiviChantierTab {...props} />
+}
+
+function FinancialSuiviChantierTab({
   handleAuth,
   procurementRole,
   refreshKey,

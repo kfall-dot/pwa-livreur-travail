@@ -66,6 +66,7 @@ import {
   setBcBlFile,
   getBcBlFile,
   listSiteStock,
+  listPlannedSiteDeliveries,
   listPurchaseRequests,
   listSites,
   listSuppliers,
@@ -605,17 +606,24 @@ procurementRouter.get(
 
 procurementRouter.get(
   '/site-stock',
-  requireProcurementRole('technical_director', 'purchasing', 'daf', 'pdg', 'controle_gestion'),
+  requireProcurementRole('site_manager', 'technical_director', 'purchasing', 'daf', 'pdg', 'controle_gestion'),
   async (req, res) => {
-    const { manager } = req as unknown as ManagerRequest
+    const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
     try {
       let rows = await listSiteStock(manager.companyId)
       // DT : uniquement le stock de ses chantiers assignés.
-      if (manager.procurementRole === 'technical_director') {
+      if (procurementRole === 'site_manager') {
+        const assigned = new Set(await siteManagerSiteIds(manager.companyId, manager.sub))
+        if (req.query.siteId && !assigned.has(String(req.query.siteId))) { res.status(403).json({ message: 'Ce chantier ne vous est pas affecté.' }); return }
+        rows = rows.filter(row => assigned.has(row.siteId))
+      } else if (procurementRole === 'technical_director') {
         const supervised = new Set(await listSupervisedSiteIds(manager.companyId, manager.sub))
+        if (req.query.siteId && !supervised.has(String(req.query.siteId))) { res.status(403).json({ message: 'Ce chantier ne vous est pas affecté.' }); return }
         rows = rows.filter((r) => supervised.has(r.siteId))
       }
-      res.json({ rows })
+      if (req.query.siteId) rows = rows.filter(row => row.siteId === String(req.query.siteId))
+      const deliveries = req.query.siteId ? await listPlannedSiteDeliveries(manager.companyId, String(req.query.siteId)) : []
+      res.json({ rows, deliveries })
     } catch (err) {
       console.error('[procurement] site-stock error', err)
       res.status(500).json({ message: 'Erreur stock chantier' })
