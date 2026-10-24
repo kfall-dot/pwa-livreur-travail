@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { buildSiteStockBalances } from '../../shared/siteStockBalance.js'
 import multer from 'multer'
 import { randomUUID } from 'crypto'
 import { requireManager, type ManagerRequest } from '../middleware/managerAuth.js'
@@ -303,7 +304,7 @@ dailyReportsRouter.get('/assignable-managers', async (req, res) => {
 
 // ─── Vue DT / superviseur ─────────────────────────────────────────────────────
 
-import { listReportsForSites, listSiteConsumption, listSiteRecentPhotos } from '../db/dailyReportQueries.js'
+import { listReportsForSites, listStockConsumptionForSites, listSiteRecentPhotos } from '../db/dailyReportQueries.js'
 import { listSiteStock } from '../db/procurementQueries.js'
 
 export type StockRowApi = {
@@ -335,12 +336,10 @@ dailyReportsRouter.get('/dt/stock', async (req, res) => {
   if (!siteId) return void res.status(400).json({ message: 'siteId requis' })
   if (!(await canAccessSite(companyId, siteId, id, mode, isCompanyWide(manager(req).role)))) return unauthorized(res)
   const stock = await listSiteStock(companyId)
-  const consumption = await listSiteConsumption(companyId, siteId)
-  const rows: StockRowApi[] = stock
-    .filter((r) => r.siteId === siteId)
+  const consumption = await listStockConsumptionForSites(companyId, [siteId])
+  const rows: StockRowApi[] = buildSiteStockBalances(stock.filter(r => r.siteId === siteId), consumption)
     .map((r) => {
-      const consumed = consumption.get(`${siteId}|${r.productLabel}|${r.unit}`)?.consumed ?? 0
-      const available = r.onHand - consumed
+      const { consumed, available } = r
       const alert: StockRowApi['alert'] = available < 0 ? 'negative' : available <= 2 ? 'low' : 'ok'
       return {
         productLabel: r.productLabel,

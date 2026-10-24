@@ -71,8 +71,16 @@ test('stock CdC : réception acceptée seulement, prévisions séparées et pér
     const current = async (suffix: string) => (await (await get(`/procurement/site-stock?siteId=${id}-site-${suffix}`)).json() as typeof body).rows[0]
     const afterUsage = await current('a')
     assert.deepEqual([afterUsage.onHand, afterUsage.consumed, afterUsage.available], [10, 3, 7], 'une saisie de Ma journée déduit immédiatement le disponible, même en brouillon')
+    const dossierStock = async () => {
+      const response = await get(`/daily-reports/dt/stock?siteId=${id}-site-a`)
+      assert.equal(response.status, 200, await response.clone().text())
+      return (await response.json() as { stock: Array<{ onHand: number; consumed: number; available: number }> }).stock[0]
+    }
+    const dossierAfterUsage = await dossierStock()
+    assert.deepEqual([dossierAfterUsage.onHand, dossierAfterUsage.consumed, dossierAfterUsage.available], [10, 3, 7], 'les dossiers et le suivi rapprochent aussi casse, espaces et sac/sacs')
     const transferred = await changeUsage(`/reports/${id}-report-b/usages`, 'POST', { taskId: `${id}-task-b`, productLabel: 'Ciment', unit: 'sacs', quantity: 2, sourceSiteId: `${id}-site-a` })
     assert.equal(transferred.status, 200, await transferred.clone().text())
+    assert.equal((await dossierStock()).available, 5, 'les dossiers déduisent aussi les apports vers un autre chantier')
     assert.equal((await current('a')).available, 5, 'un apport d’un autre chantier réduit son stock d’origine')
     assert.equal((await current('b')).available, 50, 'le chantier utilisateur ne perd pas une seconde fois ce stock')
     const usages = await db.select().from(siteMaterialUsages).where(eq(siteMaterialUsages.companyId, id))
