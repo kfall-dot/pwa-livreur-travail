@@ -8,6 +8,7 @@ import {
   fetchBcInvoiceFile,
   fetchRequestLineAttachment,
   patchBcRegisterFollowup,
+  verifyBcRegister,
   uploadBcBlFile,
   uploadBcInvoiceFile,
 } from './procurementApi'
@@ -16,16 +17,15 @@ import { AlertBox, formatFcfa } from './procurementUi'
 
 /**
  * Onglet « Suivi — points fournisseurs des BC » (SA / CdG).
- * Reproduction fidèle de la maquette docs/mockups/suivi-bc-v1.html :
- * le CSS ci-dessous est celui de la maquette, scopé sous .sbc.
+ * Registre synthétique avec filtres et panneau documentaire, styles scopés sous .sbc.
  */
 const SBC_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+
 .sbc{
   --navy:#1e3a5f; --navy-soft:#eef3f8; --muted:#64748b; --border:#e2e8f0;
   --green:#047857; --green-bg:#ecfdf5; --amber:#b45309; --amber-bg:#fffbeb;
   --red:#b91c1c; --red-bg:#fef2f2; --gold:#b7791f;
-  font-family:'Inter',sans-serif; color:#1e293b;
+  font-family:inherit; color:#1e293b;
 }
 .sbc *{margin:0;padding:0;box-sizing:border-box}
 .sbc .page{max-width:1280px;margin:0 auto}
@@ -63,6 +63,12 @@ const SBC_CSS = `
 .sbc .cell-input:focus{outline:2px solid #bfdbfe;border-color:#93c5fd}
 .sbc .cell-input.filled{border-color:#a7f3d0;background:#f0fdf9}
 .sbc .att{border:1px solid var(--border);background:#fff;border-radius:6px;padding:3px 8px;font-size:11.5px;color:var(--navy);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin:1px 2px 1px 0}
+.sbc .documents-panel{position:fixed;inset:0 0 0 auto;margin:0;width:min(560px,100vw);height:100dvh;max-height:100dvh;max-width:100vw;border:0;border-left:1px solid var(--border);padding:24px;overflow-y:auto;color:#1e293b;background:#fff;box-shadow:-8px 0 32px #0002}
+.sbc .documents-panel::backdrop{background:#0f172a66}
+.sbc .documents-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}
+.sbc .documents-header h2{font-size:18px;color:var(--navy)}
+.sbc .documents-panel h3{font-size:13px;color:var(--navy);margin:24px 0 10px;border-top:1px solid var(--border);padding-top:16px}
+.sbc .documents-panel .att{max-width:100%;overflow-wrap:anywhere;text-align:left}
 .sbc .bon{font-weight:700;color:var(--navy);white-space:nowrap}
 .sbc .tot{font-weight:800;background:var(--navy-soft)}
 .sbc .sup-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
@@ -78,6 +84,23 @@ const SBC_CSS = `
 .sbc .grand .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.5px;opacity:.75}
 .sbc .grand .val{font-size:20px;font-weight:800}
 .sbc .legend{font-size:11.5px;color:var(--muted);margin-top:10px}
+.sbc .filters{padding:14px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;gap:12px;align-items:flex-end}
+.sbc .filters label{font-weight:600;gap:6px}
+.sbc .filters input,.sbc .filters select{height:38px;background:#fff;font:inherit;font-size:13px;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;color:#1e293b}
+.sbc .search-field{flex:1;min-width:230px}
+.sbc .filters input{width:100%}
+.sbc button:focus-visible,.sbc input:focus-visible,.sbc select:focus-visible,.sbc a:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
+.sbc .cell-truncate{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbc td.mono,.sbc .pill{white-space:nowrap}
+.sbc td.tot,.sbc th:nth-child(5){text-align:right}
+.sbc .empty-result{padding:32px;text-align:center;color:var(--muted)}
+.sbc th{background:#f1f5f9;padding:12px 10px}
+.sbc td{padding:12px 10px}
+.sbc .pill{padding:5px 10px}
+.sbc .btn{min-height:34px}
+.sbc .kpi{box-shadow:0 2px 5px #0f172a05}
+@media(max-width:900px){.sbc .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.sbc .topbar{flex-wrap:wrap}.sbc .filters label{flex:1;min-width:140px}.sbc .filters select{width:100%;min-width:0}.sbc .search-field{flex-basis:100%}.sbc .card{padding:12px}}
+
 `
 const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
 
@@ -110,10 +133,10 @@ function uniqueValues(rows: BcRegisterRow[], key: 'siteName' | 'supplierName' | 
 }
 
 type Sheet = 'mois' | 'recap'
-type FollowupField = 'invoice' | 'justifs' | 'observation' | 'verification'
+type FollowupField = 'invoice' | 'justifs' | 'observation'
 type InvoiceFilter = '' | 'received' | 'missing'
 
-export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boolean }) {
+export function SuiviBcTab({ handleAuth, procurementRole }: { handleAuth: (status: number) => boolean; procurementRole?: string | null }) {
   // Registre BC partagé (store Zustand) : même source que ComptabiliteTab.
   useBcRegisterLiveUpdates(handleAuth)
   const rows = useProcurementStore((s) => s.rows)
@@ -125,7 +148,36 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   const load = useProcurementStore((s) => s.load)
   const applyRow = useProcurementStore((s) => s.applyRow)
   const patchRow = useProcurementStore((s) => s.patchRow)
+  const [documentOrderId, setDocumentOrderId] = useState<string | null>(null)
+  const documentsDialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    if (documentOrderId) documentsDialog.current?.showModal()
+    else documentsDialog.current?.close()
+  }, [documentOrderId])
+  const [verificationTarget, setVerificationTarget] = useState<BcRegisterRow | null>(null)
+  const [verificationComment, setVerificationComment] = useState('')
+  const [verificationBusy, setVerificationBusy] = useState(false)
+  const [verificationError, setVerificationError] = useState<string | null>(null)
+  const verificationDialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    if (verificationTarget) verificationDialog.current?.showModal()
+    else verificationDialog.current?.close()
+  }, [verificationTarget])
+  const submitVerification = async () => {
+    if (!verificationTarget || verificationBusy) return
+    setVerificationBusy(true)
+    setVerificationError(null)
+    try {
+      applyRow(await verifyBcRegister(verificationTarget.purchaseOrderId, verificationComment.trim()))
+      setVerificationTarget(null)
+      toast.show('Vérification CdG enregistrée')
+    } catch (err) {
+      setVerificationError(err instanceof Error ? err.message : 'Vérification impossible')
+    } finally { setVerificationBusy(false) }
+  }
   const [sheet, setSheet] = useState<Sheet>('mois')
+  const [search, setSearch] = useState('')
+  const [paymentStatus, setPaymentStatus] = useState('')
   const [fSite, setFSite] = useState('')
   const [fSupplier, setFSupplier] = useState('')
   const [fPayment, setFPayment] = useState('')
@@ -148,6 +200,11 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
   const filteredRows = useMemo(
     () =>
       rows.filter((r) => {
+        const normalize = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+        if (search.trim() && !normalize([r.bon, r.ebReference, r.siteName, r.supplierName, r.invoice, ...r.btReferences].join(' ')).includes(normalize(search.trim()))) return false
+        if (paymentStatus === 'paid' && !r.invoicePaid) return false
+        if (paymentStatus === 'due' && (!r.invoiceTransmitted || r.invoicePaid)) return false
+        if (paymentStatus === 'untransmitted' && (r.invoiceTransmitted || r.invoicePaid)) return false
         if (fSite && (r.siteName.trim() || '—') !== fSite) return false
         if (fSupplier && (r.supplierName.trim() || '—') !== fSupplier) return false
         if (fPayment && (r.paymentMode.trim() || '—') !== fPayment) return false
@@ -155,7 +212,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
         if (fInvoice === 'missing' && r.invoice.trim()) return false
         return true
       }),
-    [rows, fSite, fSupplier, fPayment, fInvoice],
+    [rows, fSite, fSupplier, fPayment, fInvoice, search, paymentStatus],
   )
 
   // KPI du mois (maquette suivi-bc-v1) — dérivés des champs existants.
@@ -163,7 +220,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
     const totalAmount = rows.reduce((s, r) => s + (r.amountFcfa ?? 0), 0)
     const invoicesReceived = rows.filter((r) => r.invoice.trim()).length
     const justifsMissingRows = rows.filter((r) => !r.justifs.trim())
-    const verifPendingRows = rows.filter((r) => !r.verification.trim())
+    const verifPendingRows = rows.filter((r) => !r.verificationAudit)
     const oldVerifCount = verifPendingRows.filter((r) => {
       const d = daysSince(r.date)
       return d != null && d > 7
@@ -421,14 +478,14 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
             </label>
             {month && (
               <>
-                <span className="sheet-note">Feuille active :</span>
+                <span className="sheet-note">Afficher :</span>
                 <button
                   type="button"
                   className={`chip${sheet === 'mois' ? ' active' : ''}`}
                   data-testid="mgr-suivi-bc-sheet-mois"
                   onClick={() => setSheet('mois')}
                 >
-                  Feuille mois
+                  Suivi des bons
                 </button>
                 <button
                   type="button"
@@ -449,11 +506,22 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
           <p className="sub">Chargement…</p>
         ) : rows.length === 0 ? (
           <p className="sub" data-testid="mgr-suivi-bc-empty">
-            Aucune livraison BC confirmée.
+            Aucun bon de commande à suivre pour cette période.
           </p>
         ) : sheet === 'mois' ? (
           <div className="card">
             <div className="filters" data-testid="mgr-suivi-bc-filters">
+              <label className="search-field">Rechercher
+                <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="BC, EB, fournisseur, chantier…" />
+              </label>
+              <label>Paiement
+                <select value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
+                  <option value="">Tous les statuts</option>
+                  <option value="untransmitted">Non transmis</option>
+                  <option value="due">À payer</option>
+                  <option value="paid">Payé</option>
+                </select>
+              </label>
               <label>
                 Chantier
                 <select value={fSite} onChange={(e) => setFSite(e.target.value)} data-testid="mgr-suivi-bc-filter-siteName">
@@ -495,7 +563,8 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                   <option value="missing">Manquante</option>
                 </select>
               </label>
-              <span className="sheet-note">{filteredRows.length} BC · filtres en-tête dupliqués (tri par colonne au clic)</span>
+              <button type="button" className="btn" onClick={() => { setSearch(''); setPaymentStatus(''); setFSite(''); setFSupplier(''); setFPayment(''); setFInvoice('') }}>Réinitialiser</button>
+              <span className="sheet-note" role="status">{filteredRows.length} BC sur {rows.length}</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table data-testid="mgr-suivi-bc-table">
@@ -505,23 +574,23 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                     <th>FOURNISSEURS</th>
                     <th>DATE</th>
                     <th>BON</th>
-                    <th>MODE DE PAIEMENT</th>
                     <th>MONTANT (XOF)</th>
                     <th>PAIEMENT</th>
                     <th>N° FACTURE</th>
                     <th>FACTURE</th>
                     <th>OBSERVATION</th>
                     <th>VÉRIFICATION</th>
-                    <th>DOC EN ATTACHE</th>
+                    <th>PIÈCES</th>
                   </tr>
                 </thead>
                 <tbody>
+                  {filteredRows.length === 0 && <tr><td colSpan={11} className="empty-result">Aucun bon ne correspond à ces filtres. Modifiez la recherche ou cliquez sur « Réinitialiser ».</td></tr>}
                   {filteredRows.map((row) => {
                     const days = daysSince(row.date)
                     return (
                       <tr key={row.purchaseOrderId}>
-                        <td>{row.siteName}</td>
-                        <td>{row.supplierName}</td>
+                        <td className="cell-truncate" title={row.siteName}>{row.siteName}</td>
+                        <td className="cell-truncate" title={row.supplierName}>{row.supplierName}</td>
                         <td className="mono">{row.date}</td>
                         <td className="bon">
                           {row.bon}
@@ -530,9 +599,8 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                             {row.btReferences.length > 0 ? ` · BT ${row.btReferences.join(', ')}` : ''}
                           </div>
                         </td>
-                        <td>{row.paymentMode}</td>
                         <td className="mono tot">{row.amountLabel}</td>
-                        <td>{row.invoicePaid ? 'Payé' : row.invoiceTransmitted ? 'À payer' : 'Non transmis'}</td>
+                        <td><span className={`pill ${row.invoicePaid ? 'pill-green' : row.invoiceTransmitted ? 'pill-amber' : 'pill-gray'}`}>{row.invoicePaid ? 'Payé' : row.invoiceTransmitted ? 'À payer' : 'Non transmis'}</span></td>
                         <td>{followupInput(row, 'invoice', 'n° facture…')}</td>
                         <td>
                           {row.invoiceTransmitted ? (
@@ -564,120 +632,29 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
                         </td>
                         <td>{followupInput(row, 'observation', 'à compléter…')}</td>
                         <td>
-                          {row.verification.trim() ? (
-                            <span className="pill pill-green">✓ Vérifié</span>
+                          {row.verificationAudit ? (
+                            <div>
+                              <span className="pill pill-green">✓ Vérifié</span>
+                              <div className="sub">{row.verificationAudit.byName}</div>
+                              <div className="sub">{new Date(row.verificationAudit.at).toLocaleString('fr-FR')}</div>
+                              {row.verificationAudit.comment && <div className="sub" style={{ maxWidth: 200, overflowWrap: 'anywhere' }}>{row.verificationAudit.comment}</div>}
+                            </div>
                           ) : (
                             <>
-                              {followupInput(row, 'verification', 'à compléter…')}
-                              <div style={{ marginTop: 4 }}>
-                                {days != null && days > 7 ? (
-                                  <span className="pill pill-red">Non vérifié · {days} j</span>
-                                ) : (
-                                  <span className="pill pill-amber">En attente</span>
-                                )}
-                              </div>
+                              <span className={`pill ${days != null && days > 7 ? 'pill-red' : 'pill-amber'}`}>
+                                {days != null && days > 7 ? `Non vérifié · ${days} j` : 'En attente du CdG'}
+                              </span>
+                              {row.verification.trim() && <div className="sub" style={{ maxWidth: 200, overflowWrap: 'anywhere' }}>Ancienne note : {row.verification}</div>}
+                              {procurementRole === 'controle_gestion' && <div style={{ marginTop: 6 }}><button type="button" className="btn" onClick={() => { setVerificationTarget(row); setVerificationComment(''); setVerificationError(null) }}>Marquer comme vérifié</button></div>}
                             </>
                           )}
                         </td>
                         <td data-testid={`mgr-suivi-bc-attach-cell-${row.purchaseOrderId}`}>
-                          {(row.attachments ?? []).length > 0 && (
-                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
-                              {(row.attachments ?? []).map((att) => (
-                                <button
-                                  key={att.lineId}
-                                  type="button"
-                                  className="att"
-                                  data-testid={`mgr-suivi-bc-attach-${row.purchaseOrderId}`}
-                                  onClick={() => void openAttachment(row, att.lineId, att.fileName)}
-                                  title="Consulter la pièce jointe fournisseur"
-                                >
-                                  📎 {att.fileName}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          {row.invoiceFile ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <button
-                                type="button"
-                                className="att"
-                                data-testid={`mgr-suivi-bc-invoice-preview-${row.purchaseOrderId}`}
-                                onClick={() => void openInvoicePreview(row)}
-                                title="Aperçu de la facture (image ou PDF)"
-                              >
-                                📎 {row.invoiceFile.fileName}
-                              </button>
-                              <button
-                                type="button"
-                                className="att"
-                                style={{ padding: '2px 7px' }}
-                                data-testid={`mgr-suivi-bc-invoice-replace-${row.purchaseOrderId}`}
-                                onClick={() => openInvoicePicker(row)}
-                                title="Remplacer la facture"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn"
-                              style={{ padding: '4px 10px', fontSize: 12 }}
-                              data-testid={`mgr-suivi-bc-invoice-attach-${row.purchaseOrderId}`}
-                              onClick={() => openInvoicePicker(row)}
-                              title="Joindre la copie de la facture (PDF ou image)"
-                            >
-                              📎 Joindre
-                            </button>
-                          )}
-                          {row.blFile ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                              <button
-                                type="button"
-                                className="att"
-                                data-testid={`mgr-suivi-bc-bl-preview-${row.purchaseOrderId}`}
-                                onClick={() => void openBlPreview(row)}
-                                title="Bon de livraison fournisseur (image ou PDF)"
-                              >
-                                📎 BL {row.blFile.fileName}
-                              </button>
-                              <button
-                                type="button"
-                                className="att"
-                                style={{ padding: '2px 7px' }}
-                                data-testid={`mgr-suivi-bc-bl-replace-${row.purchaseOrderId}`}
-                                onClick={() => openBlPicker(row)}
-                                title="Remplacer le bon de livraison"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn"
-                              style={{ padding: '4px 10px', fontSize: 12, marginTop: 4 }}
-                              data-testid={`mgr-suivi-bc-bl-attach-${row.purchaseOrderId}`}
-                              onClick={() => openBlPicker(row)}
-                              title="Joindre le bon de livraison fournisseur (PDF ou image)"
-                            >
-                              📎 BL
-                            </button>
-                          )}
-                          {row.blReceiptId ? (
-                            <div style={{ marginTop: 4 }}>
-                              <a
-                                className="att"
-                                href={certificateHtmlUrl(row.blReceiptId)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                data-testid={`mgr-suivi-bc-bl-link-${row.purchaseOrderId}`}
-                                title="Bon de livraison interne (certificat de livraison)"
-                              >
-                                🧾 {row.blReceiptId}
-                              </a>
-                            </div>
-                          ) : null}
+                          <button type="button" className="btn" style={{ whiteSpace: 'nowrap' }}
+                            data-testid={`mgr-suivi-bc-documents-${row.purchaseOrderId}`}
+                            onClick={() => setDocumentOrderId(row.purchaseOrderId)}>
+                            📎 {(row.attachments?.length ?? 0) + Number(Boolean(row.invoiceFile)) + Number(Boolean(row.blFile)) + Number(Boolean(row.blReceiptId))} pièces
+                          </button>
                         </td>
                       </tr>
                     )
@@ -686,8 +663,8 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
               </table>
             </div>
             <p className="legend">
-              ● Champs N° FACTURE / OBSERVATION / VÉRIFICATION éditables en ligne (sauvegarde auto à la sortie du champ). ●
-              Facture : 📎 Joindre la copie (PDF ou image) → clic sur le nom = aperçu, ✕ = remplacer → bouton Transmettre
+              ● Champs N° FACTURE / OBSERVATION éditables en ligne (sauvegarde auto à la sortie du champ). ●
+              Pièces : ouvrez le panneau documentaire pour consulter ou joindre une facture et un BL. Le bouton Transmettre
               actif une fois le n° saisi → pastille verte ✓ Transmis.
             </p>
           </div>
@@ -759,6 +736,140 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
           </div>
         )}
 
+        <dialog ref={verificationDialog} aria-labelledby="sbc-verification-title" style={{ margin: 'auto', padding: 24, border: '1px solid #e2e8f0', borderRadius: 12, width: 'min(480px, 95vw)' }}
+          onCancel={e => { if (verificationBusy) e.preventDefault(); else setVerificationTarget(null) }}>
+          <form onSubmit={e => { e.preventDefault(); void submitVerification() }}>
+            <h2 id="sbc-verification-title" style={{ fontSize: 18 }}>Vérification du dossier BC</h2>
+            <p className="sub" style={{ margin: '12px 0' }}>{verificationTarget?.bon} · {verificationTarget?.supplierName}</p>
+            <p style={{ fontSize: 13, marginBottom: 12 }}>Confirmez avoir contrôlé le dossier et ses justificatifs. Votre nom et la date seront enregistrés. Cette action ne vaut ni réception ni paiement.</p>
+            <label style={{ display: 'block', fontSize: 13 }}>Commentaire facultatif
+              <textarea value={verificationComment} onChange={e => setVerificationComment(e.target.value)} maxLength={500} disabled={verificationBusy} rows={3} style={{ display: 'block', width: '100%', marginTop: 8, padding: 8 }} />
+            </label>
+            {verificationError && <p role="alert" style={{ color: '#b91c1c', marginTop: 10 }}>{verificationError}</p>}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button type="button" className="btn" disabled={verificationBusy} onClick={() => setVerificationTarget(null)}>Annuler</button>
+              <button type="submit" className="btn btn-primary" disabled={verificationBusy}>{verificationBusy ? 'Enregistrement…' : 'Marquer comme vérifié'}</button>
+            </div>
+          </form>
+        </dialog>
+        <dialog ref={documentsDialog} className="documents-panel" aria-labelledby="sbc-documents-title"
+          onCancel={() => setDocumentOrderId(null)} onClose={() => setDocumentOrderId(null)}>
+          <header className="documents-header">
+            <h2 id="sbc-documents-title">Documents du bon</h2>
+            <button type="button" className="btn" onClick={() => setDocumentOrderId(null)}>Fermer</button>
+          </header>
+          {(() => {
+            const row = rows.find(item => item.purchaseOrderId === documentOrderId)
+            if (!row) return <p>Ce bon n’est plus présent dans la liste.</p>
+            return <>
+              <strong>{row.bon}</strong>
+              <p className="sub">{row.siteName} · {row.supplierName}</p>
+                          <h3>Pièces fournisseurs</h3>
+                          {(row.attachments ?? []).length > 0 && (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
+                              {(row.attachments ?? []).map((att) => (
+                                <button
+                                  key={att.lineId}
+                                  type="button"
+                                  className="att"
+                                  data-testid={`mgr-suivi-bc-attach-${row.purchaseOrderId}`}
+                                  onClick={() => void openAttachment(row, att.lineId, att.fileName)}
+                                  title="Consulter la pièce jointe fournisseur"
+                                >
+                                  📎 {att.fileName}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <h3>Facture</h3>
+                          {!(row.attachments ?? []).length && <p className="sub">Aucune pièce fournisseur jointe.</p>}
+                          {row.invoiceFile ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <button
+                                type="button"
+                                className="att"
+                                data-testid={`mgr-suivi-bc-invoice-preview-${row.purchaseOrderId}`}
+                                onClick={() => void openInvoicePreview(row)}
+                                title="Aperçu de la facture (image ou PDF)"
+                              >
+                                📎 {row.invoiceFile.fileName}
+                              </button>
+                              <button
+                                type="button"
+                                className="att"
+                                style={{ padding: '2px 7px' }}
+                                data-testid={`mgr-suivi-bc-invoice-replace-${row.purchaseOrderId}`}
+                                onClick={() => openInvoicePicker(row)}
+                                title="Remplacer la facture"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ padding: '4px 10px', fontSize: 12 }}
+                              data-testid={`mgr-suivi-bc-invoice-attach-${row.purchaseOrderId}`}
+                              onClick={() => openInvoicePicker(row)}
+                              title="Joindre la copie de la facture (PDF ou image)"
+                            >
+                              📎 Joindre une facture
+                            </button>
+                          )}
+                          <h3>Bon de livraison fournisseur</h3>
+                          {row.blFile ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                              <button
+                                type="button"
+                                className="att"
+                                data-testid={`mgr-suivi-bc-bl-preview-${row.purchaseOrderId}`}
+                                onClick={() => void openBlPreview(row)}
+                                title="Bon de livraison fournisseur (image ou PDF)"
+                              >
+                                📎 BL {row.blFile.fileName}
+                              </button>
+                              <button
+                                type="button"
+                                className="att"
+                                style={{ padding: '2px 7px' }}
+                                data-testid={`mgr-suivi-bc-bl-replace-${row.purchaseOrderId}`}
+                                onClick={() => openBlPicker(row)}
+                                title="Remplacer le bon de livraison"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ padding: '4px 10px', fontSize: 12, marginTop: 4 }}
+                              data-testid={`mgr-suivi-bc-bl-attach-${row.purchaseOrderId}`}
+                              onClick={() => openBlPicker(row)}
+                              title="Joindre le bon de livraison fournisseur (PDF ou image)"
+                            >
+                              📎 Joindre un bon de livraison
+                            </button>
+                          )}
+                          <h3>Réception — certificat interne</h3>
+                          {row.blReceiptId ? (
+                            <div style={{ marginTop: 4 }}>
+                              <a
+                                className="att"
+                                href={certificateHtmlUrl(row.blReceiptId)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-testid={`mgr-suivi-bc-bl-link-${row.purchaseOrderId}`}
+                                title="Bon de livraison interne (certificat de livraison)"
+                              >
+                                🧾 {row.blReceiptId}
+                              </a>
+                            </div>
+                          ) : null}
+
+            </>
+          })()}
         {preview && (
           <div
             role="dialog"
@@ -792,6 +903,7 @@ export function SuiviBcTab({ handleAuth }: { handleAuth: (status: number) => boo
             </div>
           </div>
         )}
+        </dialog>
       </div>
     </div>
   )

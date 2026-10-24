@@ -1,3 +1,4 @@
+import { readBcVerification, type BcVerificationAudit } from '../../shared/bcVerification.js'
 import { and, asc, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from './index.js'
@@ -2489,6 +2490,7 @@ export type BcRegisterRow = {
   justifs: string
   observation: string
   verification: string
+  verificationAudit?: BcVerificationAudit | null
   invoicePaid: boolean
   invoiceFile: { fileName: string } | null
   invoiceTransmitted: boolean
@@ -2608,6 +2610,7 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
     const attachments = supplierLines
       .filter((l) => (l.attachmentFileName ?? '').trim())
       .map((l) => ({ lineId: l.id, fileName: l.attachmentFileName!.trim() }))
+    const verificationAudit = readBcVerification(row.saVerification)
     return {
       purchaseOrderId: row.poId,
       status: row.requestStatus,
@@ -2623,7 +2626,10 @@ export async function listDeliveredBcRegister(companyId: string): Promise<BcRegi
       invoice: (row.saInvoice ?? '').trim(),
       justifs: (row.saJustifs ?? '').trim() || 'RAS',
       observation,
-      verification: (row.saVerification ?? '').trim() || '—',
+      verification: verificationAudit
+        ? `Vérifié par ${verificationAudit.byName} le ${new Date(verificationAudit.at).toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' })}${verificationAudit.comment ? ` — ${verificationAudit.comment}` : ''}`
+        : (row.saVerification ?? '').trim().replace(/^—$/, ''),
+      verificationAudit,
       invoicePaid: row.saInvoicePaid,
       invoiceFile: (row.saInvoiceFileName ?? '').trim() ? { fileName: row.saInvoiceFileName!.trim() } : null,
       invoiceTransmitted: row.saInvoiceTransmitted,
@@ -3026,4 +3032,19 @@ async function maybeMarkPurchaseRequestDelivered(companyId: string, requestId: s
     if (stops.length === 0 || stops.some((s) => s.status !== 'delivered')) return
   }
   await updatePurchaseRequestStatus(companyId, requestId, 'delivered')
+}
+
+/** Visa explicite CdG, auteur issu de la session et horodatage serveur ; sans migration de colonne. */
+export async function verifyBcRegister(companyId: string, purchaseOrderId: string, managerId: string, comment: string): Promise<BcRegisterRow | null> {
+  const register = await listDeliveredBcRegister(companyId)
+  if (!register.some(row => row.purchaseOrderId === purchaseOrderId)) return null
+  const [actor] = await db.select({ name: managers.name }).from(managers).where(and(eq(managers.id, managerId), eq(managers.companyId, companyId)))
+  if (!actor) return null
+  const [order] = await db.select({ raw: purchaseOrders.saVerification }).from(purchaseOrders).where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId)))
+  if (!order) return null
+  if (!readBcVerification(order.raw)) {
+    const audit = JSON.stringify({ kind: 'cdg_verification', byManagerId: managerId, byName: actor.name || 'CdG', at: new Date().toISOString(), comment })
+    await db.update(purchaseOrders).set({ saVerification: audit }).where(and(eq(purchaseOrders.id, purchaseOrderId), eq(purchaseOrders.companyId, companyId), order.raw === null ? isNull(purchaseOrders.saVerification) : eq(purchaseOrders.saVerification, order.raw)))
+  }
+  return (await listDeliveredBcRegister(companyId)).find(row => row.purchaseOrderId === purchaseOrderId) ?? null
 }

@@ -86,6 +86,32 @@ test('stock CdC : réception acceptée seulement, prévisions séparées et pér
     const usages = await db.select().from(siteMaterialUsages).where(eq(siteMaterialUsages.companyId, id))
     for (const usage of usages) assert.equal((await changeUsage(`/usages/${usage.id}`, 'DELETE')).status, 200)
     assert.equal((await current('a')).available, 10, 'supprimer une consommation rétablit le disponible')
+    // Le visa est réservé au CdG, horodaté côté serveur et non réinscriptible.
+    const verificationPath = `http://127.0.0.1:${address.port}/procurement/bc-register/${id}-po-a`
+    const verifyAs = (auth: string, method = 'POST', suffix = '/verify', body: object = { comment: 'Pièces contrôlées' }) => fetch(verificationPath + suffix, { method, headers: { Authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    assert.equal((await verifyAs(token)).status, 403)
+    for (const role of ['purchasing', 'accountant', 'controle_gestion'] as const) {
+      const managerId = `${id}-${role}`
+      await db.insert(managers).values({ id: managerId, companyId: id, email: `${managerId}@example.invalid`, name: `Test ${role}`, passwordHash: 'test', procurementRole: role })
+      const auth = signManagerToken(managerId, `${managerId}@example.invalid`, id, role === 'purchasing' ? 'admin' : 'manager', role)
+      if (role !== 'controle_gestion') {
+        assert.equal((await verifyAs(auth)).status, 403, 'même un SA administrateur ne peut pas apposer le visa CdG')
+        assert.equal((await verifyAs(auth, 'PATCH', '', { verification: 'Vérifié' })).status, 403)
+      } else {
+        await db.update(purchaseOrders).set({ saVerification: 'ancienne note' }).where(eq(purchaseOrders.id, `${id}-po-a`))
+        const result = await verifyAs(auth)
+        assert.equal(result.status, 200, await result.clone().text())
+        const verified = (await result.json() as { row: { verificationAudit: { byManagerId: string; byName: string; at: string; comment: string } } }).row
+        assert.equal(verified.verificationAudit.byManagerId, managerId)
+        assert.equal(verified.verificationAudit.byName, 'Test controle_gestion')
+        assert.equal(verified.verificationAudit.comment, 'Pièces contrôlées')
+        assert.ok(Number.isFinite(Date.parse(verified.verificationAudit.at)))
+        const again = await verifyAs(auth, 'POST', '/verify', { comment: 'remplacement interdit' })
+        assert.deepEqual((await again.json() as { row: typeof verified }).row.verificationAudit, verified.verificationAudit)
+        const outside = signManagerToken(managerId, `${managerId}@example.invalid`, `${id}-outside`, 'manager', role)
+        assert.equal((await verifyAs(outside)).status, 404)
+      }
+    }
     await db.update(purchaseOrders).set({ correctionPending: true }).where(eq(purchaseOrders.id, `${id}-po-a`))
     const archived = await get(`/procurement/site-stock?siteId=${id}-site-a`)
     const excluded = await archived.json() as { rows: unknown[]; deliveries: unknown[] }

@@ -1,3 +1,4 @@
+import { verifyBcRegister } from '../db/procurementQueries.js'
 import { parseJsonAttachment } from '../lib/jsonAttachment.js'
 import { procurementCorrectionsRouter } from './procurementCorrections.js'
 import { CorrectionError } from '../services/procurementCorrections.js'
@@ -411,6 +412,20 @@ procurementRouter.get(
   },
 )
 
+procurementRouter.post('/bc-register/:poId/verify', requireExactProcurementRole('controle_gestion'), async (req, res) => {
+  const body = parseBody(z.object({ comment: z.string().trim().max(500).optional() }).strict(), req.body, res)
+  if (!body) return
+  const { manager } = req as unknown as ProcurementManagerRequest
+  try {
+    const row = await verifyBcRegister(manager.companyId, String(req.params.poId), manager.sub, body.comment ?? '')
+    if (!row) { res.status(404).json({ message: 'BC introuvable dans le registre' }); return }
+    res.json({ row })
+  } catch (err) {
+    console.error('[procurement] verification BC', err)
+    res.status(500).json({ message: 'Vérification du BC impossible' })
+  }
+})
+
 const bcRegisterFollowupSchema = z.object({
   invoice: z.string().max(200).optional(),
   justifs: z.string().max(500).optional(),
@@ -427,6 +442,7 @@ procurementRouter.patch(
     const body = parseBody(bcRegisterFollowupSchema, req.body, res)
     if (!body) return
     const { manager, procurementRole } = req as unknown as ProcurementManagerRequest
+    if (body.verification !== undefined) { res.status(403).json({ message: 'La vérification est réservée au CdG via l’action dédiée.' }); return }
     if (body.invoicePaid !== undefined) { res.status(403).json({ message: 'Seule la Trésorerie enregistre le paiement depuis son poste.' }); return }
     if (body.invoiceTransmitted !== undefined && (procurementRole !== 'purchasing' || !body.invoiceTransmitted)) { res.status(403).json({ message: 'Seul le SA peut transmettre une facture.' }); return }
     if (body.invoiceTransmitted && Object.keys(body).length !== 1) { res.status(400).json({ message: 'Enregistrez les informations de facture avant de la transmettre.' }); return }

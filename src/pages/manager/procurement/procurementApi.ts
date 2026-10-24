@@ -764,3 +764,9 @@ export function ebRequestFicheHtmlUrl(requestId: string): string {
   const apiBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '') || '/api/v1'
   return `${apiBase}${BASE}/requests/${encodeURIComponent(requestId)}/eb-html`
 }
+
+export async function verifyBcRegister(purchaseOrderId: string, comment: string): Promise<BcRegisterRow> {
+  const res = await authFetch(`${BASE}/bc-register/${encodeURIComponent(purchaseOrderId)}/verify`, { method: 'POST', body: JSON.stringify({ comment }) })
+  if (!res.ok) throw await apiErrorMessage(res, 'Vérification du BC impossible')
+  return (await res.json() as { row: BcRegisterRow }).row
+}

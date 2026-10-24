@@ -17,7 +17,7 @@ import type {
   RequestDisbursement,
 } from './procurementTypes'
 import { DISBURSEMENT_METHOD_LABELS } from './procurementTypes'
-import { chainHighlightMatches, chainReferencesLabel, css, formatFcfa } from './procurementUi'
+import { chainHighlightMatches, chainReferencesLabel, css, formatFcfa, STATUS_LABELS } from './procurementUi'
 
 /**
  * Chaîne documentaire d'une EB : EB → BT → BC → BL → facture.
@@ -106,6 +106,7 @@ export function DocumentChain({
   treasuryOrders,
   refreshKey = '',
   onPrintTreasury,
+  onPrintBc,
 }: {
   requestId: string
   /** SA (rôle purchasing) : affiche « Joindre le BL fournisseur » sur chaque BC. */
@@ -117,6 +118,7 @@ export function DocumentChain({
   treasuryOrders?: Array<{ id: string; reference: string; amountFcfa?: string | number | null; purchaseOrderId?: string | null }>
   refreshKey?: string
   onPrintTreasury?: (id: string) => void
+  onPrintBc?: (id: string) => void
 }) {
   const [chain, setChain] = useState<DocumentChainData | null>(null)
   const [disbursements, setDisbursements] = useState<RequestDisbursement[]>([])
@@ -213,7 +215,7 @@ export function DocumentChain({
         <ChainBlock
           kind="eb"
           title={`EB ${chain.eb.versionLabel}`}
-          subtitle={`${chain.eb.siteName} · ${chain.eb.status}`}
+          subtitle={`${chain.eb.siteName} · ${STATUS_LABELS[chain.eb.status as keyof typeof STATUS_LABELS] ?? chain.eb.status}`}
           amountFcfa={chain.eb.totalAmountFcfa}
           highlighted={chainHighlightMatches(highlight, 'eb', chain.requestId)}
         >
@@ -243,35 +245,6 @@ export function DocumentChain({
           ))
         )}
 
-        {disbursements.length > 0 && (
-          <ChainBlock
-            kind="invoice"
-            title={`Déboursé${disbursements.length > 1 ? 's' : ''} — ${disbursements.length}`}
-            subtitle="Circuit hors SA · facture exigée au déboursé (I103)"
-            amountFcfa={disbursements.reduce((sum, d) => sum + d.amountFcfa, 0)}
-          >
-            {disbursements.map((d) => (
-              <span
-                key={d.treasuryId}
-                style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}
-                data-testid={`mgr-chain-disbursement-${d.treasuryId}`}
-              >
-                <span style={css.meta}>
-                  {d.treasuryReference} · {DISBURSEMENT_METHOD_LABELS[d.method] ?? d.method}
-                  {d.transactionReference ? ` · ${d.transactionReference}` : ''}
-                </span>
-                {d.hasInvoice && (
-                  <Link
-                    href={treasuryInvoiceUrl(d.treasuryId)}
-                    label={`📎 ${d.invoiceFileName ?? 'facture'}`}
-                    testId={`mgr-chain-invoice-${d.treasuryId}`}
-                  />
-                )}
-              </span>
-            ))}
-          </ChainBlock>
-        )}
-
         {chain.bcs.length === 0 ? (
           <ChainBlock kind="bc" title="Aucun bon de commande" subtitle="BC non encore généré." />
         ) : (
@@ -280,20 +253,12 @@ export function DocumentChain({
               key={bc.id}
               kind="bc"
               title={`BC ${bc.reference}`}
-              subtitle={`${bc.supplierName}${bc.tourDate ? ` · tournée du ${bc.tourDate}` : ''}${bc.invoicePaid ? ' · Payé' : bc.invoiceTransmitted ? ' · À payer' : ''}`}
+              subtitle={`${bc.supplierName}${bc.tourDate ? ` · tournée du ${bc.tourDate}` : ''}`}
               amountFcfa={bc.amountFcfa}
               highlighted={chainHighlightMatches(highlight, 'bc', bc.id)}
             >
               <Link href={documentHtmlUrl(bc.id)} label="Voir le document" testId={`mgr-chain-bc-link-${bc.id}`} />
-              {bc.invoiceFile ? (
-                <Link
-                  href={bcInvoiceFileUrl(bc.id)}
-                  label={`Facture · ${bc.invoiceFile.fileName}`}
-                  testId={`mgr-chain-invoice-file-${bc.id}`}
-                />
-              ) : (
-                <span style={css.meta}>Facture non jointe</span>
-              )}
+              {onPrintBc && <button type="button" style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }} onClick={() => onPrintBc(bc.id)} data-testid={`mgr-chain-bc-print-${bc.id}`}>Imprimer</button>}
               {bc.blFile ? (
                 <Link
                   href={bcBlFileUrl(bc.id)}
@@ -335,6 +300,55 @@ export function DocumentChain({
             </ChainBlock>
           ))
         )}
+        <section aria-label="Factures" data-testid="mgr-chain-invoices">
+          <h5 style={{ fontSize: 13, fontWeight: 700, margin: '10px 0 6px' }}>Factures</h5>
+          {chain.bcs.filter(bc => bc.invoiceFile || bc.invoiceReference).length === 0 ? (
+            <ChainBlock kind="invoice" title="Aucune facture fournisseur" subtitle="Les factures apparaîtront ici après leur enregistrement dans le suivi des BC." />
+          ) : chain.bcs.filter(bc => bc.invoiceFile || bc.invoiceReference).map(bc => (
+            <ChainBlock key={bc.id} kind="invoice" id={bc.id}
+              title={bc.invoiceReference ? `Facture ${bc.invoiceReference}` : 'Facture fournisseur'}
+              subtitle={`${bc.supplierName} · BC ${bc.reference} · ${bc.invoicePaid ? 'Payé' : bc.invoiceTransmitted ? 'À payer' : 'Non transmis'}`}>
+              {bc.invoiceFile ? (
+                <Link
+                  href={bcInvoiceFileUrl(bc.id)}
+                  label={`Facture · ${bc.invoiceFile.fileName}`}
+                  testId={`mgr-chain-invoice-file-${bc.id}`}
+                />
+              ) : (
+                <span style={css.meta}>Facture non jointe</span>
+              )}
+            </ChainBlock>
+          ))}
+        {disbursements.length > 0 && (
+          <ChainBlock
+            kind="invoice"
+            title={`Déboursé${disbursements.length > 1 ? 's' : ''} — ${disbursements.length}`}
+            subtitle="Circuit hors SA · facture exigée au déboursé (I103)"
+            amountFcfa={disbursements.reduce((sum, d) => sum + d.amountFcfa, 0)}
+          >
+            {disbursements.map((d) => (
+              <span
+                key={d.treasuryId}
+                style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}
+                data-testid={`mgr-chain-disbursement-${d.treasuryId}`}
+              >
+                <span style={css.meta}>
+                  {d.treasuryReference} · {DISBURSEMENT_METHOD_LABELS[d.method] ?? d.method}
+                  {d.transactionReference ? ` · ${d.transactionReference}` : ''}
+                </span>
+                {d.hasInvoice && (
+                  <Link
+                    href={treasuryInvoiceUrl(d.treasuryId)}
+                    label={`📎 ${d.invoiceFileName ?? 'facture'}`}
+                    testId={`mgr-chain-invoice-${d.treasuryId}`}
+                  />
+                )}
+              </span>
+            ))}
+          </ChainBlock>
+        )}
+
+        </section>
       </div>
     </div>
   )

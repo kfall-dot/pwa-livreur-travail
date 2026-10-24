@@ -655,7 +655,7 @@ export function ManagerDashboardPage() {
             onOpenSuiviChantier={() => setTab('suiviChantier')}
           />
         )}
-        {tab === 'suiviBc' && <SuiviBcTab handleAuth={handleAuth} />}
+        {tab === 'suiviBc' && <SuiviBcTab handleAuth={handleAuth} procurementRole={procurementRole} />}
         {tab === 'comptabilite' && <ComptabiliteTab handleAuth={handleAuth} />}
 
         {tab === 'suiviChantier' && (

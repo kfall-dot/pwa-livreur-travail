@@ -1948,6 +1948,7 @@ export function DraftReviewPanel({
     }
   }
   const editorRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       const editor = editorRef.current
@@ -2751,6 +2752,15 @@ export function RequestDetailPanel({
 }) {
   const { request, lines, approvalSteps, site, supplier, purchaseOrder, purchaseOrders = [], treasuryOrders = [], suppliers = [] } = detail
   const editorRef = useRef<HTMLDivElement>(null)
+  const linesSectionRef = useRef<HTMLDivElement>(null)
+  const documentsSectionRef = useRef<HTMLDivElement>(null)
+  const historySectionRef = useRef<HTMLDivElement>(null)
+  const jumpToSection = (section: HTMLDivElement | null) => {
+    if (!section) return
+    section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+    section.focus({ preventScroll: true })
+  }
+
   useEffect(() => {
     if (procurementRole !== 'purchasing') return
     const frame = requestAnimationFrame(() => {
@@ -3013,16 +3023,29 @@ export function RequestDetailPanel({
         {backLabel}
       </button>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div>
-          <h3 style={{ ...css.sectionTitle, fontSize: 16, marginBottom: 4 }}>{request.reference}{versionSuffix(request.version)}</h3>
-          <p style={css.meta}>
-            {site?.name ?? request.siteName ?? 'Chantier'} · {formatFcfa(request.totalAmountFcfa)}
-            {request.urgency === 'urgent' ? ' · Urgent' : ''}
-          </p>
+      <header style={{ border: '1px solid var(--border, #e2e8f0)', borderRadius: 12, padding: '1rem', background: 'var(--bg-elevated, #fff)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div>
+            <p style={{ ...css.meta, margin: '0 0 6px' }}>DOSSIER · EXPRESSION DU BESOIN</p>
+            <h3 style={{ ...css.sectionTitle, fontSize: 20, marginBottom: 6 }}>{request.reference}{versionSuffix(request.version)}</h3>
+            <p style={css.meta}>{site?.name ?? request.siteName ?? 'Chantier non renseigné'}</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {request.urgency === 'urgent' && <span style={{ fontSize: 12, fontWeight: 700, color: '#b91c1c', background: '#fef2f2', borderRadius: 20, padding: '5px 10px' }}>Urgent</span>}
+            <ProcurementStatusBadge status={request.status} paymentStatus={request.paymentStatus} />
+          </div>
         </div>
-        <ProcurementStatusBadge status={request.status} paymentStatus={request.paymentStatus} />
-      </div>
+        <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, borderTop: '1px solid var(--border, #e2e8f0)', paddingTop: 16, margin: '16px 0 0' }}>
+          <div><dt style={css.meta}>Montant de l’EB</dt><dd style={{ margin: '5px 0 0', fontSize: 20, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{formatFcfa(request.totalAmountFcfa)}</dd></div>
+          <div><dt style={css.meta}>Contenu</dt><dd style={{ margin: '5px 0 0', fontSize: 13 }}>{lines.filter(l => !isLaborLine(l.spendCategory)).length} ligne(s) matériaux · {lines.filter(l => isLaborLine(l.spendCategory)).length} ligne(s) main-d’œuvre</dd></div>
+          <div><dt style={css.meta}>Documents émis</dt><dd style={{ margin: '5px 0 0', fontSize: 13 }}>{orders.length} BC · {treasuryOrders?.length ?? 0} BT</dd></div>
+        </dl>
+      </header>
+      <nav aria-label="Sections du dossier EB" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '16px 0' }}>
+        <button type="button" style={css.btnOutline} onClick={() => jumpToSection(linesSectionRef.current)}>Lignes de l’EB ({lines.length})</button>
+        <button type="button" style={css.btnOutline} onClick={() => jumpToSection(documentsSectionRef.current)}>Documents</button>
+        <button type="button" style={css.btnOutline} onClick={() => jumpToSection(historySectionRef.current)}>Historique ({approvalSteps.length})</button>
+      </nav>
 
       {showApprove && (
         <div
@@ -3087,7 +3110,7 @@ export function RequestDetailPanel({
         </a>
       </div>
 
-      <div style={css.ficheWrap} data-testid="mgr-achats-request-eb-fiche">
+      <div ref={linesSectionRef} tabIndex={-1} aria-label="Lignes de l’expression du besoin" style={{ ...css.ficheWrap, scrollMarginTop: 24 }} data-testid="mgr-achats-request-eb-fiche">
         <h4 style={css.ficheTitle}>EXPRESSION DU BESOIN{versionSuffix(request.version)}</h4>
         <table style={css.ficheMeta}>
           <tbody>
@@ -3624,12 +3647,24 @@ export function RequestDetailPanel({
         </div>
       )}
 
-      {approvalSteps.length > 0 && (
-        <div style={{ marginTop: '1rem' }} data-testid="mgr-achats-history">
+      <CorrectionWorkflowPanel detail={detail} readOnly={procurementRole === 'treasury' ? false : readOnly} onChanged={onCorrectionChanged} />
+      <div ref={documentsSectionRef} tabIndex={-1} aria-label="Documents du dossier" style={{ scrollMarginTop: 24 }}>
+      <DocumentChain
+        requestId={request.id}
+        treasuryOrders={treasuryOrders ?? undefined}
+        refreshKey={request.updatedAt ?? String(request.version)}
+        onPrintTreasury={(id) => printHtml(treasuryHtmlUrl(id))}
+        onPrintBc={(id) => printHtml(documentHtmlUrl(id))}
+        canAttachBl={!readOnly && procurementRole === 'purchasing' && (!request.correctionTargetId || request.correctionTargetId === currentManagerId)}
+        highlight={highlight}
+      />
+      </div>
+      <div ref={historySectionRef} tabIndex={-1} aria-label="Historique du dossier" style={{ scrollMarginTop: 24, marginTop: '1rem', border: '1px solid var(--border, #e2e8f0)', borderRadius: 12, padding: 16 }} data-testid="mgr-achats-history">
           <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Historique</h4>
+          {approvalSteps.length === 0 && <p style={css.meta}>Aucune décision enregistrée pour le moment.</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {approvalSteps.map((s) => (
-              <div key={s.id} style={{ fontSize: 13 }}>
+              <div key={s.id} style={{ fontSize: 13, padding: '10px 12px', borderLeft: '3px solid var(--border, #e2e8f0)', background: 'var(--bg-elevated, #fff)', borderRadius: 6 }}>
                 <strong>{PROCUREMENT_ROLE_LABELS[s.role]}</strong>
                 {' — '}
                 {s.etape === 'correction_requested' ? 'Correction demandée' : s.etape === 'correction_resubmitted' ? 'Correction soumise' : s.etape === 'validation_correction_sa' ? 'Correction validée' : approvalDecisionLabel(s.role, s.decision)}{s.invalidatedAt ? ' (ancienne version — visa non applicable)' : ''}
@@ -3638,52 +3673,7 @@ export function RequestDetailPanel({
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {orders.length > 0 && (
-        <div style={{ marginTop: '1rem' }} data-testid="mgr-achats-po-list">
-          <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Bons de commande</h4>
-          {orders.map((po, i) => {
-            const name = suppliers.find((s) => s.id === po.supplierId)?.name
-              ?? (supplier && supplier.id === po.supplierId ? supplier.name : null)
-            return (
-              <p key={po.id} style={{ fontSize: 13, margin: '0 0 6px' }}>
-                {po.reference} ({po.docType.toUpperCase()})
-                {name ? ` — ${name}` : ''}
-                {' · '}
-                <a
-                  href={documentHtmlUrl(po.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-testid={i === 0 ? 'mgr-achats-document-link' : `mgr-achats-document-link-${i}`}
-                >
-                  Voir le document
-                </a>
-                {' · '}
-                <button
-                  type="button"
-                  data-testid={i === 0 ? 'mgr-achats-document-print' : `mgr-achats-document-print-${i}`}
-                  onClick={() => printHtml(documentHtmlUrl(po.id))}
-                  style={{ ...css.btnGhost, padding: 0, fontWeight: 600 }}
-                >
-                  Imprimer
-                </button>
-              </p>
-            )
-          })}
-        </div>
-      )}
-
-      <CorrectionWorkflowPanel detail={detail} readOnly={procurementRole === 'treasury' ? false : readOnly} onChanged={onCorrectionChanged} />
-      <DocumentChain
-        requestId={request.id}
-        treasuryOrders={treasuryOrders ?? undefined}
-        refreshKey={request.updatedAt ?? String(request.version)}
-        onPrintTreasury={(id) => printHtml(treasuryHtmlUrl(id))}
-        canAttachBl={!readOnly && procurementRole === 'purchasing' && (!request.correctionTargetId || request.correctionTargetId === currentManagerId)}
-        highlight={highlight}
-      />
+      </div>
 
       {canPrice && (
         <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }} data-testid="mgr-achats-sa-pricing">

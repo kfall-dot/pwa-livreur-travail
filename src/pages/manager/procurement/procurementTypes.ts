@@ -1,3 +1,4 @@
+import type { BcVerificationAudit } from '../../../../shared/bcVerification'
 /** Types alignés sur l’API /procurement/* et le schéma BTP. */
 import type { ChargeFamily } from '../../../../shared/chargeNatures'
 
@@ -328,6 +329,7 @@ export interface BcRegisterRow {
   justifs: string
   observation: string
   verification: string
+  verificationAudit?: BcVerificationAudit | null
   invoicePaid: boolean
   invoiceFile: { fileName: string } | null
   invoiceTransmitted: boolean
