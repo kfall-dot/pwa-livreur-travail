@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer'
 import { assertSmtpConfigured, emailConfig } from '../config/email.js'
 import { captureMockEmail } from '../lib/mockEmailCapture.js'
 import { sendBrevoEmail } from './brevoEmail.js'
+import { readableEmailText, renderEmailTemplate } from './emailTemplates.js'
 
 export interface EmailPayload {
   to: string
@@ -50,6 +51,9 @@ async function sendSmtp(payload: EmailPayload): Promise<EmailSendResult> {
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
+  const subject = readableEmailText(payload.subject)
+  const text = readableEmailText(payload.text)
+  payload = { ...payload, subject, text, html: payload.html?.includes('<!-- efpc-email-template -->') ? payload.html : renderEmailTemplate({ subject, text, contentHtml: payload.html }) }
   if (emailConfig.provider === 'smtp') return sendSmtp(payload)
   if (emailConfig.provider === 'brevo') return sendBrevoEmail(payload, emailConfig.from, emailConfig.brevoApiKey)
   if (emailConfig.provider === 'mock') return sendMock(payload)

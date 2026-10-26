@@ -1,3 +1,4 @@
+import { renderEmailTemplate } from './emailTemplates.js'
 import { db } from '../db/index.js'
 import { managers } from '../db/schema.js'
 import type { Declaration } from '../db/schema.js'
@@ -68,6 +69,7 @@ export async function sendDeliveryNotes(
     declarationLines,
     certificateUrlOrPath,
   )
+  const html = renderEmailTemplate({ subject, text, actionUrl: certificateUrlOrPath, actionLabel: 'Voir le certificat de livraison' })
   const emailResults: DeliveryNotifyResult['recipients'] = []
   const emailErrors: DeliveryNotifyResult['errors'] = []
 
@@ -76,7 +78,7 @@ export async function sendDeliveryNotes(
   } else {
     for (const recipient of recipients) {
       try {
-        await sendEmail({ to: recipient.email, subject, text })
+        await sendEmail({ to: recipient.email, subject, text, html })
         emailResults.push(recipient)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)

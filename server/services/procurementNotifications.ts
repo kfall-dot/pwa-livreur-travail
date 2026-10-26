@@ -1,3 +1,4 @@
+import { readableEmailText, renderEmailTemplate, emailActionUrl } from './emailTemplates.js'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { db } from '../db/index.js'
@@ -71,6 +72,9 @@ export async function notifyManagersByProcurementRole(
     notificationType?: 'approval_required' | 'bc_to_validate' | 'bt_to_validate' | 'task_assigned' | 'delivery_issue' | 'budget_alert'
   },
 ): Promise<{ notified: number }> {
+  subject = readableEmailText(subject)
+  text = readableEmailText(text)
+  const html = renderEmailTemplate({ subject, text, actionUrl: emailActionUrl('/manager?tab=achats'), actionLabel: 'Consulter les demandes' })
   const rows = await db
     .select({ id: managers.id, email: managers.email, name: managers.name, phone: managers.phone, procurementRole: managers.procurementRole })
     .from(managers)
@@ -86,7 +90,7 @@ export async function notifyManagersByProcurementRole(
       `[procurement-notify] ${ROLE_LABELS[target.procurementRole!]} ${target.name} <${target.email}>: ${subject}`,
     )
     try {
-      await sendEmail({ to: target.email, subject, text })
+      await sendEmail({ to: target.email, subject, text, html })
       notified++
     } catch (err) {
       console.error(
@@ -124,7 +128,7 @@ export async function notifyDraftReadyForReview(
     companyId,
     ['technical_director'],
     `EB à valider — ${siteName}`,
-    `Un nouvel expression de besoin (brouillon ${draftId}) est prête pour relecture DT.\nChantier : ${siteName}`,
+    `Une nouvelle expression de besoin (brouillon ${draftId}) est prête pour relecture DT.\nChantier : ${siteName}`,
     {
       link: `/manager/procurement/drafts/${draftId}`,
       refType: 'draft',

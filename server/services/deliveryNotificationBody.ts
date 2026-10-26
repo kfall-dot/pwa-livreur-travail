@@ -109,6 +109,6 @@ export function buildEmailBody(
     certBlock +
     `Quantité attendue\n${formatQtyLines(expected)}\n\n` +
     `Quantité livrée\n${formatQtyLines(delivered)}\n\n` +
-    `— Dashboard Livraison`
+    `— EFPC`
   return { subject, text }
 }
