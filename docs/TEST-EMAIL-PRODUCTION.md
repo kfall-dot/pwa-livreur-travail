@@ -1,5 +1,11 @@
 # Test d’envoi Brevo
 
+## API HTTPS (production Railway)
+
+Configurer dans Railway : `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY` (clé API Brevo, différente de la clé SMTP), `EMAIL_FROM=kfallet@gmail.com` (expéditeur validé). Saisir la clé directement dans Railway, jamais dans le dépôt ni dans le chat. Appliquer les variables et attendre le redéploiement. La configuration SMTP peut rester présente ; elle n’est pas utilisée avec `EMAIL_PROVIDER=brevo`.
+
+Le résultat `accepted_by_brevo_api` et un `messageId` confirment l’acceptation par l’API, pas la livraison. Un code HTTP 401/403 indique un problème d’authentification/autorisation ; 400 une requête refusée ; 429 une limitation. Aucun corps d’erreur externe ni clé n’est affiché. Aucun repli silencieux vers le mode simulé ou SMTP n’a lieu.
+
 Le script utilise `sendEmail`, comme l’application. Il envoie uniquement aux adresses passées en arguments, sans écriture en base ni notification métier. Il refuse le mode simulé et Mailtrap. Les secrets SMTP ne sont jamais affichés.
 
 Après déploiement du script, dans un terminal du conteneur Railway du service de production (variables déjà présentes) :

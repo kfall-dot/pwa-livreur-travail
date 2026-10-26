@@ -1,8 +1,9 @@
-export type EmailProvider = 'mock' | 'smtp'
+export type EmailProvider = 'mock' | 'smtp' | 'brevo'
 
 export const emailConfig = {
   provider: (process.env.EMAIL_PROVIDER ?? 'mock') as EmailProvider,
   from: process.env.EMAIL_FROM ?? 'support@btp-pilote.ci',
+  brevoApiKey: process.env.BREVO_API_KEY?.trim() ?? '',
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: parseInt(process.env.SMTP_PORT ?? '587', 10),
@@ -22,6 +23,7 @@ export function assertSmtpConfigured(): void {
 }
 
 export function describeEmailProvider(): string {
+  if (emailConfig.provider === 'brevo') return 'brevo (API HTTPS)'
   if (emailConfig.provider === 'smtp') {
     return `smtp (${emailConfig.smtp.host}:${emailConfig.smtp.port})`
   }

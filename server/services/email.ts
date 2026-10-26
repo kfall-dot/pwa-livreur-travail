@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
 import { assertSmtpConfigured, emailConfig } from '../config/email.js'
 import { captureMockEmail } from '../lib/mockEmailCapture.js'
+import { sendBrevoEmail } from './brevoEmail.js'
 
 export interface EmailPayload {
   to: string
@@ -50,5 +51,7 @@ async function sendSmtp(payload: EmailPayload): Promise<EmailSendResult> {
 
 export async function sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
   if (emailConfig.provider === 'smtp') return sendSmtp(payload)
-  return sendMock(payload)
+  if (emailConfig.provider === 'brevo') return sendBrevoEmail(payload, emailConfig.from, emailConfig.brevoApiKey)
+  if (emailConfig.provider === 'mock') return sendMock(payload)
+  throw new Error('EMAIL_PROVIDER invalide ; valeurs autorisées : mock, smtp, brevo.')
 }
