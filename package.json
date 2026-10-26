@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "email:test": "node dist-server/server/scripts/test-email.js",
     "dev:server": "tsx watch server/index.ts",
     "dev:api": "node --env-file=.env.development node_modules/tsx/dist/cli.mjs server/index.ts",
     "dev:all": "concurrently -n web,api -c cyan,green \"npm run dev\" \"npm run dev:server\"",
