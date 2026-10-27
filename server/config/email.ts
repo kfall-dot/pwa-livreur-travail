@@ -3,6 +3,7 @@ export type EmailProvider = 'mock' | 'smtp' | 'brevo'
 export const emailConfig = {
   provider: (process.env.EMAIL_PROVIDER ?? 'mock') as EmailProvider,
   from: process.env.EMAIL_FROM ?? 'support@btp-pilote.ci',
+  fromName: process.env.EMAIL_FROM_NAME?.trim() || 'EFPC',
   brevoApiKey: process.env.BREVO_API_KEY?.trim() ?? '',
   smtp: {
     host: process.env.SMTP_HOST ?? '',

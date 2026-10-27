@@ -2,6 +2,8 @@
 
 Les modèles sont générés par l’application ; aucun modèle Brevo ni identifiant de modèle externe n’est nécessaire. `server/services/emailTemplates.ts` fournit l’en-tête, le logo public, le pied de page EFPC et les libellés métier. Le service d’envoi enveloppe aussi les messages sans mise en forme spécifique.
 
+Le nom d’affichage de l’expéditeur est `EFPC` par défaut, personnalisable avec `EMAIL_FROM_NAME`. L’adresse `EMAIL_FROM` reste celle validée chez Brevo : par exemple `EFPC <kfallet@gmail.com>`. Le nom est transmis à l’API Brevo et au transport SMTP ; aucune modification de l’adresse ou des identifiants n’est nécessaire. Un carnet de contacts du destinataire peut toutefois afficher son propre nom enregistré.
+
 - Invitation : entreprise, auteur, activation du compte, expiration de 72 heures.
 - Réinitialisation du mot de passe : lien individuel, expiration d’une heure.
 - Achats : étapes d’EB, BC prêt, révision, corrections, facture et paiement ; bouton vers `/manager?tab=achats`.

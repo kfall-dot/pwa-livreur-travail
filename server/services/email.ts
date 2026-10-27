@@ -41,7 +41,7 @@ async function sendSmtp(payload: EmailPayload): Promise<EmailSendResult> {
       : undefined,
   })
   const info = await transporter.sendMail({
-    from: emailConfig.from,
+    from: { name: emailConfig.fromName, address: emailConfig.from },
     to: payload.to,
     subject: payload.subject,
     text: payload.text,
@@ -55,7 +55,7 @@ export async function sendEmail(payload: EmailPayload): Promise<EmailSendResult>
   const text = readableEmailText(payload.text)
   payload = { ...payload, subject, text, html: payload.html?.includes('<!-- efpc-email-template -->') ? payload.html : renderEmailTemplate({ subject, text, contentHtml: payload.html }) }
   if (emailConfig.provider === 'smtp') return sendSmtp(payload)
-  if (emailConfig.provider === 'brevo') return sendBrevoEmail(payload, emailConfig.from, emailConfig.brevoApiKey)
+  if (emailConfig.provider === 'brevo') return sendBrevoEmail(payload, emailConfig.from, emailConfig.brevoApiKey, emailConfig.fromName)
   if (emailConfig.provider === 'mock') return sendMock(payload)
   throw new Error('EMAIL_PROVIDER invalide ; valeurs autorisées : mock, smtp, brevo.')
 }

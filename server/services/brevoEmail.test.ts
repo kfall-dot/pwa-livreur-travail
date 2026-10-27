@@ -13,6 +13,7 @@ test('Brevo transmet le message HTTPS et exige un identifiant fournisseur', asyn
     const body = JSON.parse(String(options?.body))
     assert.deepEqual(body.to, [{ email: payload.to }])
     assert.equal(body.sender.email, 'sender@example.com')
+    assert.equal(body.sender.name, 'EFPC')
     assert.equal(body.textContent, 'Texte')
     assert.equal(body.htmlContent, undefined)
     assert.ok(options?.signal)

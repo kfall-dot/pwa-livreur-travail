@@ -4,7 +4,7 @@ function failure(code: string, responseCode?: number) {
   return Object.assign(new Error(`Échec de l’envoi Brevo (${code}).`), { code, responseCode })
 }
 
-export async function sendBrevoEmail(payload: EmailPayload, from: string, apiKey: string): Promise<EmailSendResult> {
+export async function sendBrevoEmail(payload: EmailPayload, from: string, apiKey: string, fromName = 'EFPC'): Promise<EmailSendResult> {
   if (!apiKey || !from) throw failure('BREVO_CONFIG_MISSING')
   try {
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -12,7 +12,7 @@ export async function sendBrevoEmail(payload: EmailPayload, from: string, apiKey
       headers: { 'api-key': apiKey, accept: 'application/json', 'content-type': 'application/json' },
       signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
-        sender: { email: from }, to: [{ email: payload.to }], subject: payload.subject,
+        sender: { email: from, name: fromName }, to: [{ email: payload.to }], subject: payload.subject,
         ...(payload.html ? { htmlContent: payload.html } : { textContent: payload.text }),
       }),
     })

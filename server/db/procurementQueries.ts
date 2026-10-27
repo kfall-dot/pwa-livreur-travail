@@ -1,3 +1,4 @@
+import { nextDocumentReference } from './documentReferences.js'
 import { readBcVerification, type BcVerificationAudit } from '../../shared/bcVerification.js'
 import { and, asc, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
@@ -1666,15 +1667,7 @@ export async function createEbParseRun(input: {
 
 // ─── Purchase requests ───────────────────────────────────────────────────────
 
-async function nextReference(companyId: string, prefix: string): Promise<string> {
-  const year = new Date().getFullYear()
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(purchaseRequests)
-    .where(eq(purchaseRequests.companyId, companyId))
-  const seq = (row?.count ?? 0) + 1
-  return `${prefix}-${year}-${String(seq).padStart(4, '0')}`
-}
+
 
 export async function listPurchaseRequests(companyId: string, initiatedByManagerId?: string) {
   // La colonne « Chantier » de l’UI lit `siteName` : sans jointure, le champ est
@@ -1948,7 +1941,7 @@ export async function createPurchaseRequestFromDraft(input: {
   initialStatus?: PurchaseRequestStatus
 }) {
   const id = `pr-${randomUUID()}`
-  const reference = await nextReference(input.companyId, 'EB')
+  const reference = await nextDocumentReference(input.companyId, 'EB')
 
   return db.transaction(async (tx: DbExecutor) => {
     const [request] = await tx
@@ -2131,7 +2124,7 @@ export async function createPurchaseOrder(input: {
   tourId?: string | null
 }) {
   const id = `po-${randomUUID()}`
-  const reference = await nextPoReference(input.companyId, input.docType ?? 'bc')
+  const reference = await nextDocumentReference(input.companyId, input.docType === 'bt' ? 'BT' : 'BC')
   const [row] = await db
     .insert(purchaseOrders)
     .values({
@@ -2151,17 +2144,7 @@ export async function createPurchaseOrder(input: {
   return row!
 }
 
-async function nextPoReference(companyId: string, docType: 'bc' | 'bt'): Promise<string> {
-  const prefix = docType === 'bt' ? 'BT' : 'BC'
-  const year = new Date().getFullYear()
-  const table = docType === 'bt' ? treasuryOrders : purchaseOrders
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(table)
-    .where(eq(table.companyId, companyId))
-  const seq = (row?.count ?? 0) + 1
-  return `${prefix}-${year}-${String(seq).padStart(4, '0')}`
-}
+
 
 export async function getPurchaseOrderById(companyId: string, poId: string) {
   const [row] = await db
@@ -2201,7 +2184,7 @@ export async function createTreasuryOrder(input: {
   pdfHtml: string
 }) {
   const id = `to-${randomUUID()}`
-  const reference = await nextPoReference(input.companyId, 'bt')
+  const reference = await nextDocumentReference(input.companyId, 'BT')
   const [row] = await db
     .insert(treasuryOrders)
     .values({

@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   boolean,
   date,
@@ -11,6 +12,8 @@ import {
   time,
   jsonb,
   uniqueIndex,
+  bigint,
+  primaryKey,
 } from 'drizzle-orm/pg-core'
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
@@ -674,7 +677,7 @@ export const purchaseRequests = pgTable('purchase_requests', {
   revisedAt: timestamp('revised_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (t) => [uniqueIndex('purchase_requests_company_reference_uidx').on(t.companyId, t.reference)])
 
 export type PurchaseRequest = typeof purchaseRequests.$inferSelect
 export type NewPurchaseRequest = typeof purchaseRequests.$inferInsert
@@ -774,7 +777,7 @@ export const purchaseOrders = pgTable('purchase_orders', {
   blContentType: text('bl_content_type'),
   blUploadedAt: timestamp('bl_uploaded_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (t) => [uniqueIndex('purchase_orders_company_reference_uidx').on(t.companyId, t.reference)])
 
 export type PurchaseOrder = typeof purchaseOrders.$inferSelect
 export type NewPurchaseOrder = typeof purchaseOrders.$inferInsert
@@ -801,7 +804,7 @@ export const treasuryOrders = pgTable('treasury_orders', {
   /** Statut du BT : pending → issued → deboursed → paid (F02 lot B). */
   status: treasuryOrderStatusEnum('status').notNull().default('pending'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (t) => [uniqueIndex('treasury_orders_company_reference_uidx').on(t.companyId, t.reference).where(sql`${t.purpose} <> 'material_invoice'`)])
 
 export type TreasuryOrder = typeof treasuryOrders.$inferSelect
 export type NewTreasuryOrder = typeof treasuryOrders.$inferInsert
@@ -1034,3 +1037,11 @@ export const procurementCorrections = pgTable('procurement_corrections', {
   responseComment: text('response_comment'), createdAt: timestamp('created_at').notNull().defaultNow(),
   resubmittedAt: timestamp('resubmitted_at'),
 })
+
+/** Compteurs durables par compagnie, type et année. Ne jamais les remettre à zéro lors d’un nettoyage de documents. */
+export const documentReferenceCounters = pgTable('document_reference_counters', {
+  companyId: text('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  prefix: text('prefix').notNull(),
+  year: integer('year').notNull(),
+  lastValue: bigint('last_value', { mode: 'bigint' }).notNull(),
+}, t => [primaryKey({ columns: [t.companyId, t.prefix, t.year] })])
