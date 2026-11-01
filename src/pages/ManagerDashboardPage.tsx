@@ -1,3 +1,5 @@
+import { ManagementStatements } from './manager/procurement/ManagementStatements'
+import { ExecutiveDashboard } from './manager/procurement/ExecutiveDashboard'
 import '../components/brand/EfpcWorkspace.css'
 import { WorkspaceIcon } from '../components/WorkspaceIcon'
 import { companyIdentity } from '../../shared/companyIdentity'
@@ -27,9 +29,11 @@ import { PlanifierTab } from './manager/tabs/PlanifierTab'
 import { PointsTab } from './manager/tabs/PointsTab'
 import { TachesTab } from './manager/tabs/TachesTab'
 
-type Tab = 'suivi' | 'suiviBc' | 'suiviChantier' | 'planifier' | 'livreurs' | 'gestionnaires' | 'points' | 'produits' | 'unites' | 'fournisseurs' | 'taches' | 'achats' | 'maJournee' | 'comptabilite' | 'tresorerie'
+type Tab = 'suivi' | 'suiviBc' | 'suiviChantier' | 'planifier' | 'livreurs' | 'gestionnaires' | 'points' | 'produits' | 'unites' | 'fournisseurs' | 'taches' | 'achats' | 'maJournee' | 'comptabilite' | 'tresorerie' | 'pilotage' | 'arretes'
 /* Icônes et sections de la sidebar — reproduit la maquette docs/mockups/sidebar-manager-v1.html */
 const SIDEBAR_ICONS: Partial<Record<string, string>> = {
+  arretes: '▤',
+  pilotage: '◫',
   maJournee: '🗓️',
   achats: '🛒',
   comptabilite: '🧾',
@@ -46,12 +50,15 @@ const SIDEBAR_ICONS: Partial<Record<string, string>> = {
 const SIDEBAR_SECTIONS = ['Général', 'Gestion', 'Planification'] as const
 
 function sidebarSectionOf(id: string): string {
+  if (id === 'pilotage') return 'Général'
   if (id === 'maJournee') return 'Général'
   if (id === 'planifier' || id === 'catalogue' || id === 'livreurs' || id === 'gestionnaires' || id === 'taches') return 'Planification'
   return 'Gestion'
 }
 
 const TAB_FROM_QUERY = new Set<Tab>([
+  'arretes',
+  'pilotage',
   'suivi',
   'suiviBc',
   'suiviChantier',
@@ -220,19 +227,23 @@ export function ManagerDashboardPage() {
       setTab('comptabilite')
     } else if (procurementRole === 'treasury') {
       setTab('tresorerie')
+    } else if (procurementRole === 'daf' || procurementRole === 'pdg') {
+      setTab('pilotage')
     } else if (isProcurementWorkspaceRole(procurementRole)) {
       setTab('achats')
     }
   }, [procurementRole, searchParams])
 
   useEffect(() => {
+    if (tab === 'arretes' && procurementRole && !['daf','pdg','accountant'].includes(procurementRole)) { setTab('achats'); return }
+    if (tab === 'pilotage' && procurementRole && procurementRole !== 'daf' && procurementRole !== 'pdg') { setTab('achats'); return }
     if (managerRole === 'admin' && (tab === 'livreurs' || tab === 'gestionnaires')) return
     if (isSiteManagerRole(procurementRole) && tab !== 'maJournee' && tab !== 'suiviChantier' && tab !== 'achats') {
       setTab('maJournee')
       return
     }
     if (procurementRole === 'accountant') {
-      if (tab !== 'comptabilite') setTab('comptabilite')
+      if (tab !== 'comptabilite' && tab !== 'arretes') setTab('comptabilite')
       return
     }
     if (procurementRole === 'treasury') {
@@ -255,6 +266,8 @@ export function ManagerDashboardPage() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
+    { id: 'arretes', label: 'Arrêtés mensuels' },
+    { id: 'pilotage', label: 'Pilotage' },
     { id: 'suivi',    label: 'Suivi livraisons' },
     { id: 'suiviBc',  label: 'Suivi' },
     { id: 'suiviChantier', label: 'Suivi chantier' },
@@ -285,11 +298,12 @@ export function ManagerDashboardPage() {
         { id: 'achats', label: 'Mes EB', tab: 'achats', badge: procurementInboxCount },
       ]
     : procurementRole === 'accountant'
-    ? [{ id: 'comptabilite' as const, label: 'Comptabilité', tab: 'comptabilite' as Tab }]
+    ? [{ id: 'comptabilite' as const, label: 'Comptabilité', tab: 'comptabilite' as Tab }, { id: 'arretes' as const, label: 'Arrêtés mensuels', tab: 'arretes' as Tab }]
     : procurementRole === 'treasury'
     ? [{ id: 'tresorerie' as const, label: 'Trésorerie', tab: 'tresorerie' as Tab }]
     : procurementWorkspace
     ? [
+        ...((procurementRole === 'daf' || procurementRole === 'pdg') ? [{ id: 'pilotage' as const, label: 'Pilotage', tab: 'pilotage' as Tab }, { id: 'arretes' as const, label: 'Arrêtés mensuels', tab: 'arretes' as Tab }] : []),
         { id: 'achats', label: 'Achats chantier', tab: 'achats', badge: procurementInboxCount },
         // Section « Gestion » : Achats chantier → Livraisons → [Suivi chantier] → Suivi (registre BC).
         // « Livraisons » précède donc « Suivi » et « Suivi chantier », pour tous les rôles
@@ -521,7 +535,7 @@ export function ManagerDashboardPage() {
             <h1 className="manager-header__title">
               {isEquipeTab ? 'Équipe' : (tabs.find((t) => t.id === tab)?.label ?? 'Tableau de bord')}
             </h1>
-            {clientIdentity && <p className="manager-header__description">{isEquipeTab ? 'Comptes, rôles et affectations de votre équipe.' : ({ achats: 'Vos expressions de besoin et leurs étapes de validation.', suiviBc: 'Commandes, pièces justificatives et suivi des factures.', comptabilite: 'Factures transmises et suivi des règlements.', tresorerie: 'Dossiers à financer et paiements à effectuer.', maJournee: 'Réceptions, tâches et consommations du chantier.', suiviChantier: isSiteManagerRole(procurementRole) ? 'Matériaux disponibles et livraisons prévues sur vos chantiers.' : 'Indicateurs et suivi de vos chantiers.', suivi: 'Livraisons, avancement et justificatifs de réception.', planifier: 'Organisation et programmation des livraisons.', fournisseurs: 'Répertoire et coordonnées des fournisseurs.', taches: 'Actions et demandes en attente.' } as Partial<Record<Tab, string>>)[tab] ?? 'Vos référentiels et vos opérations.'}</p>}
+            {clientIdentity && <p className="manager-header__description">{isEquipeTab ? 'Comptes, rôles et affectations de votre équipe.' : ({ arretes: 'Lectures mensuelles validées et historique des révisions.', pilotage: 'Vue globale, engagements et points d’attention.', achats: 'Vos expressions de besoin et leurs étapes de validation.', suiviBc: 'Commandes, pièces justificatives et suivi des factures.', comptabilite: 'Factures transmises et suivi des règlements.', tresorerie: 'Dossiers à financer et paiements à effectuer.', maJournee: 'Réceptions, tâches et consommations du chantier.', suiviChantier: isSiteManagerRole(procurementRole) ? 'Matériaux disponibles et livraisons prévues sur vos chantiers.' : 'Indicateurs et suivi de vos chantiers.', suivi: 'Livraisons, avancement et justificatifs de réception.', planifier: 'Organisation et programmation des livraisons.', fournisseurs: 'Répertoire et coordonnées des fournisseurs.', taches: 'Actions et demandes en attente.' } as Partial<Record<Tab, string>>)[tab] ?? 'Vos référentiels et vos opérations.'}</p>}
           </div>
           <div className="manager-header__actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <NotificationBell />
@@ -648,6 +662,13 @@ export function ManagerDashboardPage() {
             onTasksChanged={bumpTasks}
           />
         )}
+        {tab === 'arretes' && (procurementRole === 'daf' || procurementRole === 'pdg' || procurementRole === 'accountant') && <ManagementStatements role={procurementRole} handleAuth={handleAuth} />}
+        {tab === 'pilotage' && (procurementRole === 'daf' || procurementRole === 'pdg') && <ExecutiveDashboard
+          role={procurementRole} handleAuth={handleAuth}
+          onOpenRequest={id => { setPendingProcurementFocusRequest(id); setTab('achats') }}
+          onOpenBudgets={() => setTab('suiviChantier')}
+          onOpenRequests={() => setTab('achats')}
+        />}
         {tab === 'achats' && (
           <AchatsTab
             key={`achats-${suiviRefreshKey}`}

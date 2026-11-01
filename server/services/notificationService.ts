@@ -1,8 +1,9 @@
+import { buildNotificationSmsBody } from './smsMessages.js'
 import { randomUUID } from 'node:crypto'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { managers, notifications } from '../db/schema.js'
-import { sendSmsMessage } from './sms.js'
+import { managers, notifications, notificationOutbox } from '../db/schema.js'
+import { notificationOutboxValues, wakeNotificationWorker, type OutboxMessage } from './notificationOutbox.js'
 
 export type NotificationType =
   | 'approval_required'
@@ -25,43 +26,21 @@ export interface NotifyManagerInput {
 }
 
 /**
- * Crée une notification in-app et envoie un SMS si demandé et si le manager a un numéro.
+ * Crée une notification in-app et programme un SMS si demandé et si le manager a un numéro.
  */
 export async function notifyManager(input: NotifyManagerInput): Promise<string> {
   const id = randomUUID()
 
-  await db.insert(notifications).values({
-    id,
-    companyId: input.companyId,
-    managerId: input.managerId,
-    type: input.type,
-    title: input.title,
-    message: input.message,
-    link: input.link,
-    refType: input.refType,
-    refId: input.refId,
-    smsSent: false,
-    read: false,
+  const [manager] = await db.select({phone:managers.phone}).from(managers).where(and(eq(managers.id,input.managerId),eq(managers.companyId,input.companyId)))
+  if(!manager)throw new Error('Gestionnaire introuvable dans cette compagnie')
+  const messages:OutboxMessage[]=[]
+  if(input.sendSms!==false&&manager.phone)messages.push({channel:'sms',to:manager.phone,text:buildNotificationSmsBody(input.title,input.message),notificationId:id,dedupeKey:`${id}:sms`})
+  await db.transaction(async tx=>{
+   await tx.insert(notifications).values({id,companyId:input.companyId,managerId:input.managerId,type:input.type,title:input.title,message:input.message,link:input.link,refType:input.refType,refId:input.refId,smsSent:false,read:false})
+   if(messages.length)await tx.insert(notificationOutbox).values(notificationOutboxValues(input.companyId,messages))
   })
 
-  // SMS si demandé
-  if (input.sendSms !== false) {
-    const rows = await db
-      .select({ phone: managers.phone })
-      .from(managers)
-      .where(eq(managers.id, input.managerId))
-    const phone = rows[0]?.phone
-    if (phone) {
-      const smsBody = `[TraceO] ${input.title}\n${input.message}${input.link ? `\n${input.link}` : ''}`
-      try {
-        await sendSmsMessage(phone, smsBody)
-        await db.update(notifications).set({ smsSent: true }).where(eq(notifications.id, id))
-      } catch (err) {
-        console.warn(`[notification] SMS échoué pour ${input.managerId}:`, err)
-      }
-    }
-  }
-
+  if(messages.length)wakeNotificationWorker()
   return id
 }
 

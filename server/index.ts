@@ -1,3 +1,4 @@
+import { startNotificationWorker } from './services/notificationOutbox.js'
 import { createApp } from './app.js'
 import { describeEmailProvider } from './config/email.js'
 import { describeSmsProvider } from './config/sms.js'
@@ -26,6 +27,8 @@ if (process.env.SKIP_MIGRATIONS !== '1') {
     process.exit(1)
   }
 }
+startNotificationWorker()
+
 const PORT = Number(process.env.PORT ?? 3002)
 app.listen(PORT, () => {
   console.log(`API Livreur → http://localhost:${PORT}/api`)

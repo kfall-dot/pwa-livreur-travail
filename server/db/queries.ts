@@ -2586,6 +2586,8 @@ export interface DashboardDelivery {
    * planifié depuis le catalogue, hors BC.
    */
   purchaseOrderRef: string | null
+  /** Paiement de la facture du BC, indépendant du résultat de réception. */
+  purchaseOrderPaymentStatus: 'paid' | 'due' | 'untransmitted' | null
   /** Chantier achats relié au point du catalogue de l'arrêt (planifications hors BC). */
   catalogueSiteName: string | null
 }
@@ -2699,7 +2701,16 @@ export async function getDashboardDeliveries(
         select po.reference from purchase_orders po
         where po.company_id = ${companyId}
           and (po.id = ${tours.purchaseOrderId} or po.tour_id = ${tours.id})
-        order by po.created_at desc
+        order by (po.id = ${tours.purchaseOrderId}) desc nulls last, po.created_at desc, po.id desc
+        limit 1
+      )`,
+      purchaseOrderPaymentStatus: sql<'paid' | 'due' | 'untransmitted' | null>`(
+        select case when po.sa_invoice_paid then 'paid'
+          when po.sa_invoice_transmitted then 'due' else 'untransmitted' end
+        from purchase_orders po
+        where po.company_id = ${companyId}
+          and (po.id = ${tours.purchaseOrderId} or po.tour_id = ${tours.id})
+        order by (po.id = ${tours.purchaseOrderId}) desc nulls last, po.created_at desc, po.id desc
         limit 1
       )`,
       catalogueSiteName: sql<string | null>`(

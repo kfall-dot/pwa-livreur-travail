@@ -23,6 +23,7 @@ import {
   getTreasuryOrderByLine,
   getTreasuryOrderByRequest,
   linkDeliveryPointsToPurchaseOrder,
+  listSuppliers,
   listPurchaseOrdersForRequest,
   listTreasuryOrdersForRequest,
   recordApprovalStep,
@@ -30,7 +31,6 @@ import {
   setPurchaseOrderTour,
   setTourPurchaseOrder,
   setTreasuryOrderPurchaseOrder,
-  updatePurchaseOrderHtml,
   updatePurchaseRequestStatus,
   updateRequestLineQuantities,
   updateTreasuryOrderAmount,
@@ -532,37 +532,36 @@ export async function createPurchaseOrderForRequest(input: {
   managerId: string
   supplierId?: string | null
 }) {
-  const request = await getPurchaseRequestById(input.companyId, input.requestId)
+  const [request, actor] = await Promise.all([getPurchaseRequestById(input.companyId, input.requestId), getManagerById(input.managerId)])
   if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)
   if (request.status !== 'sa_review' && request.status !== 'po_ready' && request.status !== 'bc_head_review') {
     throw new ProcurementWorkflowError('Le BC ne peut être créé qu’après validation DAF')
   }
 
-  const lines = await getPurchaseRequestLines(request.id)
-  const actor = await getManagerById(input.managerId)
   if (!actor || actor.companyId !== input.companyId || actor.procurementRole !== 'purchasing') throw new ProcurementWorkflowError('Compte SA requis', 403)
   if (actor.saSupervisorId && !isValidSaSupervisor(actor, await getManagerById(actor.saSupervisorId))) throw new ProcurementWorkflowError('Chef SA affecté invalide')
   if (request.status === 'bc_head_review' && actor.saSupervisorId && actor.saSupervisorId !== request.saReviewerId) throw new ProcurementWorkflowError('Cette émission est déjà confiée à une autre équipe SA', 403)
   const pendingSaHeadReview = Boolean(actor.saSupervisorId || request.status === 'bc_head_review')
+  const [lines, existingPos] = await Promise.all([getPurchaseRequestLines(request.id), listPurchaseOrdersForRequest(input.companyId, request.id)])
   const names = distinctSupplierNames(lines)
   let supplierId = input.supplierId ?? request.supplierId
   if (!supplierId && names.length === 1) {
-    const detail = await getRequestDetail(input.companyId, request.id)
-    const match = detail?.suppliers.find((s) => namesMatch(s.name, names[0]))
+    const suppliers = await listSuppliers(input.companyId)
+    const match = suppliers.find((s) => namesMatch(s.name, names[0]))
     supplierId = match?.id ?? null
   }
   if (!supplierId) throw new ProcurementWorkflowError('Précisez le fournisseur du BC')
 
-  const existingPos = await listPurchaseOrdersForRequest(input.companyId, request.id)
   if (existingPos.some((p) => p.supplierId === supplierId)) {
     throw new ProcurementWorkflowError('Un BC existe déjà pour ce fournisseur')
   }
 
-  const [site, supplier, template, companyName] = await Promise.all([
+  const [site, supplier, template, companyName, treasuries] = await Promise.all([
     getSiteById(input.companyId, request.siteId),
     getSupplierById(input.companyId, supplierId),
     getActiveDocumentTemplate(input.companyId, 'bc'),
     getCompanyName(input.companyId),
+    listTreasuryOrdersForRequest(input.companyId,request.id),
   ])
   if (!site || !supplier) throw new ProcurementWorkflowError('Chantier ou fournisseur introuvable')
 
@@ -571,7 +570,7 @@ export async function createPurchaseOrderForRequest(input: {
   // Réfs. croisées imprimées sur le BC : EB d'origine + BT déjà générés (comptant).
   const chainRefs = {
     ebReference: `${request.reference}${versionSuffix(request.version)}`,
-    btReferences: (await listTreasuryOrdersForRequest(input.companyId, request.id)).map((b) => b.reference),
+    btReferences: treasuries.map((b) => b.reference),
   }
 
   const po = await createPurchaseOrder({
@@ -581,10 +580,9 @@ export async function createPurchaseOrderForRequest(input: {
     supplierId,
     amountFcfa: amount,
     templateId: template?.id ?? null,
-    pdfHtml: generateBcHtml(template, { ...bcData, ...chainRefs, reference: request.reference }),
+    pdfHtml: '',
+    renderHtml: reference => generateBcHtml(template, { ...bcData, ...chainRefs, reference }),
   })
-  const pdfHtml = generateBcHtml(template, { ...bcData, ...chainRefs, reference: po.reference })
-  await updatePurchaseOrderHtml(po.id, pdfHtml)
 
   await updatePurchaseRequestStatus(input.companyId, request.id, pendingSaHeadReview ? 'bc_head_review' : 'po_ready', { supplierId, saReviewerId: actor.saSupervisorId || request.saReviewerId })
   if (pendingSaHeadReview) {
@@ -594,7 +592,7 @@ export async function createPurchaseOrderForRequest(input: {
     await notifyPurchaseOrderReady(input.companyId, request.reference, po.reference)
   }
 
-  return { ...po, pdfHtml, amountFcfa: String(amount) }
+  return { ...po, amountFcfa: String(amount) }
 }
 
 export async function approveSaPreparedPurchaseOrders(input: {
@@ -669,10 +667,10 @@ export async function createPurchaseOrdersForEb(input: {
   if (!request) throw new ProcurementWorkflowError('Demande introuvable', 404)
   const lines = await getPurchaseRequestLines(request.id)
   const names = distinctSupplierNames(lines)
-  const detail = await getRequestDetail(input.companyId, request.id)
+  const suppliers = await listSuppliers(input.companyId)
   const ids: string[] = []
   for (const name of names) {
-    const match = detail?.suppliers.find((s) => namesMatch(s.name, name))
+    const match = suppliers.find((s) => namesMatch(s.name, name))
     if (match && !ids.includes(match.id)) ids.push(match.id)
   }
   const fallback = input.supplierId ?? request.supplierId
@@ -680,8 +678,8 @@ export async function createPurchaseOrdersForEb(input: {
   if (ids.length === 0) throw new ProcurementWorkflowError('Précisez le fournisseur du BC')
 
   const created = []
+  const existingPos = await listPurchaseOrdersForRequest(input.companyId, request.id)
   for (const supplierId of ids) {
-    const existingPos = await listPurchaseOrdersForRequest(input.companyId, request.id)
     if (existingPos.some((p) => p.supplierId === supplierId)) continue
     created.push(
       await createPurchaseOrderForRequest({

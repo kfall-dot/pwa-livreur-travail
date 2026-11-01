@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   buildOtpSmsBody,
+  buildNotificationSmsBody,
   buildTourAssignedSmsBody,
   formatOrderDetailForOtpSms,
   resolveSmsOrderReference,
@@ -14,6 +15,26 @@ describe('resolveSmsOrderReference', () => {
       resolveSmsOrderReference('550e8400-e29b-41d4-a716-446655440000'),
       '—',
     )
+  })
+})
+
+describe('buildNotificationSmsBody', () => {
+  it('affiche EFPC, un statut lisible et une référence sans divulguer le détail', () => {
+    const body = buildNotificationSmsBody('EB EB-2026-0042 — daf_review', 'Montant confidentiel : 750000 FCFA')
+    assert.match(body, /^EFPC - EB-2026-0042 — Validation du DAF/)
+    assert.doesNotMatch(body, /daf_review|750000|TraceO/)
+    assert.match(body, /Consultez votre espace/)
+  })
+
+  it('récupère les références du détail sans répétition', () => {
+    const body = buildNotificationSmsBody('Correction validée', 'EB-2026-0042 : correction de EB-2026-0042')
+    assert.equal(body.match(/EB-2026-0042/g)?.length, 1)
+  })
+
+  it('limite les titres longs tout en conservant la référence du dossier', () => {
+    const body = buildNotificationSmsBody('x'.repeat(500) + ' EB-2026-0042', '')
+    assert.ok(body.length < 180)
+    assert.match(body, /EB-2026-0042/)
   })
 })
 
@@ -41,6 +62,7 @@ describe('buildOtpSmsBody', () => {
       outcome: 'full',
     })
     assert.match(body, /123456/)
+    assert.match(body, /^EFPC - /)
     assert.match(body, /CMD-2026-8841/)
     assert.match(body, /Carrefour City/)
   })

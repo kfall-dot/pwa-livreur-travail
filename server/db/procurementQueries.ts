@@ -2121,6 +2121,7 @@ export async function createPurchaseOrder(input: {
   docType?: 'bc' | 'bt'
   templateId?: string | null
   pdfHtml: string
+  renderHtml?: (reference: string) => string
   tourId?: string | null
 }) {
   const id = `po-${randomUUID()}`
@@ -2137,7 +2138,7 @@ export async function createPurchaseOrder(input: {
       docType: input.docType ?? 'bc',
       templateId: input.templateId ?? null,
       amountFcfa: String(input.amountFcfa),
-      pdfHtml: input.pdfHtml,
+      pdfHtml: input.renderHtml ? input.renderHtml(reference) : input.pdfHtml,
       tourId: input.tourId ?? null,
     })
     .returning()
@@ -2395,6 +2396,7 @@ export async function listTreasuryOrdersToDisburse(companyId: string) {
 export async function listTreasuryPaymentHistory(companyId: string) {
   return db
     .select({
+      paymentId: treasuryDisbursements.id,
       treasuryId: treasuryOrders.id,
       treasuryReference: treasuryOrders.reference,
       treasuryStatus: treasuryOrders.status,

@@ -1,15 +1,18 @@
 import { renderEmailTemplate } from './emailTemplates.js'
+import { eq } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { managers } from '../db/schema.js'
 import type { Declaration } from '../db/schema.js'
 import type { StopWithDriverContext } from '../db/queries.js'
-import { sendEmail } from './email.js'
+import { enqueueNotifications } from './notificationOutbox.js'
+import { getTourById } from '../db/queries.js'
 import { buildEmailBody } from './deliveryNotificationBody.js'
 
 export { buildEmailBody } from './deliveryNotificationBody.js'
 
 export interface DeliveryNotifyResult {
   sent: number
+  queued?: number
   failed: number
   errors: Array<{ to: string; error: string }>
   recipients: Array<{ email: string; role: string; name?: string }>
@@ -17,8 +20,8 @@ export interface DeliveryNotifyResult {
   certificateUrl?: string
 }
 
-async function findManagerRecipients(): Promise<Array<{ email: string; name: string; role: string }>> {
-  const rows = await db.select({ email: managers.email, name: managers.name }).from(managers)
+async function findManagerRecipients(companyId: string): Promise<Array<{ email: string; name: string; role: string }>> {
+  const rows = await db.select({ email: managers.email, name: managers.name }).from(managers).where(eq(managers.companyId, companyId))
   return rows
     .filter((r) => r.email?.trim())
     .map((r) => ({ email: r.email.trim().toLowerCase(), name: r.name, role: 'gerant' }))
@@ -28,6 +31,7 @@ export function formatEmailLineForTask(notifyResult: DeliveryNotifyResult | null
   if (!notifyResult) {
     return 'Aucun e-mail envoyé : renseignez les adresses gérant ou configurez SMTP (EMAIL_PROVIDER=smtp).'
   }
+  if (notifyResult.queued !== undefined) return notifyResult.queued > 0 ? `E-mails de réception enregistrés pour envoi en arrière-plan : ${notifyResult.queued}.` : 'Aucun nouvel e-mail de réception à programmer.'
   const emailedTo = notifyResult.recipients.map((r) => {
     const label = r.role === 'site_manager' ? 'responsable du lieu' : 'gérant'
     return `${label} : ${r.email}`
@@ -50,7 +54,9 @@ export async function sendDeliveryNotes(
   outcome: Declaration['outcome'] | null,
   declarationLines?: unknown,
 ): Promise<DeliveryNotifyResult> {
-  const recipients = await findManagerRecipients()
+  const companyId = ctx.companyId ?? (await getTourById(ctx.tourId))?.companyId
+  if (!companyId) throw new Error('Compagnie de livraison introuvable')
+  const recipients = await findManagerRecipients(companyId)
   const { subject, text } = buildEmailBody(
     {
       name: ctx.name,
@@ -69,31 +75,7 @@ export async function sendDeliveryNotes(
     declarationLines,
     certificateUrlOrPath,
   )
-  const html = renderEmailTemplate({ subject, text, actionUrl: certificateUrlOrPath, actionLabel: 'Voir le certificat de livraison' })
-  const emailResults: DeliveryNotifyResult['recipients'] = []
-  const emailErrors: DeliveryNotifyResult['errors'] = []
-
-  if (recipients.length === 0) {
-    console.warn(`[deliveryNotifications] Aucun destinataire e-mail pour ${ctx.id}`)
-  } else {
-    for (const recipient of recipients) {
-      try {
-        await sendEmail({ to: recipient.email, subject, text, html })
-        emailResults.push(recipient)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        emailErrors.push({ to: recipient.email, error: message })
-        console.error(`[deliveryNotifications] Échec e-mail vers ${recipient.email}:`, message)
-      }
-    }
-  }
-
-  return {
-    sent: emailResults.length,
-    failed: emailErrors.length,
-    errors: emailErrors,
-    emails: emailResults.map((r) => r.email),
-    recipients: emailResults,
-    certificateUrl: certificateUrlOrPath,
-  }
+  const html=renderEmailTemplate({subject,text,actionUrl:certificateUrlOrPath,actionLabel:'Voir le certificat de livraison'})
+  const queued=await enqueueNotifications(companyId,recipients.map(recipient=>({channel:'email' as const,to:recipient.email,subject,text,html,dedupeKey:`receipt:${receiptId}:email:${recipient.email}`})))
+  return {sent:0,queued,failed:0,errors:[],emails:recipients.map(r=>r.email),recipients,certificateUrl:certificateUrlOrPath}
 }

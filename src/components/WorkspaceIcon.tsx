@@ -1,4 +1,6 @@
 const paths: Record<string, string> = {
+  arretes: 'M4 3h16v18H4z M8 7h8 M8 11h8 M8 15h4 M15 15l2 2 3-4',
+  pilotage: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
   achats: 'M4 5h16v15H4z M8 3v4 M16 3v4 M8 11h8 M8 15h5',
   comptabilite: 'M5 3h14v18l-3-2-4 2-4-2-3 2V3Z M8 7h8 M8 11h8 M8 15h4',
   tresorerie: 'M3 6h18v14H3z M3 10h18 M7 15h3',

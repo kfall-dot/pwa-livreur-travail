@@ -15,4 +15,4 @@ Le logo est chargé depuis `${PUBLIC_BASE_URL}/branding/efpc-logo.png`. PUBLIC_B
 
 Les saisies dynamiques sont échappées dans les modèles ; seuls les liens HTTP/HTTPS sont proposés. Les modèles d’accès au compte conservent les liens et jetons existants. La version texte est conservée dans les charges utiles ; l’API Brevo envoie le HTML lorsqu’il est présent.
 
-Les modifications de modèles ne rejouent pas les anciens messages. La file persistante des notifications reste un changement local distinct tant qu’elle n’a pas été déployée. Le déploiement des modèles n’est pas automatique lors de leur édition locale.
+Les modifications de modèles ne rejouent pas les anciens messages. La file persistante des notifications est incluse dans la livraison du 31 octobre 2026. Le déploiement doit être vérifié avant de considérer les modifications comme actives.

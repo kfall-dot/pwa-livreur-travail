@@ -20,6 +20,7 @@ export interface DeliveryRow {
   siteName?: string | null
   /** Référence du BC ayant généré la tournée — null = planification catalogue (hors BC). */
   purchaseOrderRef?: string | null
+  purchaseOrderPaymentStatus?: 'paid' | 'due' | 'untransmitted' | null
   /** Chantier achats relié au point du catalogue de l'arrêt (planifications hors BC). */
   catalogueSiteName?: string | null
 }

@@ -1,6 +1,25 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { deliveryBucket } from './deliveryBucket.ts'
+import { deliveryBucket, deliveryReceptionLabel, deliveryInvoicePaymentLabel } from './deliveryBucket.ts'
+
+describe('réception et paiement indépendants', () => {
+  it('une réception partielle reste partielle même lorsque le BC est payé', () => {
+    assert.equal(deliveryReceptionLabel('delivered', 'partial'), 'Réception partielle')
+    assert.equal(deliveryInvoicePaymentLabel(true, 'paid'), 'Payé')
+  })
+  it('une livraison échouée ou refusée n’est pas une réception partielle', () => {
+    assert.equal(deliveryReceptionLabel('failed'), 'Livraison échouée')
+    assert.equal(deliveryReceptionLabel('delivered', 'rejected'), 'Réception refusée')
+    assert.equal(deliveryReceptionLabel('delivered', 'refused'), 'Réception refusée')
+  })
+  it('un BC livré n’est pas considéré payé sans confirmation financière', () => {
+    assert.equal(deliveryReceptionLabel('delivered', 'full'), 'Livrée')
+    assert.equal(deliveryInvoicePaymentLabel(true, 'due'), 'À payer')
+    assert.equal(deliveryInvoicePaymentLabel(true, 'untransmitted'), 'Non transmis')
+    assert.equal(deliveryInvoicePaymentLabel(true, undefined), 'Non renseigné')
+    assert.equal(deliveryInvoicePaymentLabel(false, null), 'Sans BC')
+  })
+})
 
 describe('deliveryBucket — classement livrée / écart (source unique tuiles + chips)', () => {
   it('livraison complète → delivered', () => {

@@ -17,6 +17,8 @@ import { emailConfig } from '../../config/email.js'
 test('réception fournisseur : fichiers sans hash comptés, doublons, reprise et erreur stockage', { skip: process.env.RUN_SUPPLIER_RECEPTION_INTEGRATION !== '1' }, async () => {
   const id = `test-reception-${randomUUID()}`, managerId = `${id}-chef`, stopId = `${id}-stop`
   const folder = mkdtempSync(path.join(tmpdir(), 'supplier-reception-'))
+  const previousOutboxTestMode = process.env.NOTIFICATION_OUTBOX_TEST_MODE
+  process.env.NOTIFICATION_OUTBOX_TEST_MODE = '1'
   const previous = { PHOTOS_DIR: process.env.PHOTOS_DIR, PHOTO_STORAGE: process.env.PHOTO_STORAGE }
   process.env.PHOTOS_DIR = path.join(folder, 'photos'); process.env.PHOTO_STORAGE = 'local'
   const app = express(); app.use(express.json()); app.use(deliveriesRoutes)
@@ -81,6 +83,7 @@ test('réception fournisseur : fichiers sans hash comptés, doublons, reprise et
     await db.delete(managers).where(eq(managers.companyId, id))
     await db.delete(companies).where(eq(companies.id, id))
     await getPool().end()
+    if(previousOutboxTestMode===undefined)delete process.env.NOTIFICATION_OUTBOX_TEST_MODE;else process.env.NOTIFICATION_OUTBOX_TEST_MODE=previousOutboxTestMode
     for (const key of ['PHOTOS_DIR', 'PHOTO_STORAGE'] as const) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key] }
     rmSync(folder, { recursive: true, force: true })
   }

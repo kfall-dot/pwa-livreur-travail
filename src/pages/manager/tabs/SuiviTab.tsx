@@ -7,7 +7,7 @@ import { confirmDeletion } from '../../../lib/confirmDeletion'
 import type { ProcurementRole } from '../procurement/procurementTypes'
 import { AlertBox, EmptyHint, LoadingHint } from '../managerUi'
 import { toast } from '../../../lib/toast'
-import { deliveryBucket, type DeliveryBucket } from '../../../lib/deliveryBucket'
+import { deliveryBucket, deliveryReceptionLabel, deliveryInvoicePaymentLabel, type DeliveryBucket } from '../../../lib/deliveryBucket'
 
 interface SuiviTourGroup {
   tourId: string
@@ -168,15 +168,7 @@ function lmStatusClass(status: string | null | undefined, declarationOutcome?: s
   return 'b-pending'
 }
 
-function lmStatusLabel(status: string | null | undefined, declarationOutcome?: string | null): string {
-  const s = (status ?? '').toLowerCase()
-  if (declarationOutcome === 'rejected' || declarationOutcome === 'refused' || s.includes('refus')) return 'Refusée'
-  if (declarationOutcome === 'partial' || s.includes('partial') || s.includes('fail')) return 'Écart'
-  if (s.includes('deliver') || s.includes('validat')) return 'Livrée'
-  if (s.includes('otp')) return 'OTP envoyé'
-  if (s.includes('progress')) return 'En cours'
-  return 'En attente'
-}
+
 
 
 export function SuiviTab({
@@ -326,13 +318,13 @@ export function SuiviTab({
         <div className="kpi"><span className="icon">🛣️</span><div className="label">En cours</div><div className="value warn" data-testid="mgr-suivi-kpi-progress">{kpi.progress}</div><div className="detail">livreur parti du dépôt</div></div>
         <div className="kpi"><span className="icon">🔐</span><div className="label">OTP envoyé</div><div className="value warn" data-testid="mgr-suivi-kpi-otp">{kpi.otp}</div><div className="detail">en attente de saisie client</div></div>
         <div className="kpi"><span className="icon">✅</span><div className="label">Livrées</div><div className="value ok" data-testid="mgr-suivi-kpi-delivered">{kpi.delivered}</div><div className="detail">sur {period.length} prévues</div></div>
-        <div className="kpi"><span className="icon">⚠️</span><div className="label">Échecs / écarts</div><div className="value warn" data-testid="mgr-suivi-kpi-failed">{kpi.failed}</div><div className="detail">quantité ≠ attendue</div></div>
+        <div className="kpi"><span className="icon">⚠️</span><div className="label">Réceptions à vérifier</div><div className="value warn" data-testid="mgr-suivi-kpi-failed">{kpi.failed}</div><div className="detail">quantité ≠ attendue</div></div>
       </div>
 
       <div className="filters">
         <button type="button" data-testid="mgr-suivi-chip-all" className={bucket === 'all' ? 'chip active' : 'chip'} onClick={() => setBucket('all')}>Toutes</button>
         <button type="button" data-testid="mgr-suivi-chip-otp" className={bucket === 'otp' ? 'chip active' : 'chip'} onClick={() => setBucket('otp')}>OTP bloqué</button>
-        <button type="button" data-testid="mgr-suivi-chip-partial" className={bucket === 'failed' ? 'chip active' : 'chip'} onClick={() => setBucket('failed')}>Écarts</button>
+        <button type="button" data-testid="mgr-suivi-chip-partial" className={bucket === 'failed' ? 'chip active' : 'chip'} onClick={() => setBucket('failed')}>À vérifier</button>
         <button type="button" data-testid="mgr-suivi-chip-delivered" className={bucket === 'delivered' ? 'chip active' : 'chip'} onClick={() => setBucket('delivered')}>Livrées</button>
         <span className="spacer" />
         <span className="field">
@@ -425,13 +417,13 @@ export function SuiviTab({
           <table data-testid="mgr-suivi-deliveries-table">
             <thead>
               <tr>
-                <th>Référence</th>{scope === 'month' && <th>Date</th>}<th>Chantier / Magasin</th><th>Livreur</th><th>Statut</th><th>Dépôt</th><th aria-hidden="true"></th>
+                <th>Référence</th>{scope === 'month' && <th>Date</th>}<th>Chantier / Magasin</th><th>Livreur</th><th>Réception</th><th>Paiement facture</th><th>Dépôt</th><th aria-hidden="true"></th>
               </tr>
             </thead>
             <tbody>
               {deliveries.map((d) => {
                 const cls = lmStatusClass(d.status, d.declarationOutcome)
-                const label = lmStatusLabel(d.status, d.declarationOutcome)
+                const label = deliveryReceptionLabel(d.status, d.declarationOutcome)
                 return (
                   <tr key={d.deliveryId} onClick={() => setSelectedId(d.deliveryId)}>
                     <td className="ref">{d.deliveryId.slice(0, 8).toUpperCase()}</td>
@@ -450,6 +442,9 @@ export function SuiviTab({
                     </td>
                     <td>{d.driverName}</td>
                     <td><span className={`badge ${cls}`}>{label}</span></td>
+                    <td><span className={`badge ${d.purchaseOrderPaymentStatus === 'paid' ? 'b-delivered' : d.purchaseOrderPaymentStatus === 'due' ? 'b-otp' : 'b-pending'}`}>
+                      {deliveryInvoicePaymentLabel(Boolean(d.purchaseOrderRef), d.purchaseOrderPaymentStatus)}
+                    </span></td>
                     <td className="muted">{d.depotName}</td>
                     <td>
                       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
@@ -464,7 +459,7 @@ export function SuiviTab({
         </div>
       )}
 
-      <p className="note"><b>Astuce :</b> cliquez sur une ligne pour ouvrir le détail complet — photos reçues, quantités déclarées vs attendues, assistance OTP et historique.</p>
+      <p className="note">La réception et le paiement de la facture sont suivis séparément. <b>Astuce :</b> cliquez sur une ligne pour ouvrir le détail complet — photos reçues, quantités déclarées vs attendues, assistance OTP et historique.</p>
 
       {selectedId && (
         <DeliveryDetailModal

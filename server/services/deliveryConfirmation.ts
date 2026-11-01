@@ -64,12 +64,7 @@ export async function finalizeDeliveryConfirmation(
   if (ctx) {
     let notifyResult: Awaited<ReturnType<typeof sendDeliveryNotes>>
     try {
-      notifyResult = await Promise.race([
-        sendDeliveryNotes(ctx, receiptId, certificateUrl, outcome, decl?.lines ?? null),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Timeout envoi e-mail bon de livraison')), 12_000)
-        }),
-      ])
+      notifyResult = await sendDeliveryNotes(ctx, receiptId, certificateUrl, outcome, decl?.lines ?? null)
     } catch (mailErr) {
       console.error('[deliveryConfirmation] envoi bon de livraison échoué', mailErr)
       notifyResult = {

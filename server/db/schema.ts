@@ -1,3 +1,4 @@
+import type { ManagementSnapshot } from '../../shared/managementStatement.js'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -1037,6 +1038,39 @@ export const procurementCorrections = pgTable('procurement_corrections', {
   responseComment: text('response_comment'), createdAt: timestamp('created_at').notNull().defaultNow(),
   resubmittedAt: timestamp('resubmitted_at'),
 })
+
+// Photographies de gestion validées : nouvelles versions, aucune mise à jour métier.
+export const managementStatements = pgTable('management_statements', {
+ id: text('id').primaryKey(),
+ companyId: text('company_id').notNull().references(()=>companies.id),
+ month: text('month').notNull(),
+ version: integer('version').notNull(),
+ snapshot: jsonb('snapshot').$type<ManagementSnapshot>().notNull(),
+ sourceHash: text('source_hash').notNull(),
+ validatedByManagerId: text('validated_by_manager_id').notNull().references(()=>managers.id),
+ validatedByName: text('validated_by_name').notNull(),
+ validatedAt: timestamp('validated_at',{withTimezone:true}).defaultNow().notNull(),
+ comment: text('comment').notNull().default(''),
+},table=>[uniqueIndex('management_statements_company_month_version').on(table.companyId,table.month,table.version)])
+
+// Notifications externes persistantes : le serveur HTTP n'attend pas les fournisseurs.
+export const notificationOutbox = pgTable('notification_outbox', {
+ id: text('id').primaryKey(),
+ companyId: text('company_id').notNull().references(()=>companies.id,{onDelete:'cascade'}),
+ notificationId: text('notification_id').references(()=>notifications.id,{onDelete:'set null'}),
+ channel: text('channel').notNull(),
+ payload: jsonb('payload').$type<{to:string;subject?:string;text:string;html?:string}>().notNull(),
+ dedupeKey: text('dedupe_key'),
+ status: text('status').notNull().default('pending'),
+ attempts: integer('attempts').notNull().default(0),
+ nextAttemptAt: timestamp('next_attempt_at',{withTimezone:true}).defaultNow().notNull(),
+ leaseUntil: timestamp('lease_until',{withTimezone:true}),
+ claimToken: text('claim_token'),
+ testOnly: boolean('test_only').notNull().default(false),
+ lastError: text('last_error'),
+ createdAt: timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+ sentAt: timestamp('sent_at',{withTimezone:true}),
+},table=>[index('notification_outbox_due_idx').on(table.status,table.nextAttemptAt),uniqueIndex('notification_outbox_dedupe_idx').on(table.companyId,table.dedupeKey)])
 
 /** Compteurs durables par compagnie, type et année. Ne jamais les remettre à zéro lors d’un nettoyage de documents. */
 export const documentReferenceCounters = pgTable('document_reference_counters', {

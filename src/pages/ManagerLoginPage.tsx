@@ -9,6 +9,7 @@ type LoginManager = {
 }
 
 function homeAfterLogin(manager?: LoginManager): string {
+  if (manager?.procurementRole === 'daf' || manager?.procurementRole === 'pdg') return '/manager?tab=pilotage'
   return isProcurementWorkspaceRole(manager?.procurementRole) ? '/manager?tab=achats' : '/manager'
 }
 

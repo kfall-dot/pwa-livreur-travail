@@ -1,4 +1,15 @@
 import { publicBaseUrl } from '../config/public.js'
+import { readableEmailText } from './emailTemplates.js'
+
+/** Alerte courte : les détails et pièces restent dans l’application et les e-mails. */
+export function buildNotificationSmsBody(title: string, message: string): string {
+  const clean = readableEmailText(title).replace(/^\[(?:TraceO|EFPC)\]\s*/i, '').replace(/\s+/g, ' ').trim()
+  const characters = Array.from(clean || 'Nouvelle notification')
+  const summary = characters.length > 100 ? `${characters.slice(0, 97).join('')}...` : characters.join('')
+  const references = [...new Set(`${title}\n${message}`.match(/\b(?:EB|BC|BT)-\d{4}-\d+\b/g) ?? [])]
+    .filter(reference => !summary.includes(reference)).slice(0, 2)
+  return `EFPC - ${summary}${references.length ? ` (${references.join(', ')})` : ''}\nConsultez votre espace dans l'application.`
+}
 
 export interface OtpSmsContext {
   pointName: string
@@ -36,20 +47,20 @@ export function buildOtpSmsBody(otpCode: string, ctx: OtpSmsContext): string {
 
   if (outcome === 'rejected') {
     return (
-      `Refus livraison ${point} (${orderId}). ` +
+      `EFPC - Refus livraison ${point} (${orderId}). ` +
       `Code validation ${otpCode} — transmettez au livreur si vous confirmez le refus.`
     )
   }
 
   if (outcome === 'partial') {
     return (
-      `Livraison partielle ${point} (${orderId}). ${detail}. ` +
+      `EFPC - Livraison partielle ${point} (${orderId}). ${detail}. ` +
       `Code ${otpCode} — transmettez au livreur si les quantités sont correctes.`
     )
   }
 
   return (
-    `Livraison ${point} (${orderId}). ${detail}. ` +
+    `EFPC - Livraison ${point} (${orderId}). ${detail}. ` +
     `Code ${otpCode} — transmettez au livreur pour confirmer la réception.`
   )
 }
@@ -69,7 +80,7 @@ export function buildTourAssignedSmsBody(opts: {
   const appUrl = (opts.appUrl ?? publicBaseUrl()).trim().replace(/\/$/, '')
   const linkPart = appUrl ? ` Ouvrez ${appUrl}` : ` Ouvrez l'app Livreur`
   return (
-    `Nouvelle tournée du ${date} : ${n} arrêt(s).${depotPart}` +
+    `EFPC - Nouvelle tournée du ${date} : ${n} arrêt(s).${depotPart}` +
     `${linkPart} pour démarrer.`
   )
 }

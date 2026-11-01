@@ -1,122 +1,36 @@
+import { buildNotificationSmsBody } from './smsMessages.js'
 import { readableEmailText, renderEmailTemplate, emailActionUrl } from './emailTemplates.js'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { db } from '../db/index.js'
-import { managers, notifications, type ProcurementRole } from '../db/schema.js'
-import { sendEmail } from './email.js'
-import { sendSmsMessage } from './sms.js'
-
-const ROLE_LABELS: Record<ProcurementRole, string> = {
-  site_controller: 'Conducteur de travaux',
-  technical_director: 'Directeur technique',
-  daf: 'DAF',
-  purchasing: 'Service achats',
-  pdg: 'PDG',
-  controle_gestion: 'Contrôle de gestion',
-  site_manager: 'Chef de chantier',
-  accountant: 'Comptabilité',
-  treasury: 'Trésorerie',
-}
-
-/**
- * Crée une notification in-app pour un manager.
- */
-async function createInAppNotification(params: {
-  managerId: string
-  companyId: string
-  type: 'approval_required' | 'bc_to_validate' | 'bt_to_validate' | 'task_assigned' | 'delivery_issue' | 'budget_alert'
-  title: string
-  message: string
-  link?: string
-  refType?: string
-  refId?: string
-}) {
-  await db.insert(notifications).values({
-    id: randomUUID(),
-    companyId: params.companyId,
-    managerId: params.managerId,
-    type: params.type,
-    title: params.title,
-    message: params.message,
-    link: params.link,
-    refType: params.refType,
-    refId: params.refId,
-    smsSent: false,
-    read: false,
-  })
-}
-
-/**
- * Envoie un SMS à un manager (si numéro présent).
- */
-async function sendManagerSms(phone: string | undefined, title: string, message: string) {
-  if (!phone) return
-  const body = `[TraceO] ${title}\n${message}`
-  try {
-    await sendSmsMessage(phone, body)
-  } catch (err) {
-    console.warn(`[procurement-notify] SMS échoué:`, err instanceof Error ? err.message : err)
-  }
-}
+import { managers, notifications, notificationOutbox, type ProcurementRole } from '../db/schema.js'
+import { notificationOutboxValues, wakeNotificationWorker, type OutboxMessage } from './notificationOutbox.js'
 
 export async function notifyManagersByProcurementRole(
-  companyId: string,
-  roles: ProcurementRole[],
-  subject: string,
-  text: string,
-  options?: {
-    managerIds?: string[]
-    link?: string
-    refType?: string
-    refId?: string
-    notificationType?: 'approval_required' | 'bc_to_validate' | 'bt_to_validate' | 'task_assigned' | 'delivery_issue' | 'budget_alert'
-  },
-): Promise<{ notified: number }> {
-  subject = readableEmailText(subject)
-  text = readableEmailText(text)
-  const html = renderEmailTemplate({ subject, text, actionUrl: emailActionUrl('/manager?tab=achats'), actionLabel: 'Consulter les demandes' })
-  const rows = await db
-    .select({ id: managers.id, email: managers.email, name: managers.name, phone: managers.phone, procurementRole: managers.procurementRole })
-    .from(managers)
-    .where(eq(managers.companyId, companyId))
-
-  const targets = rows.filter(
-    (m) => m.procurementRole && roles.includes(m.procurementRole) && (!options?.managerIds || options.managerIds.includes(m.id)),
-  )
-
-  let notified = 0
-  for (const target of targets) {
-    console.log(
-      `[procurement-notify] ${ROLE_LABELS[target.procurementRole!]} ${target.name} <${target.email}>: ${subject}`,
-    )
-    try {
-      await sendEmail({ to: target.email, subject, text, html })
-      notified++
-    } catch (err) {
-      console.error(
-        `[procurement-notify] Échec envoi à ${target.email} (${subject}):`,
-        err instanceof Error ? err.message : err,
-      )
-    }
-
-    // Notification in-app
-    if (options?.notificationType) {
-      await createInAppNotification({
-        managerId: target.id,
-        companyId,
-        type: options.notificationType,
-        title: subject,
-        message: text,
-        link: options.link,
-        refType: options.refType,
-        refId: options.refId,
-      })
-    }
-
-    // SMS si numéro
-    await sendManagerSms(target.phone ?? undefined, subject, text)
-  }
-  return { notified }
+ companyId:string,roles:ProcurementRole[],subject:string,text:string,
+ options?:{managerIds?:string[];link?:string;refType?:string;refId?:string;notificationType?:'approval_required'|'bc_to_validate'|'bt_to_validate'|'task_assigned'|'delivery_issue'|'budget_alert'}
+):Promise<{notified:number;queued:number}>{
+ subject=readableEmailText(subject)
+ text=readableEmailText(text)
+ const html=renderEmailTemplate({subject,text,actionUrl:emailActionUrl('/manager?tab=achats'),actionLabel:'Consulter les demandes'})
+ const rows=await db.select({id:managers.id,email:managers.email,phone:managers.phone,procurementRole:managers.procurementRole}).from(managers).where(eq(managers.companyId,companyId))
+ const targets=rows.filter(m=>m.procurementRole&&roles.includes(m.procurementRole)&&(!options?.managerIds||options.managerIds.includes(m.id)))
+ if(!targets.length)return {notified:0,queued:0}
+ const notificationType=options?.notificationType
+ const appRows=notificationType?targets.map(target=>({id:randomUUID(),companyId,managerId:target.id,type:notificationType,title:subject,message:text,link:options.link,refType:options.refType,refId:options.refId,smsSent:false,read:false})):[]
+ const messages:OutboxMessage[]=[]
+ targets.forEach((target,index)=>{
+  const notificationId=appRows[index]?.id
+  if(target.email?.trim())messages.push({channel:'email',to:target.email.trim(),subject,text,html,notificationId,dedupeKey:notificationId?`${notificationId}:email`:undefined})
+  if(target.phone?.trim())messages.push({channel:'sms',to:target.phone.trim(),text:buildNotificationSmsBody(subject,text),notificationId,dedupeKey:notificationId?`${notificationId}:sms`:undefined})
+ })
+ await db.transaction(async tx=>{
+  if(appRows.length)await tx.insert(notifications).values(appRows)
+  if(messages.length)await tx.insert(notificationOutbox).values(notificationOutboxValues(companyId,messages))
+ })
+ wakeNotificationWorker()
+ // « notified » signifie désormais notification enregistrée, pas livrée par e-mail.
+ return {notified:targets.length,queued:messages.length}
 }
 
 export async function notifyDraftReadyForReview(

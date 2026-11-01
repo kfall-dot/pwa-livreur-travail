@@ -12,7 +12,7 @@ import { createTourWithStops, deleteDeliveryPoints, deleteTourIfNoDeliveries, ge
 import { resolveStopFromCatalog } from '../../lib/resolveTourStop.js'
 import { requireManager, type ManagerRequest } from '../../middleware/managerAuth.js'
 import { markDeliveryScheduled, ProcurementWorkflowError } from '../../services/procurementWorkflow.js'
-import { sendSmsMessage } from '../../services/sms.js'
+import { enqueueNotifications } from '../../services/notificationOutbox.js'
 import { buildTourAssignedSmsBody } from '../../services/smsMessages.js'
 import { localTodayIso } from '../../utils/dates.js'
 import { randomUUID } from 'crypto'
@@ -185,7 +185,7 @@ toursRoutes.post('/dashboard/tours', requireManager, procurementEditLock('reques
       }
     }
 
-    let driverNotify: { sent: boolean; error?: string } = { sent: false }
+    let driverNotify: { sent: boolean; queued?: boolean; error?: string } = { sent: false }
     const driver = await getDriverById(resolvedDriverId)
     if (driver?.phone) {
       const smsBody = buildTourAssignedSmsBody({
@@ -194,10 +194,8 @@ toursRoutes.post('/dashboard/tours', requireManager, procurementEditLock('reques
         depotName: String(depotName),
       })
       try {
-        const sms = await sendSmsMessage(driver.phone, smsBody)
-        driverNotify = sms.success
-          ? { sent: true }
-          : { sent: false, error: sms.details ?? sms.error ?? 'échec SMS' }
+        await enqueueNotifications(manager.companyId,[{channel:'sms',to:driver.phone,text:smsBody,dedupeKey:`tour:${result.tourId}:assigned:${driver.id}`}])
+        driverNotify = { sent: false, queued: true }
       } catch (smsErr) {
         driverNotify = {
           sent: false,

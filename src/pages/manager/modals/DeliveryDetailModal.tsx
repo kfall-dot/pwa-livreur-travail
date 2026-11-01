@@ -11,6 +11,7 @@ import {
   ProductQuantityList,
 } from '../productHelpers'
 import { toast } from '../../../lib/toast'
+import { deliveryPhotoGalleryNotice } from '../../../lib/deliveryPhotoGallery'
 import { css as sharedCss, EmptyHint, LoadingHint } from '../managerUi'
 
 export interface DeliveryDetail {
@@ -73,7 +74,6 @@ function DlRow({ dt, dd, style }: { dt: string; dd: React.ReactNode; style?: Rea
 function PhotoGallery({ deliveryId, photoCount }: { deliveryId: string; photoCount: number }) {
   const [photos, setPhotos] = useState<ManagerPhoto[]>([])
   const [imageSrcs, setImageSrcs] = useState<string[]>([])
-  const [blobsEnabled, setBlobsEnabled] = useState(true)
   const [hint, setHint] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -81,16 +81,22 @@ function PhotoGallery({ deliveryId, photoCount }: { deliveryId: string; photoCou
     let cancelled = false
     const objectUrls: string[] = []
     setLoading(true)
+    setPhotos([])
+    setImageSrcs([])
+    setHint(null)
     void authFetch(`/dashboard/deliveries/${deliveryId}/photos`)
-      .then(async (r) => r.json() as Promise<{ photos: ManagerPhoto[]; blobsEnabled?: boolean; message?: string }>)
+      .then(async (r) => {
+        if (!r.ok) throw new Error('Impossible de charger les photos.')
+        return r.json() as Promise<{ photos: ManagerPhoto[]; message?: string }>
+      })
       .then(async (data) => {
         if (cancelled) return
         const list = data.photos ?? []
         setPhotos(list)
-        setBlobsEnabled(data.blobsEnabled !== false)
         setHint(data.message ?? null)
         const srcs: string[] = []
         for (const p of list) {
+          if (cancelled) return
           if (p.dataUrl) {
             srcs.push(p.dataUrl)
             continue
@@ -101,6 +107,7 @@ function PhotoGallery({ deliveryId, photoCount }: { deliveryId: string; photoCou
           }
           try {
             const blob = await authFetchBlob(p.url)
+            if (cancelled) return
             const url = URL.createObjectURL(blob)
             objectUrls.push(url)
             srcs.push(url)
@@ -123,22 +130,18 @@ function PhotoGallery({ deliveryId, photoCount }: { deliveryId: string; photoCou
   }, [deliveryId])
 
   const visibleCount = imageSrcs.filter(Boolean).length
+  const notice = deliveryPhotoGalleryNotice(photoCount, photos.length, visibleCount, hint)
 
   return (
     <section className="manager-proof-panel" aria-label="Preuves photos">
       <h4 className="manager-proof-panel__title">Preuves — photos livreur</h4>
       {loading && <LoadingHint />}
-      {!loading && !blobsEnabled && (
+      {!loading && notice && (
         <p style={{ fontSize: 13, color: '#b45309', background: '#fffbeb', padding: '8px 10px', borderRadius: 6, margin: 0 }}>
-          {hint ?? `${photoCount} photo(s) comptabilisée(s) — fichiers non disponibles sans Netlify Blobs (netlify dev).`}
+          {notice}
         </p>
       )}
-      {!loading && blobsEnabled && visibleCount === 0 && photoCount > 0 && (
-        <p style={{ fontSize: 13, color: '#b45309', background: '#fffbeb', padding: '8px 10px', borderRadius: 6, margin: 0 }}>
-          {photoCount} photo(s) comptabilisée(s) mais le fichier n’a pas pu être récupéré. Demandez au livreur de reprendre une photo.
-        </p>
-      )}
-      {!loading && photoCount === 0 && photos.length === 0 && (
+      {!loading && !notice && photoCount === 0 && photos.length === 0 && (
         <EmptyHint>Aucune photo enregistrée.</EmptyHint>
       )}
       {!loading && visibleCount > 0 && (

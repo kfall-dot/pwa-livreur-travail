@@ -245,7 +245,7 @@ deliveriesRoutes.get('/dashboard/deliveries/:id/photos', requireManager, async (
           url: '',
           paletteNumber: `PRODUIT-${i + 1}`,
         })),
-        message: 'Stockage photo indisponible en dev local (lancez netlify dev).',
+        message: 'Stockage photo indisponible sur cet environnement. Vérifiez la configuration du stockage et l’environnement de dépôt des photos.',
       })
       return
     }

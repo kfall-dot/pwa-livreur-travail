@@ -1,3 +1,4 @@
+import { notificationQueueStatus } from './services/notificationOutbox.js'
 import express from 'express'
 import cors from 'cors'
 import path from 'path'
@@ -250,8 +251,8 @@ export function createApp() {
     /** Ops prod : compteurs + flags (auth admin / manager). */
     app.get(`${prefix}/admin/ops-status`, requireAdminAction, async (_req, res) => {
       try {
-        const snap = await getOpsSnapshot()
-        res.json({ ok: true, ...snap, selfSignupRuntime: isSelfSignupAllowed(), security: securityAuditSnapshot() })
+        const [snap, notificationQueue] = await Promise.all([getOpsSnapshot(), notificationQueueStatus()])
+        res.json({ ok: true, ...snap, notificationQueue, selfSignupRuntime: isSelfSignupAllowed(), security: securityAuditSnapshot() })
       } catch (err) {
         console.error('[admin] ops-status error', err)
         res.status(500).json({ message: 'Erreur ops status' })

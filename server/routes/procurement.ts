@@ -1,3 +1,5 @@
+import { stripStoredDocumentHtml } from '../lib/procurementResponse.js'
+import { managementStatementsRouter } from './managementStatements.js'
 import { applyCompanyDocumentIdentity } from '../services/companyDocumentIdentity.js'
 import { verifyBcRegister } from '../db/procurementQueries.js'
 import { parseJsonAttachment } from '../lib/jsonAttachment.js'
@@ -139,8 +141,14 @@ import {
 } from '../services/ebSignature.js'
 
 export const procurementRouter = Router()
+procurementRouter.use((_req,res,next)=>{
+ const sendJson=res.json.bind(res)
+ res.json=body=>sendJson(stripStoredDocumentHtml(body))
+ next()
+})
 procurementRouter.use(requireManager)
 procurementRouter.use(loadProcurementRole)
+procurementRouter.use('/management-statements',managementStatementsRouter)
 
 // Tous les accès directs (fiche, pièces jointes, chaîne, modifications) doivent
 // respecter l'initiateur, même si le CdC connaît l'identifiant d'une autre EB.
