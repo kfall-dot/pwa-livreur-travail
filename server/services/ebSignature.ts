@@ -6,6 +6,7 @@
 import bcrypt from 'bcryptjs'
 import { createHash } from 'crypto'
 import type { ProcurementRole } from '../db/schema.js'
+import { clientIpFromRequest } from '../lib/clientIp.js'
 
 export type SignatureRole = 'DT' | 'DAF' | 'PDG' | 'SA' | 'CDG'
 
@@ -61,10 +62,7 @@ export function clientIpFromReq(req: {
   ip?: string
   socket?: { remoteAddress?: string }
 }): string {
-  const xf = req.headers['x-forwarded-for']
-  const raw = Array.isArray(xf) ? xf[0] : xf
-  if (raw?.trim()) return raw.split(',')[0]!.trim()
-  return req.ip || req.socket?.remoteAddress || '127.0.0.1'
+  return clientIpFromRequest(req) ?? 'unknown'
 }
 
 export async function verifySignaturePin(input: {

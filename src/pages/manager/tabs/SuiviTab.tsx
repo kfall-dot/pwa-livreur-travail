@@ -210,6 +210,8 @@ export function SuiviTab({
     [period, bucket],
   )
   const tourGroups = useMemo(() => groupDeliveriesByTour(deliveries), [deliveries])
+  const bcDeliveryCount = deliveries.filter((delivery) => Boolean(delivery.purchaseOrderRef)).length
+  const outsideBcDeliveryCount = deliveries.length - bcDeliveryCount
   /** Chantier du menu « Chantier » (libellé + BC émis) — message d'état vide ciblé. */
   const selectedSite = sites.find((s) => s.id === siteId) ?? null
 
@@ -408,11 +410,17 @@ export function SuiviTab({
             <h2 data-testid="mgr-suivi-list-title">
               {scope === 'month' ? `Livraisons de ${monthLabel(month)}` : `Livraisons du ${dayLabel(date)}`}
             </h2>
-            <span className="muted">
-              {deliveries.length} livraison{deliveries.length > 1 ? 's' : ''}
-              {scope === 'day' ? ` · ${tourGroups.length} tournée${tourGroups.length > 1 ? 's' : ''}` : ''}
-              {' '}· clic sur une ligne pour le détail
-            </span>
+            <div style={{ color: '#475569', fontSize: 12 }}>
+              <div data-testid="mgr-suivi-delivery-summary" aria-live="polite">
+                {deliveries.length} livraison{deliveries.length > 1 ? 's' : ''} :{' '}
+                {bcDeliveryCount} liée{bcDeliveryCount > 1 ? 's' : ''} à un BC et {outsideBcDeliveryCount} hors BC
+                {scope === 'day' ? ` · ${tourGroups.length} tournée${tourGroups.length > 1 ? 's' : ''}` : ''}
+              </div>
+              {selectedSite && (
+                <div>Le total de BC du menu Chantier couvre tous les mois ; ce tableau compte les livraisons filtrées.</div>
+              )}
+              <div>Clic sur une ligne pour le détail</div>
+            </div>
           </div>
           <table data-testid="mgr-suivi-deliveries-table">
             <thead>

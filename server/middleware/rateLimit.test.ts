@@ -1,9 +1,34 @@
 import { describe, it, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
+import { clientIpFromRequest } from '../lib/clientIp.js'
 import {
   checkRateLimit,
   resetRateLimitMemoryForTests,
 } from './rateLimit.js'
+
+describe('résolution de l’adresse IP', () => {
+  const railway = { RAILWAY_PROJECT_ID: 'test', RAILWAY_SERVICE_ID: 'test' }
+  const request = (headers: Record<string, string | string[]>) => ({ headers, socket: { remoteAddress: '::ffff:192.0.2.10' } })
+
+  it('ignore les en-têtes falsifiés en accès direct', () => {
+    assert.equal(clientIpFromRequest(request({ 'x-forwarded-for': '198.51.100.1', 'x-real-ip': '198.51.100.2' }), {}), '192.0.2.10')
+  })
+
+  it('utilise X-Real-IP de Railway sans croire la chaîne XFF', () => {
+    assert.equal(clientIpFromRequest(request({ 'x-real-ip': '198.51.100.2', 'x-forwarded-for': '198.51.100.1, 192.0.2.3' }), railway), '198.51.100.2')
+  })
+
+  it('refuse listes, doublons et adresses invalides, sans repli sur XFF', () => {
+    for (const value of ['bad', '198.51.100.1, 198.51.100.2', ['198.51.100.1', '198.51.100.2'], 'fe80::1%eth0']) {
+      assert.equal(clientIpFromRequest(request({ 'x-real-ip': value, 'x-forwarded-for': '198.51.100.1' }), railway), '192.0.2.10')
+    }
+  })
+
+  it('normalise les variantes IPv6 et ne fabrique pas une IP manquante', () => {
+    assert.equal(clientIpFromRequest(request({ 'x-real-ip': '2001:0db8:0:0:0:0:0:1' }), railway), '2001:db8::1')
+    assert.equal(clientIpFromRequest({ headers: {} }, {}), undefined)
+  })
+})
 
 describe('rateLimit — mémoire (fallback sans Blobs)', () => {
   beforeEach(() => {

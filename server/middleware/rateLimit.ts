@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { getStore } from '@netlify/blobs'
 import { isBlobsEnabled } from '../lib/blobs.js'
+import { clientIpFromRequest } from '../lib/clientIp.js'
 
 type Window = { count: number; resetAt: number }
 
@@ -119,11 +120,7 @@ export async function recordFailureHit(
 }
 
 function clientKey(req: Request, suffix: string): string {
-  const forwarded = req.headers['x-forwarded-for']
-  const ip =
-    (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : undefined) ||
-    req.socket.remoteAddress ||
-    'unknown'
+  const ip = clientIpFromRequest(req) ?? 'unknown'
   return `${suffix}:${ip}`
 }
 

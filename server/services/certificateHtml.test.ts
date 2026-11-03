@@ -69,6 +69,7 @@ describe('renderCertificateHtml', () => {
     assert.match(html, /Tomates/)
     assert.doesNotMatch(html, /Réception conforme/)
     assert.doesNotMatch(html, /Motif/)
+  })
 
   it('imprime les réfs. EB / BC de la chaîne documentaire sur le BL (Lot 1)', () => {
     const html = renderCertificateHtml({
@@ -106,7 +107,5 @@ describe('renderCertificateHtml', () => {
     })
     assert.doesNotMatch(html, /Réf\. EB/)
     assert.doesNotMatch(html, /Réf\. BC/)
-  })
-
   })
 })

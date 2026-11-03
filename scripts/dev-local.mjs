@@ -71,7 +71,7 @@ const dbUrl = dbUrlCandidates.find((url) => isUsableDbUrl(url)) ?? ''
 const dbHost = dbUrl ? (dbUrl.replace(/^[^@]+@/, '').split('/')[0] ?? '') : ''
 
 console.log('══════════════════════════════════════════════════════════════')
-console.log('  TraceO® — dev local (sans netlify:dev)')
+console.log('  EFPC — développement local')
 console.log('══════════════════════════════════════════════════════════════')
 console.log('')
 console.log(`  Front  → ${WEB_URL}`)
@@ -116,9 +116,8 @@ if (!dbUrl) {
 // Mot de passe masqué dans le log.
 console.log(`  DB     → ${dbHost}`)
 console.log('')
-console.log('  Limites vs netlify:dev :')
-console.log('    • Netlify Blobs indisponible (photos : fallback / bypass OK en dev)')
-console.log('    • E2E / npm run regression → toujours netlify:dev :8888')
+console.log('  Photos et pièces jointes : stockage local selon la configuration.')
+console.log('  E2E / npm run regression : serveur Express isolé sur :8888.')
 console.log('')
 console.log('══════════════════════════════════════════════════════════════')
 console.log('')

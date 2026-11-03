@@ -16,7 +16,7 @@
  * « prêtes à insérer ».
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import * as XLSX from 'xlsx'
+import { readSpreadsheetImport } from '../../../lib/spreadsheetImport'
 import { toast } from '../../../lib/toast'
 import {
   deleteHistoricalBatch,
@@ -110,20 +110,10 @@ export function CdgHistoricalCard({ canEdit }: { canEdit: boolean }) {
     setBusy(true)
     reset()
     try {
-      const workbook = XLSX.read(await file.arrayBuffer())
-      const sheet = workbook.Sheets[workbook.SheetNames[0] ?? '']
-      if (!sheet) {
-        toast.error('Fichier vide ou illisible')
-        return
-      }
       // `header: 1` → tableaux de cellules. L'en-tête est **détecté côté
       // serveur** (`shared/cdgJournal.ts`) : le format historique sans en-tête
       // reste accepté (mapping positionnel A → J).
-      const parsed = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-        header: 1,
-        defval: '',
-        blankrows: false,
-      })
+      const parsed = await readSpreadsheetImport(file, 'rows')
       if (parsed.length === 0) {
         toast.error('Aucune ligne dans le fichier')
         return

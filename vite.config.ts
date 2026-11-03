@@ -89,7 +89,7 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
-    host: true,
+    host: '127.0.0.1',
     // Polling partout : fs.watch (kqueue) sature macOS (EMFILE) avec BTP/ + docs + functions.
     watch: {
       usePolling: true,
@@ -108,11 +108,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        // netlify:dev → :8888 (via process.env.NETLIFY_DEV du CLI) ;
-        // sinon VITE_API_PROXY_TARGET lu depuis .env.development (défaut :3002 pour `npm run dev:local`)
-        target: process.env.NETLIFY_DEV
-          ? 'http://127.0.0.1:8888'
-          : (devEnv.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:3002'),
+        target: devEnv.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:3002',
         changeOrigin: true,
       },
     },

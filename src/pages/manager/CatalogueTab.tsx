@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import * as XLSX from 'xlsx'
+import { readSpreadsheetImport } from '../../lib/spreadsheetImport'
 import { authFetch, fetchSupermarkets } from './managerApi'
 import { normalizeSupermarkets, type Supermarket } from './managerTypes'
 import { EditSupermarketModal } from './modals/EditSupermarketModal'
@@ -111,11 +111,8 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
   const importProducts = async (file: File) => {
     setImporting(true)
     try {
-      const buf = await file.arrayBuffer()
-      const wb = XLSX.read(buf)
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      if (!ws) { toast.error('Fichier vide ou illisible'); return }
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+      const rows = await readSpreadsheetImport(file, 'records')
+      if (!rows.length) { toast.error('Fichier vide ou illisible'); return }
       const pick = (r: Record<string, unknown>, keys: string[]) => {
         for (const k of Object.keys(r)) {
           const norm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -143,8 +140,8 @@ export function CatalogueTab({ initialChip = 'produits' }: { initialChip?: Chip 
       }
       toast.success(`Import terminé : ${created} produit(s) créé(s), ${skipped} ignoré(s) (doublon ou colonne vide)`)
       void load()
-    } catch {
-      toast.error('Impossible de lire le fichier xlsx')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Impossible de lire le fichier xlsx')
     } finally {
       setImporting(false)
     }

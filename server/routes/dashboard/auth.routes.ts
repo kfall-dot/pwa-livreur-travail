@@ -98,7 +98,7 @@ authRoutes.post(
         req,
       })
       const btpHint = isBtpPilotLoginEmail(requested)
-        ? ' Compte DT/SA absent — ouvrez http://localhost:8888/manager/login après `npm run netlify:dev` (les comptes se créent à la connexion).'
+        ? ' Compte DT/SA absent — démarrez le serveur avec `npm run dev:local`, puis ouvrez /manager/login (les comptes se créent à la connexion).'
         : ''
       res.status(401).json({ message: `Identifiants invalides.${btpHint}` })
       return

@@ -3,6 +3,7 @@ import type { Request } from 'express'
 import { db } from '../db/index.js'
 import { securityAuditEvents } from '../db/schema.js'
 import { recordSecuritySpike } from './securitySpikeMonitor.js'
+import { clientIpFromRequest } from './clientIp.js'
 
 export type SecurityAuditAction =
   | 'driver.login.success'
@@ -39,9 +40,7 @@ export interface SecurityAuditInput {
 
 function clientIp(req?: Request): string | undefined {
   if (!req) return undefined
-  const forwarded = req.headers['x-forwarded-for']
-  if (typeof forwarded === 'string') return forwarded.split(',')[0]?.trim()
-  return req.socket.remoteAddress ?? undefined
+  return clientIpFromRequest(req)
 }
 
 /** Journalise un événement de sécurité (console structurée + persistance best-effort). */
